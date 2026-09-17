@@ -1,8 +1,8 @@
 # BodyHyrox-3D
 
-Aplikasi web 20FIT: **Super Admin Dashboard** sebagai halaman utama, plus
-landing page marketing 3D (Three.js). Dilayani oleh server **Node.js / Express**
-yang siap di-deploy ke **Railway**.
+Aplikasi web 20FIT: **landing page marketing 3D** (Three.js) sebagai halaman
+utama, plus **Super Admin Dashboard** di `/admin`. Dilayani oleh server
+**Node.js / Express** yang siap di-deploy ke **Railway**.
 
 ## Struktur
 
@@ -12,19 +12,19 @@ BodyHyrox-3D/
 ├── package.json       # Dependency & start script
 ├── railway.json       # Konfigurasi deploy Railway
 └── public/
-    ├── index.html     # Halaman utama — 20FIT Super Admin Dashboard
-    ├── landing.html   # Landing page marketing 3D (Three.js)
+    ├── index.html     # Halaman utama — landing page marketing 3D
+    ├── admin.html     # 20FIT Super Admin Dashboard (dilayani di /admin)
     ├── styles.css     # Styling landing page
     └── main.js        # Scene 3D landing page (Three.js)
 ```
 
 ## Halaman
 
-| Rute            | Isi                                |
-| --------------- | ---------------------------------- |
-| `/`             | 20FIT Super Admin Dashboard        |
-| `/landing.html` | Landing page marketing BodyHyrox   |
-| `/health`       | Health check (`{ "status": "ok" }`) |
+| Rute      | Isi                                 |
+| --------- | ----------------------------------- |
+| `/`       | Landing page marketing BodyHyrox    |
+| `/admin`  | 20FIT Super Admin Dashboard         |
+| `/health` | Health check (`{ "status": "ok" }`) |
 
 ## Menjalankan secara lokal
 

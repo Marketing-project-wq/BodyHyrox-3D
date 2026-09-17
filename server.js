@@ -12,6 +12,11 @@ app.get("/health", (_req, res) => {
   res.status(200).json({ status: "ok" });
 });
 
+// Admin dashboard (clean URL: /admin)
+app.get("/admin", (_req, res) => {
+  res.sendFile(path.join(__dirname, "public", "admin.html"));
+});
+
 // Fallback: always return the landing page
 app.get("*", (_req, res) => {
   res.sendFile(path.join(__dirname, "public", "index.html"));
