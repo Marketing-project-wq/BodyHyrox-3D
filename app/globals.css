@@ -1,0 +1,111 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-inter: "Inter", system-ui, -apple-system, sans-serif;
+  --font-space-grotesk: "Space Grotesk", system-ui, sans-serif;
+  --bg: #0d090b;
+  --surface: #161016;
+  --surface-2: #1d151b;
+  --border: #2b2028;
+  --text: #f3e9ee;
+  --muted: #9c8b95;
+  --faint: #6f5e68;
+  --accent: #ff2d55;
+  --green: #3ad29f;
+  --amber: #f6b446;
+  --gray: #8a7a82;
+}
+
+html,
+body {
+  background: var(--bg);
+  color: var(--text);
+}
+
+body {
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Numbers everywhere in tables/KPIs line up */
+.tabnum {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+@layer components {
+  /* Card */
+  .card {
+    @apply rounded-card border border-border bg-surface;
+  }
+
+  /* Section title with thin red accent line on the left (sentence-case) */
+  .section-title {
+    @apply relative pl-3 font-display text-[15px] font-semibold tracking-tight text-text;
+  }
+  .section-title::before {
+    content: "";
+    @apply absolute left-0 top-1/2 h-4 w-[3px] -translate-y-1/2 rounded-full bg-accent;
+  }
+
+  /* Eyebrow / small caps label used sparingly */
+  .eyebrow {
+    @apply text-[11px] font-medium uppercase tracking-[0.14em] text-faint;
+  }
+
+  /* Status badge: colored dot + tinted background */
+  .badge {
+    @apply inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium;
+  }
+  .badge-dot {
+    @apply h-1.5 w-1.5 rounded-full;
+  }
+
+  /* Sidebar nav item */
+  .nav-item {
+    @apply flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-muted transition-colors hover:bg-surface-2 hover:text-text;
+  }
+  .nav-item-active {
+    @apply bg-accent-soft text-text;
+  }
+
+  /* Buttons */
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors;
+  }
+  .btn-primary {
+    @apply bg-accent text-white hover:bg-[#ff405f];
+  }
+  .btn-ghost {
+    @apply border border-border text-text hover:bg-surface-2;
+  }
+
+  /* Inputs */
+  .input {
+    @apply w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm text-text placeholder:text-faint focus:border-accent focus:outline-none;
+  }
+
+  /* Table shell */
+  .th {
+    @apply px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-[0.08em] text-faint;
+  }
+  .td {
+    @apply px-4 py-3 text-sm text-text;
+  }
+}
+
+/* Thin scrollbars in dark theme */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+*::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 999px;
+}
