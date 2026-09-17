@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>BodyHyrox-3D</title>
+    <meta
+      name="description"
+      content="BodyHyrox-3D — pengalaman 3D interaktif untuk latihan, kompetisi, dan performa tubuh."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <!-- 3D background canvas -->
+    <canvas id="scene"></canvas>
+
+    <!-- Foreground content -->
+    <div class="overlay">
+      <header class="nav">
+        <div class="brand">BODY<span>HYROX</span>3D</div>
+        <nav class="nav-links">
+          <a href="#about">Tentang</a>
+          <a href="#features">Fitur</a>
+          <a href="#contact">Kontak</a>
+        </nav>
+      </header>
+
+      <main class="hero">
+        <p class="eyebrow">TRAIN · COMPETE · PERFORM</p>
+        <h1>
+          Visualisasi <span class="accent">3D</span><br />
+          untuk performa tubuh
+        </h1>
+        <p class="subtitle">
+          Platform marketing interaktif yang menghadirkan pengalaman 3D
+          real-time untuk brand kebugaran dan kompetisi Hyrox.
+        </p>
+        <div class="cta">
+          <a class="btn btn-primary" href="#contact">Mulai Sekarang</a>
+          <a class="btn btn-ghost" href="#features">Pelajari Lebih Lanjut</a>
+        </div>
+      </main>
+
+      <footer class="footer">
+        <span id="status" class="status">● Live</span>
+        <span>© <span id="year"></span> BodyHyrox-3D</span>
+      </footer>
+    </div>
+
+    <!-- Three.js (UMD global build) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="/main.js"></script>
+    <script>
+      document.getElementById("year").textContent = new Date().getFullYear();
+    </script>
+  </body>
+</html>
