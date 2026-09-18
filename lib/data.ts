@@ -107,12 +107,14 @@ export async function getTransactions(
   return (data ?? []).map(mapTx);
 }
 
+export type Gender = "male" | "female";
 export type AthleteRow = {
   id: string;
   nama: string;
   handle: string;
   kota: string;
   status: ActiveStatus;
+  gender: Gender;
   revenue: number;
   zonesSold: number;
 };
@@ -125,6 +127,7 @@ export async function getAthletes(): Promise<AthleteRow[]> {
     handle: String(r.handle),
     kota: String(r.kota),
     status: String(r.status) as ActiveStatus,
+    gender: (String(r.gender) === "female" ? "female" : "male") as Gender,
     revenue: n(r.revenue),
     zonesSold: n(r.zones_sold),
   }));

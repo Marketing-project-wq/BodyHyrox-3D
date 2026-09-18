@@ -77,6 +77,7 @@ export async function createAthlete(formData: FormData) {
     p_handle: handle,
     p_kota: String(formData.get("kota")),
     p_status: String(formData.get("status") || "active"),
+    p_gender: String(formData.get("gender") || "male"),
     p_actor_id: s.sub,
     p_actor_name: s.nama,
   });
