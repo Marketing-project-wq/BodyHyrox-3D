@@ -132,6 +132,29 @@ export function RevenueChart({ points }: { points: { label: string; value: numbe
   );
 }
 
+/* ---------- "Almost ready" notice when the DB key isn't set yet ---------- */
+export function NotConfigured() {
+  return (
+    <div className="flex min-h-[100dvh] items-center justify-center bg-bg px-4">
+      <div className="card max-w-md p-6 text-center">
+        <div className="mx-auto mb-4 flex items-center gap-1 font-condensed text-2xl font-bold tracking-tight">
+          <span>2</span>
+          <span className="inline-block h-[0.5em] w-[0.5em] rounded-full bg-accent" />
+          <span>FIT</span>
+        </div>
+        <h1 className="text-lg font-bold">Dashboard hampir siap</h1>
+        <p className="mt-2 text-sm text-muted">
+          Tinggal satu langkah: admin menambahkan variabel{" "}
+          <span className="tabnum rounded bg-surface-2 px-1.5 py-0.5 text-text">
+            SUPABASE_SERVICE_ROLE_KEY
+          </span>{" "}
+          di Railway → Variables. Setelah tersimpan, halaman ini otomatis aktif.
+        </p>
+      </div>
+    </div>
+  );
+}
+
 /* ---------- Proportional bar (rankings) ---------- */
 export function Bar({ ratio }: { ratio: number }) {
   return (

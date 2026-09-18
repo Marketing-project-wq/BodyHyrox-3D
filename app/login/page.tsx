@@ -1,5 +1,7 @@
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
+import { isConfigured } from "@/lib/supabase";
+import { NotConfigured } from "@/components/ui";
 import { login } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -9,6 +11,7 @@ export default function LoginPage({
 }: {
   searchParams: { error?: string };
 }) {
+  if (!isConfigured()) return <NotConfigured />;
   if (getSession()) redirect("/admin");
 
   return (

@@ -4,7 +4,17 @@ import { redirect } from "next/navigation";
 import type { Role, Permission } from "./config";
 import { can } from "./config";
 
-const SECRET = process.env.SESSION_SECRET || "dev-insecure-secret-change-me";
+// Session-signing secret. Uses SESSION_SECRET if provided; otherwise derives a
+// stable secret from the (required, non-committed) service role key so no extra
+// env var is needed. Falls back to a dev value only when nothing is configured.
+const SECRET =
+  process.env.SESSION_SECRET ||
+  (process.env.SUPABASE_SERVICE_ROLE_KEY
+    ? crypto
+        .createHash("sha256")
+        .update("smb-session:" + process.env.SUPABASE_SERVICE_ROLE_KEY)
+        .digest("hex")
+    : "dev-insecure-secret-change-me");
 const COOKIE = "smb_session";
 const MAX_AGE = 60 * 60 * 8; // 8 hours
 
