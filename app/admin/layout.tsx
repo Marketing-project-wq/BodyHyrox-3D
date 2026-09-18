@@ -1,6 +1,7 @@
 import { requireSession } from "@/lib/auth";
 import { getKpis, getAdminName } from "@/lib/data";
 import { isConfigured } from "@/lib/supabase";
+import { getLocale, getMessages } from "@/lib/i18n-server";
 import { AdminShell } from "@/components/AdminShell";
 import { NotConfigured } from "@/components/ui";
 
@@ -18,6 +19,8 @@ export default async function AdminLayout({
     <AdminShell
       session={{ nama: liveName ?? session.nama, role: session.role }}
       counts={{ athletes: kpis.athletes_active, brands: kpis.brands_total }}
+      m={getMessages()}
+      locale={getLocale()}
     >
       {children}
     </AdminShell>

@@ -16,37 +16,36 @@ import {
   LogOut,
   type LucideIcon,
 } from "lucide-react";
-import { ROLE_LABEL, type Role } from "@/lib/config";
+import type { Role } from "@/lib/config";
+import { type Dict, type Locale, tRole } from "@/lib/i18n";
 import { initials } from "@/lib/format";
 import { logout } from "@/app/admin/actions";
-
-type NavItem = {
-  href: string;
-  label: string;
-  icon: LucideIcon;
-  badge?: number;
-};
+import { LangToggle } from "@/components/LangToggle";
 
 export function AdminShell({
   session,
   counts,
+  m,
+  locale,
   children,
 }: {
   session: { nama: string; role: Role };
   counts: { athletes: number; brands: number };
+  m: Dict;
+  locale: Locale;
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
 
-  const nav: NavItem[] = [
-    { href: "/admin", label: "Overview", icon: LayoutDashboard },
-    { href: "/admin/atlet", label: "Athletes", icon: Users, badge: counts.athletes },
-    { href: "/admin/brand", label: "Brands", icon: Tag, badge: counts.brands },
-    { href: "/admin/transaksi", label: "Transactions", icon: Receipt },
-    { href: "/admin/event", label: "Events", icon: CalendarDays },
-    { href: "/admin/harga-zona", label: "Zone Pricing", icon: DollarSign },
-    { href: "/admin/pengaturan", label: "Settings", icon: Settings },
+  const nav: { href: string; label: string; icon: LucideIcon; badge?: number }[] = [
+    { href: "/admin", label: m.nav_overview, icon: LayoutDashboard },
+    { href: "/admin/atlet", label: m.nav_athletes, icon: Users, badge: counts.athletes },
+    { href: "/admin/brand", label: m.nav_brands, icon: Tag, badge: counts.brands },
+    { href: "/admin/transaksi", label: m.nav_transactions, icon: Receipt },
+    { href: "/admin/event", label: m.nav_events, icon: CalendarDays },
+    { href: "/admin/harga-zona", label: m.nav_zonePricing, icon: DollarSign },
+    { href: "/admin/pengaturan", label: m.nav_settings, icon: Settings },
   ];
 
   const isActive = (href: string) =>
@@ -60,6 +59,8 @@ export function AdminShell({
     </div>
   );
 
+  const roleLabel = tRole(m, session.role);
+
   return (
     <div className="bg-bg lg:h-[100dvh] lg:overflow-hidden">
       {/* Sidebar */}
@@ -70,14 +71,14 @@ export function AdminShell({
       >
         <div className="flex items-center justify-between px-5 py-4">
           <Wordmark />
-          <button className="text-sidebar-faint lg:hidden" onClick={() => setOpen(false)} aria-label="Tutup menu">
+          <button className="text-sidebar-faint lg:hidden" onClick={() => setOpen(false)} aria-label="Menu">
             <X size={20} />
           </button>
         </div>
 
         <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-2">
           <div className="px-3 pb-2 pt-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-sidebar-faint">
-            Manage
+            {m.manage}
           </div>
           {nav.map((item) => {
             const Icon = item.icon;
@@ -105,19 +106,20 @@ export function AdminShell({
           })}
         </nav>
 
-        <div className="border-t border-white/10 p-3">
-          <div className="flex items-center gap-3 px-2 py-1.5">
+        <div className="space-y-2 border-t border-white/10 p-3">
+          <LangToggle locale={locale} />
+          <div className="flex items-center gap-3 px-2 py-1">
             <span className="flex h-9 w-9 items-center justify-center rounded-full bg-accent text-xs font-semibold text-white">
               {initials(session.nama)}
             </span>
             <div className="min-w-0 flex-1">
               <div className="truncate text-sm font-medium text-white">{session.nama}</div>
-              {session.nama !== ROLE_LABEL[session.role] && (
-                <div className="text-xs text-sidebar-faint">{ROLE_LABEL[session.role]}</div>
+              {session.nama !== roleLabel && (
+                <div className="text-xs text-sidebar-faint">{roleLabel}</div>
               )}
             </div>
             <form action={logout}>
-              <button className="text-sidebar-faint transition-colors hover:text-accent" aria-label="Keluar" title="Keluar">
+              <button className="text-sidebar-faint transition-colors hover:text-accent" aria-label={m.logout} title={m.logout}>
                 <LogOut size={18} />
               </button>
             </form>
@@ -130,9 +132,8 @@ export function AdminShell({
 
       {/* Main column (no topbar) */}
       <div className="lg:flex lg:h-full lg:flex-col lg:pl-[250px]">
-        {/* Slim mobile-only bar with just the menu button */}
         <div className="sticky top-0 z-20 flex items-center gap-3 border-b border-border bg-sidebar px-4 py-2.5 lg:hidden">
-          <button className="text-white" onClick={() => setOpen(true)} aria-label="Buka menu">
+          <button className="text-white" onClick={() => setOpen(true)} aria-label="Menu">
             <Menu size={22} />
           </button>
           <Wordmark />

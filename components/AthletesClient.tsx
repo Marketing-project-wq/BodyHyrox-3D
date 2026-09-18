@@ -4,7 +4,8 @@ import { useMemo, useState } from "react";
 import { Plus, Search } from "lucide-react";
 import type { AthleteRow } from "@/lib/data";
 import { ACTIVE_STATUS } from "@/lib/config";
-import { formatIDR, formatIDRCompact, formatNumber } from "@/lib/format";
+import { type Dict, tActive, fmt } from "@/lib/i18n";
+import { formatIDRCompact, formatNumber } from "@/lib/format";
 import { Badge, Avatar } from "@/components/ui";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { createAthlete, setAthleteStatus } from "@/app/admin/actions";
@@ -14,11 +15,13 @@ export function AthletesClient({
   canEdit,
   canToggle,
   initialQuery = "",
+  m,
 }: {
   athletes: AthleteRow[];
   canEdit: boolean;
   canToggle: boolean;
   initialQuery?: string;
+  m: Dict;
 }) {
   const [q, setQ] = useState(initialQuery);
   const [status, setStatus] = useState<"all" | "active" | "inactive">("all");
@@ -43,30 +46,28 @@ export function AthletesClient({
   return (
     <div className="flex flex-col gap-4 lg:h-full lg:min-h-0">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <p className="text-sm text-muted">
-            <span className="tabnum text-text">{formatNumber(total)}</span> atlet terdaftar ·{" "}
-            <span className="tabnum text-text">{formatNumber(active)}</span> aktif
-          </p>
-        </div>
+        <p className="text-sm text-muted">
+          <span className="tabnum text-text">{formatNumber(total)}</span> {m.ath_registered} ·{" "}
+          <span className="tabnum text-text">{formatNumber(active)}</span> {m.ath_active}
+        </p>
         {canEdit && (
           <button className="btn btn-primary" onClick={() => setShowAdd((v) => !v)}>
-            <Plus size={16} /> Tambah atlet
+            <Plus size={16} /> {m.ath_add}
           </button>
         )}
       </div>
 
       {showAdd && canEdit && (
         <form action={createAthlete} className="card grid grid-cols-1 gap-3 p-4 sm:grid-cols-4">
-          <input name="nama" required placeholder="Nama lengkap" className="input" />
-          <input name="handle" required placeholder="@handle" className="input" />
-          <input name="kota" required placeholder="Kota" className="input" />
+          <input name="nama" required placeholder={m.ath_formName} className="input" />
+          <input name="handle" required placeholder={m.ath_formHandle} className="input" />
+          <input name="kota" required placeholder={m.city} className="input" />
           <select name="status" className="input" defaultValue="active">
-            <option value="active">Aktif</option>
-            <option value="inactive">Nonaktif</option>
+            <option value="active">{m.active}</option>
+            <option value="inactive">{m.inactive}</option>
           </select>
           <div className="sm:col-span-4">
-            <button className="btn btn-primary" type="submit">Simpan atlet</button>
+            <button className="btn btn-primary" type="submit">{m.ath_formSave}</button>
           </div>
         </form>
       )}
@@ -74,21 +75,12 @@ export function AthletesClient({
       <div className="flex flex-wrap items-center gap-3">
         <div className="relative w-full max-w-xs">
           <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-faint" />
-          <input
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder="Cari nama atau @handle…"
-            className="input pl-9"
-          />
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={m.ath_search} className="input pl-9" />
         </div>
-        <select
-          value={status}
-          onChange={(e) => setStatus(e.target.value as typeof status)}
-          className="input w-auto"
-        >
-          <option value="all">Semua status</option>
-          <option value="active">Aktif</option>
-          <option value="inactive">Nonaktif</option>
+        <select value={status} onChange={(e) => setStatus(e.target.value as typeof status)} className="input w-auto">
+          <option value="all">{m.allStatus}</option>
+          <option value="active">{m.active}</option>
+          <option value="inactive">{m.inactive}</option>
         </select>
       </div>
 
@@ -97,17 +89,16 @@ export function AthletesClient({
         <table className="w-full min-w-[720px]">
           <thead className="thead-sticky">
             <tr className="border-b border-border">
-              <th className="th">Atlet</th>
-              <th className="th text-right">Zona terjual</th>
-              <th className="th text-right">Revenue</th>
-              <th className="th">Kota</th>
-              <th className="th">Status</th>
-              {canToggle && <th className="th text-right">Aksi</th>}
+              <th className="th">{m.athlete}</th>
+              <th className="th text-right">{m.ath_zonesSold}</th>
+              <th className="th text-right">{m.col_revenue}</th>
+              <th className="th">{m.city}</th>
+              <th className="th">{m.status}</th>
+              {canToggle && <th className="th text-right">{m.action}</th>}
             </tr>
           </thead>
           <tbody>
             {rows.map((a) => {
-              const st = ACTIVE_STATUS[a.status];
               const next = a.status === "active" ? "inactive" : "active";
               return (
                 <tr key={a.id} className="border-b border-border/60 last:border-0">
@@ -123,7 +114,7 @@ export function AthletesClient({
                   <td className="td text-right tabnum">{formatNumber(a.zonesSold)}</td>
                   <td className="td text-right tabnum">{formatIDRCompact(a.revenue)}</td>
                   <td className="td text-muted">{a.kota}</td>
-                  <td className="td"><Badge tone={st.tone}>{st.label}</Badge></td>
+                  <td className="td"><Badge tone={ACTIVE_STATUS[a.status].tone}>{tActive(m, a.status)}</Badge></td>
                   {canToggle && (
                     <td className="td text-right">
                       <form action={setAthleteStatus} className="inline">
@@ -132,12 +123,12 @@ export function AthletesClient({
                         <ConfirmButton
                           message={
                             next === "inactive"
-                              ? `Nonaktifkan ${a.nama}? Zona atlet ini akan disembunyikan di halaman publik Sponsor My Body.`
-                              : `Aktifkan kembali ${a.nama}?`
+                              ? fmt(m.ath_confirmDeactivate, { name: a.nama })
+                              : fmt(m.ath_confirmActivate, { name: a.nama })
                           }
                           className="text-xs font-medium text-accent hover:underline"
                         >
-                          {next === "inactive" ? "Nonaktifkan" : "Aktifkan"}
+                          {next === "inactive" ? m.deactivate : m.activate}
                         </ConfirmButton>
                       </form>
                     </td>
@@ -147,9 +138,7 @@ export function AthletesClient({
             })}
             {rows.length === 0 && (
               <tr>
-                <td colSpan={canToggle ? 6 : 5} className="td text-center text-faint">
-                  Tidak ada atlet yang cocok.
-                </td>
+                <td colSpan={canToggle ? 6 : 5} className="td text-center text-faint">{m.ath_noMatch}</td>
               </tr>
             )}
           </tbody>

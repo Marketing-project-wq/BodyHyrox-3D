@@ -15,18 +15,22 @@ import {
   formatDelta,
   formatDayMonth,
 } from "@/lib/format";
+import { getMessages, getLocale } from "@/lib/i18n-server";
+import { tTxStatus } from "@/lib/i18n";
 import { TX_STATUS } from "@/lib/config";
 import { Badge, KpiCard, SectionCard, RevenueChart, Avatar, Bar } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
-function monthLabel(iso: string) {
-  return new Intl.DateTimeFormat("id-ID", { month: "short", timeZone: "Asia/Jakarta" })
+function monthLabel(iso: string, intl: string) {
+  return new Intl.DateTimeFormat(intl, { month: "short", timeZone: "Asia/Jakarta" })
     .format(new Date(iso))
     .toUpperCase();
 }
 
 export default async function OverviewPage() {
+  const m = getMessages();
+  const intl = getLocale() === "id" ? "id-ID" : "en-US";
   const [kpis, monthly, recent, topAthletes, topBrands, events] = await Promise.all([
     getKpis(),
     getMonthlyRevenue(6),
@@ -36,7 +40,7 @@ export default async function OverviewPage() {
     getUpcomingEvents(5),
   ]);
 
-  const chart = monthly.map((m) => ({ label: monthLabel(m.monthStart), value: m.revenue }));
+  const chart = monthly.map((mo) => ({ label: monthLabel(mo.monthStart, intl), value: mo.revenue }));
   const maxAthlete = Math.max(...topAthletes.map((a) => a.revenue), 1);
 
   return (
@@ -44,24 +48,24 @@ export default async function OverviewPage() {
       {/* KPI row */}
       <div className="grid shrink-0 grid-cols-2 gap-3 lg:grid-cols-4">
         <KpiCard
-          label="Total revenue"
+          label={m.kpi_totalRevenue}
           value={formatIDRCompact(kpis.total_revenue)}
-          delta={{ text: `${formatDelta(kpis.revenue_delta_pct)} vs bln lalu`, tone: kpis.revenue_delta_pct >= 0 ? "up" : "down" }}
+          delta={{ text: `${formatDelta(kpis.revenue_delta_pct)} ${m.vsLastMonth}`, tone: kpis.revenue_delta_pct >= 0 ? "up" : "down" }}
         />
         <KpiCard
-          label="Atlet aktif"
+          label={m.kpi_activeAthletes}
           value={formatNumber(kpis.athletes_active)}
-          delta={{ text: `+${formatNumber(kpis.athletes_new_month)} bulan ini`, tone: "neutral" }}
+          delta={{ text: `+${formatNumber(kpis.athletes_new_month)} ${m.thisMonthSuffix}`, tone: "neutral" }}
         />
         <KpiCard
-          label="Brand terdaftar"
+          label={m.kpi_registeredBrands}
           value={formatNumber(kpis.brands_total)}
-          delta={{ text: `+${formatNumber(kpis.brands_new_month)} bulan ini`, tone: "neutral" }}
+          delta={{ text: `+${formatNumber(kpis.brands_new_month)} ${m.thisMonthSuffix}`, tone: "neutral" }}
         />
         <KpiCard
-          label="Transaksi bulan ini"
+          label={m.kpi_txThisMonth}
           value={formatNumber(kpis.tx_month)}
-          delta={{ text: `${formatDelta(kpis.tx_delta_pct)} vs bln lalu`, tone: kpis.tx_delta_pct >= 0 ? "up" : "down" }}
+          delta={{ text: `${formatDelta(kpis.tx_delta_pct)} ${m.vsLastMonth}`, tone: kpis.tx_delta_pct >= 0 ? "up" : "down" }}
         />
       </div>
 
@@ -69,19 +73,15 @@ export default async function OverviewPage() {
       <div className="grid grid-cols-1 gap-3 lg:min-h-0 lg:flex-1 lg:grid-cols-3">
         {/* Left (wider) */}
         <div className="flex flex-col gap-3 lg:col-span-2 lg:min-h-0">
-          <SectionCard
-            title="Revenue — 6 bulan terakhir"
-            hint="juta Rupiah"
-            className="overflow-hidden lg:flex-[2] lg:min-h-0"
-          >
+          <SectionCard title={m.revenue6m} hint={m.inMillionRp} className="overflow-hidden lg:flex-[2] lg:min-h-0">
             <RevenueChart points={chart} />
           </SectionCard>
 
           <SectionCard
-            title="Recent Transactions"
+            title={m.recentTransactions}
             action={
               <Link href="/admin/transaksi" className="inline-flex items-center gap-1 text-xs font-medium text-accent">
-                Lihat semua <ArrowRight size={13} />
+                {m.seeAll} <ArrowRight size={13} />
               </Link>
             }
             className="lg:flex-[3] lg:min-h-0"
@@ -91,28 +91,25 @@ export default async function OverviewPage() {
             <table className="w-full min-w-[560px]">
               <thead className="thead-sticky">
                 <tr className="border-b border-border">
-                  <th className="th">Brand</th>
-                  <th className="th">Atlet</th>
-                  <th className="th">Zona</th>
-                  <th className="th text-right">Nominal</th>
-                  <th className="th">Status</th>
-                  <th className="th text-right">Tanggal</th>
+                  <th className="th">{m.brand}</th>
+                  <th className="th">{m.athlete}</th>
+                  <th className="th">{m.zone}</th>
+                  <th className="th text-right">{m.amount}</th>
+                  <th className="th">{m.status}</th>
+                  <th className="th text-right">{m.date}</th>
                 </tr>
               </thead>
               <tbody>
-                {recent.map((t) => {
-                  const st = TX_STATUS[t.status];
-                  return (
-                    <tr key={t.id} className="border-b border-border/70 last:border-0">
-                      <td className="td font-medium">{t.brand}</td>
-                      <td className="td text-muted">{t.athlete}</td>
-                      <td className="td text-muted">{t.zone}</td>
-                      <td className="td text-right tabnum">{formatIDR(t.amount)}</td>
-                      <td className="td"><Badge tone={st.tone}>{st.label}</Badge></td>
-                      <td className="td text-right tabnum text-muted">{formatDayMonth(t.date)}</td>
-                    </tr>
-                  );
-                })}
+                {recent.map((t) => (
+                  <tr key={t.id} className="border-b border-border/70 last:border-0">
+                    <td className="td font-medium">{t.brand}</td>
+                    <td className="td text-muted">{t.athlete}</td>
+                    <td className="td text-muted">{t.zone}</td>
+                    <td className="td text-right tabnum">{formatIDR(t.amount)}</td>
+                    <td className="td"><Badge tone={TX_STATUS[t.status].tone}>{tTxStatus(m, t.status)}</Badge></td>
+                    <td className="td text-right tabnum text-muted">{formatDayMonth(t.date)}</td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </SectionCard>
@@ -120,7 +117,7 @@ export default async function OverviewPage() {
 
         {/* Right column */}
         <div className="flex flex-col gap-3 lg:min-h-0">
-          <SectionCard title="Top 5 Atlet by Revenue" className="lg:min-h-0 lg:flex-1" scrollBody>
+          <SectionCard title={m.ov_topAthletes} hint={m.ov_byRevenue} className="lg:min-h-0 lg:flex-1" scrollBody>
             <ul className="space-y-2.5">
               {topAthletes.map((a, i) => (
                 <li key={a.id} className="flex items-center gap-2.5">
@@ -138,14 +135,14 @@ export default async function OverviewPage() {
             </ul>
           </SectionCard>
 
-          <SectionCard title="Top 5 Brand by Spending" className="lg:min-h-0 lg:flex-1" scrollBody>
+          <SectionCard title={m.ov_topBrands} hint={m.ov_bySpending} className="lg:min-h-0 lg:flex-1" scrollBody>
             <ul className="space-y-2.5">
               {topBrands.map((b) => (
                 <li key={b.id} className="flex items-center gap-2.5">
                   <Avatar name={b.nama} />
                   <div className="min-w-0 flex-1">
                     <div className="truncate text-[13px] font-medium">{b.nama}</div>
-                    <div className="text-[11px] tabnum text-faint">{formatNumber(b.dealCount)} deal</div>
+                    <div className="text-[11px] tabnum text-faint">{formatNumber(b.dealCount)} {m.deal}</div>
                   </div>
                   <span className="shrink-0 text-[12px] tabnum text-muted">{formatIDRCompact(b.totalSpending)}</span>
                 </li>
@@ -154,20 +151,20 @@ export default async function OverviewPage() {
           </SectionCard>
 
           <SectionCard
-            title="Upcoming Events"
+            title={m.ov_upcomingEvents}
             className="lg:min-h-0 lg:flex-1"
             scrollBody
             action={
               <Link href="/admin/event" className="inline-flex items-center gap-1 text-xs font-medium text-accent">
-                Lihat semua <ArrowRight size={13} />
+                {m.seeAll} <ArrowRight size={13} />
               </Link>
             }
           >
             <ul className="space-y-2.5">
               {events.map((e) => {
                 const d = new Date(e.date);
-                const day = new Intl.DateTimeFormat("id-ID", { day: "2-digit", timeZone: "Asia/Jakarta" }).format(d);
-                const mon = new Intl.DateTimeFormat("id-ID", { month: "short", timeZone: "Asia/Jakarta" }).format(d).toUpperCase();
+                const day = new Intl.DateTimeFormat(intl, { day: "2-digit", timeZone: "Asia/Jakarta" }).format(d);
+                const mon = new Intl.DateTimeFormat(intl, { month: "short", timeZone: "Asia/Jakarta" }).format(d).toUpperCase();
                 return (
                   <li key={e.id} className="flex items-center gap-2.5">
                     <div className="flex h-9 w-9 shrink-0 flex-col items-center justify-center rounded-lg border border-border bg-surface-2">
@@ -178,7 +175,7 @@ export default async function OverviewPage() {
                       <div className="truncate text-[13px] font-medium">{e.nama}</div>
                       <div className="truncate text-[11px] text-faint">{e.venue}</div>
                     </div>
-                    <span className="shrink-0 text-[11px] tabnum text-muted">{formatNumber(e.registeredAthletes)} atlet</span>
+                    <span className="shrink-0 text-[11px] tabnum text-muted">{formatNumber(e.registeredAthletes)} {m.athletesSuffix}</span>
                   </li>
                 );
               })}
