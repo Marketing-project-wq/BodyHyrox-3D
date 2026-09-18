@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
   Users,
@@ -11,8 +11,6 @@ import {
   CalendarDays,
   DollarSign,
   Settings,
-  Search,
-  Bell,
   Menu,
   X,
   LogOut,
@@ -32,18 +30,14 @@ type NavItem = {
 export function AdminShell({
   session,
   counts,
-  dataPer,
   children,
 }: {
   session: { nama: string; role: Role };
   counts: { athletes: number; brands: number };
-  dataPer: string;
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
-  const router = useRouter();
   const [open, setOpen] = useState(false);
-  const [q, setQ] = useState("");
 
   const nav: NavItem[] = [
     { href: "/admin", label: "Overview", icon: LayoutDashboard },
@@ -57,14 +51,14 @@ export function AdminShell({
 
   const isActive = (href: string) =>
     href === "/admin" ? pathname === "/admin" : pathname.startsWith(href);
-  const current = nav.find((n) => isActive(n.href));
 
-  function submitSearch(e: React.FormEvent) {
-    e.preventDefault();
-    const term = q.trim();
-    router.push(term ? `/admin/atlet?q=${encodeURIComponent(term)}` : "/admin/atlet");
-    setOpen(false);
-  }
+  const Wordmark = () => (
+    <div className="flex items-center gap-1 font-condensed text-xl font-bold tracking-tight text-white">
+      <span>2</span>
+      <span className="inline-block h-[0.5em] w-[0.5em] rounded-full bg-accent" />
+      <span>FIT</span>
+    </div>
+  );
 
   return (
     <div className="bg-bg lg:h-[100dvh] lg:overflow-hidden">
@@ -75,11 +69,7 @@ export function AdminShell({
         }`}
       >
         <div className="flex items-center justify-between px-5 py-4">
-          <div className="flex items-center gap-1 font-condensed text-2xl font-bold tracking-tight text-white">
-            <span>2</span>
-            <span className="inline-block h-[0.5em] w-[0.5em] rounded-full bg-accent" />
-            <span>FIT</span>
-          </div>
+          <Wordmark />
           <button className="text-sidebar-faint lg:hidden" onClick={() => setOpen(false)} aria-label="Tutup menu">
             <X size={20} />
           </button>
@@ -138,36 +128,15 @@ export function AdminShell({
       {/* Scrim (mobile) */}
       {open && <div className="fixed inset-0 z-30 bg-black/50 lg:hidden" onClick={() => setOpen(false)} />}
 
-      {/* Main column */}
+      {/* Main column (no topbar) */}
       <div className="lg:flex lg:h-full lg:flex-col lg:pl-[250px]">
-        <header className="sticky top-0 z-20 flex shrink-0 items-center gap-3 border-b border-border bg-surface px-4 py-2.5 md:px-5">
-          <button className="text-muted lg:hidden" onClick={() => setOpen(true)} aria-label="Buka menu">
+        {/* Slim mobile-only bar with just the menu button */}
+        <div className="sticky top-0 z-20 flex items-center gap-3 border-b border-border bg-sidebar px-4 py-2.5 lg:hidden">
+          <button className="text-white" onClick={() => setOpen(true)} aria-label="Buka menu">
             <Menu size={22} />
           </button>
-          <div className="min-w-0">
-            <h1 className="truncate font-sans text-lg font-bold leading-tight text-text">
-              {current?.label ?? "Overview"}
-            </h1>
-            {pathname === "/admin" && (
-              <p className="truncate text-[11px] tabnum text-muted">Data per {dataPer}</p>
-            )}
-          </div>
-
-          <form onSubmit={submitSearch} className="relative ml-auto w-full max-w-xs">
-            <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-faint" />
-            <input
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              placeholder="Cari atlet, brand, transaksi…"
-              className="input pl-9"
-            />
-          </form>
-
-          <button className="relative shrink-0 rounded-lg border border-border p-2 text-muted hover:text-text" aria-label="Notifikasi">
-            <Bell size={18} />
-            <span className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-accent" />
-          </button>
-        </header>
+          <Wordmark />
+        </div>
 
         <main className="p-4 md:p-5 lg:min-h-0 lg:flex-1 lg:overflow-hidden">{children}</main>
       </div>
