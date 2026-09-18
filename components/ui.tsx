@@ -103,7 +103,7 @@ export function RevenueChart({ points }: { points: { label: string; value: numbe
   const last = xy[nn - 1];
 
   return (
-    <div className="flex h-full min-h-[170px] flex-col">
+    <div className="flex h-full min-h-[150px] flex-col lg:min-h-0">
       <svg viewBox={`0 0 ${W} ${H}`} className="w-full flex-1 min-h-0" preserveAspectRatio="none">
         <defs>
           <linearGradient id="smb-area" x1="0" y1="0" x2="0" y2="1">
