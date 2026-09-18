@@ -237,6 +237,16 @@ export async function getNotifications(): Promise<NotificationSettings> {
   return data as NotificationSettings;
 }
 
+/** Current display name of an admin (read live so profile edits show immediately). */
+export async function getAdminName(id: string): Promise<string | null> {
+  const { data } = await db()
+    .from("smb_admin_users")
+    .select("nama")
+    .eq("id", id)
+    .maybeSingle();
+  return (data?.nama as string | undefined) ?? null;
+}
+
 /** Options for select inputs (create transaction form). */
 export async function getSelectOptions() {
   const client = db();

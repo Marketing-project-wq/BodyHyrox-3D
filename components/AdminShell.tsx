@@ -122,7 +122,9 @@ export function AdminShell({
             </span>
             <div className="min-w-0 flex-1">
               <div className="truncate text-sm font-medium text-white">{session.nama}</div>
-              <div className="text-xs text-sidebar-faint">{ROLE_LABEL[session.role]}</div>
+              {session.nama !== ROLE_LABEL[session.role] && (
+                <div className="text-xs text-sidebar-faint">{ROLE_LABEL[session.role]}</div>
+              )}
             </div>
             <form action={logout}>
               <button className="text-sidebar-faint transition-colors hover:text-accent" aria-label="Keluar" title="Keluar">
