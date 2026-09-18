@@ -65,6 +65,10 @@ const en = {
   // athletes
   ath_registered: "athletes registered",
   ath_active: "active",
+  gender: "Gender",
+  male: "Male",
+  female: "Female",
+  allGenders: "All genders",
   ath_add: "Add athlete",
   ath_search: "Search name or @handle…",
   ath_zonesSold: "Zones sold",
@@ -201,6 +205,10 @@ const id: Dict = {
 
   ath_registered: "atlet terdaftar",
   ath_active: "aktif",
+  gender: "Jenis kelamin",
+  male: "Laki-laki",
+  female: "Perempuan",
+  allGenders: "Semua gender",
   ath_add: "Tambah atlet",
   ath_search: "Cari nama atau @handle…",
   ath_zonesSold: "Zona terjual",
@@ -295,6 +303,7 @@ export const tZoneStatus = (m: Dict, activeState: boolean) =>
   activeState ? m.zst_available : m.zst_inactive;
 export const tVisibility = (m: Dict, v: Visibility) =>
   v === "high" ? m.vis_high : v === "medium" ? m.vis_medium : m.vis_low;
+export const tGender = (m: Dict, g: string) => (g === "female" ? m.female : m.male);
 export const tNotif = (m: Dict, key: string) =>
   key === "new_transaction"
     ? m.notif_new_transaction
