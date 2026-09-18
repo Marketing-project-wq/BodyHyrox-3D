@@ -41,12 +41,12 @@ export function AthletesClient({
   }, [athletes, q, status]);
 
   return (
-    <div className="space-y-5">
+    <div className="flex flex-col gap-4 lg:h-full lg:min-h-0">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="font-display text-2xl font-bold tracking-tight">Atlet</h1>
-          <p className="mt-1 text-sm text-muted">
-            {formatNumber(total)} atlet terdaftar · {formatNumber(active)} aktif
+          <p className="text-sm text-muted">
+            <span className="tabnum text-text">{formatNumber(total)}</span> atlet terdaftar ·{" "}
+            <span className="tabnum text-text">{formatNumber(active)}</span> aktif
           </p>
         </div>
         {canEdit && (
@@ -92,9 +92,10 @@ export function AthletesClient({
         </select>
       </div>
 
-      <div className="card overflow-x-auto">
+      <div className="card flex flex-col overflow-hidden lg:min-h-0 lg:flex-1">
+       <div className="min-h-0 flex-1 overflow-auto">
         <table className="w-full min-w-[720px]">
-          <thead>
+          <thead className="thead-sticky">
             <tr className="border-b border-border">
               <th className="th">Atlet</th>
               <th className="th text-right">Zona terjual</th>
@@ -153,6 +154,7 @@ export function AthletesClient({
             )}
           </tbody>
         </table>
+       </div>
       </div>
     </div>
   );

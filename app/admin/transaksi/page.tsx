@@ -51,11 +51,12 @@ export default async function TransaksiPage({
   };
 
   return (
-    <div className="space-y-5">
+    <div className="flex flex-col gap-4 lg:h-full lg:min-h-0">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="font-display text-2xl font-bold tracking-tight">Transaksi</h1>
-          <p className="mt-1 text-sm text-muted">{formatNumber(rows.length)} transaksi ditampilkan</p>
+          <p className="text-sm text-muted">
+            <span className="tabnum text-text">{formatNumber(rows.length)}</span> transaksi ditampilkan
+          </p>
         </div>
         <form className="flex items-center gap-2">
           {statusFilter !== "all" && <input type="hidden" name="status" value={statusFilter} />}
@@ -88,9 +89,10 @@ export default async function TransaksiPage({
         })}
       </div>
 
-      <div className="card overflow-x-auto">
+      <div className="card flex flex-col overflow-hidden lg:min-h-0 lg:flex-1">
+       <div className="min-h-0 flex-1 overflow-auto">
         <table className="w-full min-w-[820px]">
-          <thead>
+          <thead className="thead-sticky">
             <tr className="border-b border-border">
               <th className="th">Brand</th>
               <th className="th">Atlet</th>
@@ -139,6 +141,7 @@ export default async function TransaksiPage({
             )}
           </tbody>
         </table>
+       </div>
       </div>
     </div>
   );

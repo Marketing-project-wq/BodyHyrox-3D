@@ -17,11 +17,12 @@ export function EventsClient({
   const [showAdd, setShowAdd] = useState(false);
 
   return (
-    <div className="space-y-5">
+    <div className="flex flex-col gap-4 lg:h-full lg:min-h-0">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="font-display text-2xl font-bold tracking-tight">Event</h1>
-          <p className="mt-1 text-sm text-muted">{formatNumber(events.length)} event</p>
+          <p className="text-sm text-muted">
+            <span className="tabnum text-text">{formatNumber(events.length)}</span> event
+          </p>
         </div>
         {canManage && (
           <button className="btn btn-primary" onClick={() => setShowAdd((v) => !v)}>
@@ -45,7 +46,7 @@ export function EventsClient({
         </form>
       )}
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 lg:min-h-0 lg:flex-1 lg:content-start lg:overflow-y-auto lg:pr-1">
         {events.map((e) => {
           const d = new Date(e.date);
           const day = new Intl.DateTimeFormat("id-ID", { day: "2-digit", timeZone: "Asia/Jakarta" }).format(d);
@@ -55,11 +56,11 @@ export function EventsClient({
             <div key={e.id} className="card p-4">
               <div className="flex items-start gap-4">
                 <div className="flex h-16 w-16 shrink-0 flex-col items-center justify-center rounded-card border border-border bg-surface-2">
-                  <span className="font-display text-xl font-bold tabnum leading-none">{day}</span>
+                  <span className="font-mono text-xl font-bold leading-none">{day}</span>
                   <span className="text-[11px] text-faint">{mon} {year}</span>
                 </div>
                 <div className="min-w-0 flex-1">
-                  <h3 className="truncate font-display text-base font-semibold">{e.nama}</h3>
+                  <h3 className="truncate text-base font-semibold">{e.nama}</h3>
                   <p className="truncate text-sm text-faint">{e.venue}</p>
                   <div className="mt-3 flex items-center justify-between gap-2">
                     {e.registrationOpen ? (

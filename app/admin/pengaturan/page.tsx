@@ -16,10 +16,9 @@ export default async function PengaturanPage() {
   const notifKeys = Object.keys(NOTIFICATION_LABELS) as NotificationKey[];
 
   return (
-    <div className="space-y-5">
+    <div className="flex flex-col gap-4 lg:h-full lg:min-h-0 lg:overflow-y-auto">
       <div>
-        <h1 className="font-display text-2xl font-bold tracking-tight">Pengaturan</h1>
-        <p className="mt-1 text-sm text-muted">Profil platform &amp; preferensi notifikasi</p>
+        <p className="text-sm text-muted">Profil platform &amp; preferensi notifikasi</p>
       </div>
 
       {!canManage && (

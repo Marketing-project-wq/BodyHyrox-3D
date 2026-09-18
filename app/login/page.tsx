@@ -15,10 +15,12 @@ export default function LoginPage({
     <div className="flex min-h-screen items-center justify-center bg-bg px-4">
       <div className="w-full max-w-sm">
         <div className="mb-6 text-center">
-          <span className="font-display text-2xl font-bold tracking-tight">
-            2<span className="text-accent">0</span>FIT
+          <span className="inline-flex items-center gap-1 font-condensed text-3xl font-bold tracking-tight">
+            <span>2</span>
+            <span className="inline-block h-[0.5em] w-[0.5em] rounded-full bg-accent" />
+            <span>FIT</span>
           </span>
-          <p className="mt-1 text-sm text-muted">Sponsor My Body · Panel Admin</p>
+          <p className="mt-1 text-sm text-muted">3D Sponsor · Panel Admin</p>
         </div>
 
         <form action={login} className="card space-y-4 p-6">

@@ -19,11 +19,12 @@ export function ZonesClient({
   const [edit, setEdit] = useState(false);
 
   return (
-    <div className="space-y-5">
+    <div className="flex flex-col gap-4 lg:h-full lg:min-h-0">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="font-display text-2xl font-bold tracking-tight">Harga Zona</h1>
-          <p className="mt-1 text-sm text-muted">{formatNumber(zones.length)} zona tubuh</p>
+          <p className="text-sm text-muted">
+            <span className="tabnum text-text">{formatNumber(zones.length)}</span> zona tubuh
+          </p>
         </div>
         {canPricing && (
           <button className="btn btn-ghost" onClick={() => setEdit((v) => !v)}>
@@ -32,9 +33,10 @@ export function ZonesClient({
         )}
       </div>
 
-      <div className="card overflow-x-auto">
+      <div className="card flex flex-col overflow-hidden lg:min-h-0 lg:flex-1">
+       <div className="min-h-0 flex-1 overflow-auto">
         <table className="w-full min-w-[760px]">
-          <thead>
+          <thead className="thead-sticky">
             <tr className="border-b border-border">
               <th className="th">Zona</th>
               <th className="th text-right">Harga dasar</th>
@@ -94,6 +96,7 @@ export function ZonesClient({
             })}
           </tbody>
         </table>
+       </div>
       </div>
     </div>
   );

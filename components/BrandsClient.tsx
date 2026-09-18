@@ -32,11 +32,12 @@ export function BrandsClient({
   }, [brands, q, status]);
 
   return (
-    <div className="space-y-5">
+    <div className="flex flex-col gap-4 lg:h-full lg:min-h-0">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="font-display text-2xl font-bold tracking-tight">Brand</h1>
-          <p className="mt-1 text-sm text-muted">{formatNumber(brands.length)} brand terdaftar</p>
+          <p className="text-sm text-muted">
+            <span className="tabnum text-text">{formatNumber(brands.length)}</span> brand terdaftar
+          </p>
         </div>
         {canEdit && (
           <button className="btn btn-primary" onClick={() => setShowAdd((v) => !v)}>
@@ -71,9 +72,10 @@ export function BrandsClient({
         </select>
       </div>
 
-      <div className="card overflow-x-auto">
+      <div className="card flex flex-col overflow-hidden lg:min-h-0 lg:flex-1">
+       <div className="min-h-0 flex-1 overflow-auto">
         <table className="w-full min-w-[720px]">
-          <thead>
+          <thead className="thead-sticky">
             <tr className="border-b border-border">
               <th className="th">Brand</th>
               <th className="th text-right">Deal</th>
@@ -123,6 +125,7 @@ export function BrandsClient({
             )}
           </tbody>
         </table>
+       </div>
       </div>
     </div>
   );

@@ -37,11 +37,11 @@ export default function LandingPage() {
       group.add(
         new THREE.Mesh(
           new THREE.IcosahedronGeometry(2.1, 1),
-          new THREE.MeshBasicMaterial({ color: 0xff2d55, wireframe: true, transparent: true, opacity: 0.35 }),
+          new THREE.MeshBasicMaterial({ color: 0xe8112d, wireframe: true, transparent: true, opacity: 0.35 }),
         ),
       );
 
-      const key = new THREE.PointLight(0xff2d55, 1.5, 50);
+      const key = new THREE.PointLight(0xe8112d, 1.5, 50);
       key.position.set(5, 5, 5);
       scene.add(key);
       const rim = new THREE.PointLight(0x4488ff, 0.7, 50);
@@ -106,35 +106,46 @@ export default function LandingPage() {
   }, []);
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-bg text-text">
+    <div className="relative min-h-[100dvh] overflow-hidden bg-[#0d090b] text-white">
       <canvas ref={canvasRef} className="fixed inset-0 z-0 h-full w-full" />
-      <div className="relative z-10 flex min-h-screen flex-col p-6 md:p-10">
+      <div className="relative z-10 flex min-h-[100dvh] flex-col p-5 sm:p-8 md:p-10">
         <header className="flex items-center justify-between">
-          <span className="font-display text-xl font-bold tracking-tight">
-            2<span className="text-accent">0</span>FIT
-          </span>
-          <Link href="/login" className="btn btn-ghost">Masuk Admin</Link>
+          <div className="flex items-center gap-1 font-condensed text-xl font-bold tracking-tight">
+            <span>2</span>
+            <span className="inline-block h-[0.5em] w-[0.5em] rounded-full bg-accent" />
+            <span>FIT</span>
+          </div>
+          <Link
+            href="/login"
+            className="rounded-lg border border-white/25 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-white/10"
+          >
+            Masuk Admin
+          </Link>
         </header>
 
-        <main className="flex flex-1 flex-col justify-center">
-          <p className="mb-4 text-xs font-semibold uppercase tracking-[0.25em] text-accent">
-            Sponsor My Body
+        <main className="flex flex-1 flex-col justify-center py-8">
+          <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.25em] text-accent sm:text-xs">
+            3D Sponsor
           </p>
-          <h1 className="max-w-3xl font-display text-5xl font-bold leading-[1.05] md:text-7xl">
+          <h1 className="max-w-3xl font-condensed text-4xl font-bold leading-[1.03] sm:text-6xl md:text-7xl">
             Sponsori <span className="text-accent">zona tubuh</span> atlet Hyrox
           </h1>
-          <p className="mt-6 max-w-xl text-base leading-relaxed text-muted md:text-lg">
+          <p className="mt-5 max-w-xl text-sm leading-relaxed text-white/70 sm:text-base md:text-lg">
             Platform yang menghubungkan brand dengan atlet Hyrox — pasang sponsor
             di zona tubuh, kelola transaksi, dan pantau performa secara real-time.
           </p>
-          <div className="mt-8 flex flex-wrap gap-3">
-            <Link href="/login" className="btn btn-primary">Buka Dashboard</Link>
-            <a href="#" className="btn btn-ghost">Pelajari Lebih Lanjut</a>
+          <div className="mt-7 flex flex-wrap gap-3">
+            <Link
+              href="/login"
+              className="rounded-lg bg-accent px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-[#c60f27]"
+            >
+              Buka Dashboard
+            </Link>
           </div>
         </main>
 
-        <footer className="flex items-center justify-between text-sm text-faint">
-          <span className="text-green">● Live</span>
+        <footer className="flex items-center justify-between text-xs text-white/40 sm:text-sm">
+          <span className="text-[#3ad29f]">● Live</span>
           <span>© {new Date().getFullYear()} 20FIT</span>
         </footer>
       </div>
