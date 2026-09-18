@@ -72,7 +72,7 @@ export default async function OverviewPage() {
           <SectionCard
             title="Revenue — 6 bulan terakhir"
             hint="juta Rupiah"
-            className="lg:h-[42%] lg:shrink-0"
+            className="overflow-hidden lg:flex-[2] lg:min-h-0"
           >
             <RevenueChart points={chart} />
           </SectionCard>
@@ -84,7 +84,7 @@ export default async function OverviewPage() {
                 Lihat semua <ArrowRight size={13} />
               </Link>
             }
-            className="lg:min-h-0 lg:flex-1"
+            className="lg:flex-[3] lg:min-h-0"
             bodyClassName="p-0 overflow-x-auto"
             scrollBody
           >
