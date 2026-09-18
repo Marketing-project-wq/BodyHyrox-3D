@@ -1,0 +1,113 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-barlow: "Barlow", system-ui, -apple-system, sans-serif;
+  --font-barlow-condensed: "Barlow Condensed", "Barlow", sans-serif;
+  --font-ibm-plex-mono: "IBM Plex Mono", ui-monospace, monospace;
+
+  --bg: #f5f5f6;
+  --surface: #ffffff;
+  --surface-2: #eeeef0;
+  --border: #e6e6e8;
+  --text: #141414;
+  --muted: #6b6b70;
+  --faint: #9a9aa0;
+  --accent: #e8112d;
+  --green: #12965a;
+  --amber: #b7791f;
+}
+
+html,
+body {
+  background: var(--bg);
+  color: var(--text);
+}
+
+body {
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Monospace, aligned numbers everywhere (KPIs, tables, IDs) */
+.tabnum {
+  font-family: var(--font-ibm-plex-mono);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+  white-space: nowrap;
+}
+
+@layer components {
+  .card {
+    @apply rounded-card border border-border bg-surface shadow-card;
+  }
+
+  /* Section title with a thin red accent bar */
+  .section-title {
+    @apply relative pl-2.5 font-sans text-[13px] font-semibold uppercase tracking-wide text-text;
+  }
+  .section-title::before {
+    content: "";
+    @apply absolute left-0 top-1/2 h-3.5 w-[3px] -translate-y-1/2 rounded-full bg-accent;
+  }
+
+  .eyebrow {
+    @apply text-[10px] font-semibold uppercase tracking-[0.12em] text-faint;
+  }
+
+  /* Status badge: colored dot + tinted background */
+  .badge {
+    @apply inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium;
+  }
+  .badge-dot {
+    @apply h-1.5 w-1.5 rounded-full;
+  }
+
+  /* Dark sidebar nav item */
+  .nav-item {
+    @apply flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-sidebar-text transition-colors hover:bg-white/5 hover:text-white;
+  }
+  .nav-item-active {
+    @apply bg-accent text-white hover:bg-accent hover:text-white;
+  }
+
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg px-3.5 py-2 text-sm font-medium transition-colors;
+  }
+  .btn-primary {
+    @apply bg-accent text-white hover:bg-[#c60f27];
+  }
+  .btn-ghost {
+    @apply border border-border bg-surface text-text hover:bg-surface-2;
+  }
+
+  .input {
+    @apply w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text placeholder:text-faint focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/30;
+  }
+
+  .th {
+    @apply px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-[0.06em] text-faint;
+  }
+  .td {
+    @apply px-3 py-2.5 text-sm text-text;
+  }
+
+  /* Sticky table header for internal-scroll panels */
+  .thead-sticky th {
+    @apply sticky top-0 z-10 bg-surface;
+  }
+}
+
+/* Thin scrollbars */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #d3d3d7 transparent;
+}
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+*::-webkit-scrollbar-thumb {
+  background: #d3d3d7;
+  border-radius: 999px;
+}

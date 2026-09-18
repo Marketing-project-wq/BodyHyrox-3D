@@ -1,48 +1,78 @@
-# BodyHyrox-3D
+# 20FIT Sponsor My Body
 
-Aplikasi web 20FIT: **landing page marketing 3D** (Three.js) sebagai halaman
-utama, plus **Super Admin Dashboard** di `/admin`. Dilayani oleh server
-**Node.js / Express** yang siap di-deploy ke **Railway**.
+Panel internal 20FIT untuk **Sponsor My Body** — platform sponsor zona tubuh
+atlet Hyrox. Landing page publik di `/` dan **Admin Dashboard** di `/admin`.
 
-## Struktur
+## Stack
 
-```
-BodyHyrox-3D/
-├── server.js          # Server Express (bind ke process.env.PORT)
-├── package.json       # Dependency & start script
-├── railway.json       # Konfigurasi deploy Railway
-└── public/
-    ├── index.html     # Halaman utama — landing page marketing 3D
-    ├── admin.html     # 20FIT Super Admin Dashboard (dilayani di /admin)
-    ├── styles.css     # Styling landing page
-    └── main.js        # Scene 3D landing page (Three.js)
-```
+- **Next.js 14 (App Router) + TypeScript + TailwindCSS**
+- **Supabase (Postgres)** — data terisolasi di tabel berprefix `smb_`
+- Auth username/password sendiri (scrypt hash + cookie sesi ber-HMAC)
 
 ## Halaman
 
-| Rute      | Isi                                 |
-| --------- | ----------------------------------- |
-| `/`       | Landing page marketing BodyHyrox    |
-| `/admin`  | 20FIT Super Admin Dashboard         |
-| `/health` | Health check (`{ "status": "ok" }`) |
+| Rute               | Isi                                                        |
+| ------------------ | --------------------------------------------------------- |
+| `/`                | Landing page publik (hero 3D)                             |
+| `/login`           | Login admin                                               |
+| `/admin`           | Overview: KPI, revenue 6 bulan, transaksi, ranking, event |
+| `/admin/atlet`     | Kelola atlet (cari, filter, tambah, aktif/nonaktif)       |
+| `/admin/brand`     | Kelola brand                                              |
+| `/admin/transaksi` | Transaksi (filter status/bulan, refund)                  |
+| `/admin/event`     | Event (buat, daftar)                                     |
+| `/admin/harga-zona`| Harga zona tubuh (ubah harga, aktif/nonaktif)            |
+| `/admin/pengaturan`| Profil platform & notifikasi                             |
 
-## Menjalankan secara lokal
+## Arsitektur data
+
+- Semua tabel berprefix `smb_` dengan **RLS aktif tanpa policy publik** —
+  hanya diakses server-side memakai **service role key**. Tidak menyentuh
+  tabel lain di database.
+- KPI, ranking, dan chart **dihitung dari data** lewat fungsi SQL
+  (`smb_kpis`, `smb_monthly_revenue`, `smb_top_athletes`, dll.), bukan
+  angka yang di-hardcode di komponen.
+- Setiap mutasi (refund, ubah harga, aktif/nonaktif, tambah data) berjalan
+  sebagai **satu transaksi** lewat fungsi Postgres yang sekaligus menulis
+  **audit log** (`smb_audit_log`: siapa, apa, nilai lama → baru, kapan).
+- Format IDR/tanggal terpusat di `lib/format.ts`; aturan status, visibilitas,
+  dan hak akses peran di `lib/config.ts`.
+
+## Peran
+
+- **Super Admin**: semua aksi, termasuk **refund** & **ubah harga zona** &
+  pengaturan.
+- **Admin**: lihat + kelola atlet/brand/event/transaksi (tanpa refund,
+  harga, dan pengaturan).
+
+## Environment variables
+
+Salin `.env.example` menjadi `.env` (lokal) atau set di Railway:
+
+```
+NEXT_PUBLIC_SUPABASE_URL=...        # URL project Supabase
+SUPABASE_SERVICE_ROLE_KEY=...       # service role key (server-only, rahasia)
+SESSION_SECRET=...                  # string acak untuk tanda tangan cookie sesi
+```
+
+## Menjalankan lokal
 
 ```bash
 npm install
-npm start
+npm run build
+npm run start   # atau: npm run dev
 ```
 
-Buka http://localhost:3000
+## Deploy (Railway)
 
-## Deploy ke Railway
+Railpack otomatis mendeteksi Next.js: `npm run build` lalu `npm run start`
+(server membaca `process.env.PORT`). Pastikan ketiga env var di atas sudah
+di-set di Railway sebelum deploy.
 
-Railway (Railpack) otomatis mendeteksi project Node.js:
+## Catatan keamanan
 
-1. `npm install` — memasang dependency
-2. `npm start` — menjalankan `node server.js`
-
-Server otomatis membaca `process.env.PORT` yang disediakan Railway.
-
-> Setelah deploy hijau, buka **Settings → Networking → Generate Domain**
-> (atau **Custom Domain**) di dashboard Railway untuk mendapatkan URL publik.
+- Next.js 14.2.35 adalah rilis 14.2.x terbaru. Beberapa advisory Next
+  kelas **DoS** baru diperbaiki di Next 15/16 (upgrade breaking) — aplikasi
+  ini tidak memakai `next/image`, jadi dampaknya minim; disarankan upgrade
+  ke Next 15+ di kemudian hari.
+- Info database: 90 tabel lama di project Supabase `20FIT ALL DATA` punya
+  RLS mati (masalah lama, di luar cakupan fitur ini) — tidak diubah.
