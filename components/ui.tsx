@@ -1,27 +1,38 @@
 import type { BadgeTone } from "@/lib/config";
 import { initials } from "@/lib/format";
 
-/* ---------- Brand logo (white lockup — stays legible on light or dark) ---------- */
+/* ---------- Brand logo ----------
+ * The 20FIT logo is a light/white wordmark with a red accent, made for dark
+ * backgrounds. So on dark surfaces (sidebar, landing) it's shown as-is; on
+ * light surfaces (login, setup notice) it sits on a dark backing so the white
+ * parts stay visible. */
 const LOGO_SRC = "https://media.20fit.id/wp-content/uploads/2026/09/new-logo-20fit.png";
 
 export function Logo({
   imgClassName = "h-6",
+  onLight = false,
   className = "",
 }: {
   imgClassName?: string;
+  onLight?: boolean;
   className?: string;
 }) {
+  const img = (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={LOGO_SRC}
+      alt="20FIT"
+      className={`${imgClassName} w-auto select-none`}
+      draggable={false}
+    />
+  );
   return (
     <span
-      className={`inline-flex items-center rounded-lg border border-black/5 bg-white px-2.5 py-1.5 shadow-sm ${className}`}
+      className={`inline-flex items-center ${
+        onLight ? "rounded-lg bg-sidebar px-3 py-2" : ""
+      } ${className}`}
     >
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={LOGO_SRC}
-        alt="20FIT"
-        className={`${imgClassName} w-auto select-none`}
-        draggable={false}
-      />
+      {img}
     </span>
   );
 }
@@ -204,7 +215,7 @@ export function NotConfigured() {
   return (
     <div className="flex min-h-[100dvh] items-center justify-center bg-bg px-4">
       <div className="card max-w-md p-6 text-center">
-        <Logo imgClassName="h-8" className="mx-auto mb-4" />
+        <Logo imgClassName="h-8" onLight className="mx-auto mb-4" />
         <h1 className="text-lg font-bold">Dashboard hampir siap</h1>
         <p className="mt-2 text-sm text-muted">
           Tinggal satu langkah: admin menambahkan variabel{" "}
