@@ -20,7 +20,7 @@ export default function LoginPage({
     <div className="flex min-h-screen items-center justify-center bg-bg px-4">
       <div className="w-full max-w-sm">
         <div className="mb-6 text-center">
-          <Logo imgClassName="h-10" />
+          <Logo imgClassName="h-10" onLight />
           <p className="mt-3 text-sm text-muted">{m.login_subtitle}</p>
         </div>
 
