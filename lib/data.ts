@@ -358,6 +358,50 @@ export async function getPublicAthlete(id: string): Promise<PublicAthleteDetail 
   };
 }
 
+export type RequestStatus = "pending" | "approved" | "rejected";
+export type SponsorRequest = {
+  id: string;
+  status: RequestStatus;
+  createdAt: string;
+  reviewedAt: string | null;
+  athleteId: string;
+  athleteNama: string;
+  zoneNama: string;
+  eventNama: string | null;
+  eventDate: string | null;
+  company: string;
+  email: string;
+  note: string | null;
+  basePrice: number;
+};
+export async function getSponsorRequests(status?: RequestStatus): Promise<SponsorRequest[]> {
+  const { data, error } = await db().rpc("smb_list_sponsor_requests", { p_status: status ?? null });
+  if (error) throw error;
+  return (data ?? []).map((r: Record<string, unknown>) => ({
+    id: String(r.id),
+    status: String(r.status) as RequestStatus,
+    createdAt: String(r.created_at),
+    reviewedAt: r.reviewed_at == null ? null : String(r.reviewed_at),
+    athleteId: String(r.athlete_id),
+    athleteNama: String(r.athlete_nama),
+    zoneNama: String(r.zone_nama),
+    eventNama: r.event_nama == null ? null : String(r.event_nama),
+    eventDate: r.event_date == null ? null : String(r.event_date),
+    company: r.applicant_company == null ? "" : String(r.applicant_company),
+    email: r.applicant_email == null ? "" : String(r.applicant_email),
+    note: r.note == null ? null : String(r.note),
+    basePrice: n(r.base_price),
+  }));
+}
+export async function getPendingRequestCount(): Promise<number> {
+  const { count, error } = await db()
+    .from("smb_sponsor_requests")
+    .select("id", { count: "exact", head: true })
+    .eq("status", "pending");
+  if (error) return 0;
+  return count ?? 0;
+}
+
 export type PublicEvent = { id: string; nama: string; venue: string; date: string; isOpen: boolean };
 export async function getPublicEvents(): Promise<PublicEvent[]> {
   const { data, error } = await db().rpc("smb_public_events");

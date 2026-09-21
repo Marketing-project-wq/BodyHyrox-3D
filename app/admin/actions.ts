@@ -17,6 +17,7 @@ function refreshAll() {
   revalidatePath("/admin/event");
   revalidatePath("/admin/harga-zona");
   revalidatePath("/admin/pengaturan");
+  revalidatePath("/admin/pengajuan");
 }
 
 export async function logout() {
@@ -165,6 +166,20 @@ export async function updateSettings(formData: FormData) {
     p_actor_name: s.nama,
   });
   if (error) throw new Error(error.message);
+  refreshAll();
+}
+
+export async function reviewRequest(formData: FormData) {
+  const s = requireSession();
+  requirePermission(s, "request.review");
+  const { data, error } = await db().rpc("smb_review_request", {
+    p_request_id: String(formData.get("id")),
+    p_action: String(formData.get("action")),
+    p_actor_id: s.sub,
+    p_actor_name: s.nama,
+  });
+  if (error) throw new Error(error.message);
+  if (!data?.ok) throw new Error(String(data?.error || "review_failed"));
   refreshAll();
 }
 

@@ -73,7 +73,8 @@ export type Permission =
   | "transaction.refund"
   | "zone.pricing"
   | "event.manage"
-  | "settings.manage";
+  | "settings.manage"
+  | "request.review";
 
 const ALL: Permission[] = [
   "view",
@@ -86,6 +87,7 @@ const ALL: Permission[] = [
   "zone.pricing",
   "event.manage",
   "settings.manage",
+  "request.review",
 ];
 
 export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {

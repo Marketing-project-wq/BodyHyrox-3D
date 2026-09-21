@@ -8,6 +8,7 @@ import {
   Users,
   Tag,
   Receipt,
+  Inbox,
   CalendarDays,
   DollarSign,
   Settings,
@@ -31,7 +32,7 @@ export function AdminShell({
   children,
 }: {
   session: { nama: string; role: Role };
-  counts: { athletes: number; brands: number };
+  counts: { athletes: number; brands: number; pendingRequests: number };
   m: Dict;
   locale: Locale;
   children: React.ReactNode;
@@ -44,6 +45,7 @@ export function AdminShell({
     { href: "/admin/atlet", label: m.nav_athletes, icon: Users, badge: counts.athletes },
     { href: "/admin/brand", label: m.nav_brands, icon: Tag, badge: counts.brands },
     { href: "/admin/transaksi", label: m.nav_transactions, icon: Receipt },
+    { href: "/admin/pengajuan", label: m.nav_requests, icon: Inbox, badge: counts.pendingRequests || undefined },
     { href: "/admin/event", label: m.nav_events, icon: CalendarDays },
     { href: "/admin/harga-zona", label: m.nav_zonePricing, icon: DollarSign },
     { href: "/admin/pengaturan", label: m.nav_settings, icon: Settings },

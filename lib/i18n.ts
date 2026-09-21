@@ -214,6 +214,28 @@ const en = {
   aj_err_past_cutoff: "Submissions for that event are closed.",
   aj_err_duplicate: "You already have a pending request for this zone and event.",
   aj_err_generic: "Could not submit the request. Please try again.",
+
+  // admin — sponsor requests
+  nav_requests: "Requests",
+  rq_title: "Sponsor requests",
+  rq_subtitle: "Approve or reject brand requests. Approving fills the zone and records the deal.",
+  rq_pending: "Pending",
+  rq_approved: "Approved",
+  rq_rejected: "Rejected",
+  rq_all: "All",
+  rq_brand: "Brand",
+  rq_athlete: "Athlete",
+  rq_zone: "Zone",
+  rq_event: "Event",
+  rq_price: "Price",
+  rq_submitted: "Submitted",
+  rq_approve: "Approve",
+  rq_reject: "Reject",
+  rq_confirmApprove:
+    "Approve {company} for zone {zone} on {athlete}? The zone becomes taken, a paid deal is recorded, and it affects revenue & top brands.",
+  rq_confirmReject: "Reject this request from {company}?",
+  rq_none: "No requests.",
+  rq_note: "Note",
 } as const;
 
 export type Dict = Record<keyof typeof en, string>;
@@ -416,6 +438,28 @@ const id: Dict = {
   aj_err_past_cutoff: "Pengajuan untuk event itu sudah ditutup.",
   aj_err_duplicate: "Kamu sudah punya pengajuan pending untuk zona & event ini.",
   aj_err_generic: "Gagal mengirim pengajuan. Coba lagi.",
+
+  // admin — pengajuan sponsor
+  nav_requests: "Pengajuan",
+  rq_title: "Pengajuan sponsor",
+  rq_subtitle: "Setujui atau tolak pengajuan brand. Persetujuan mengisi zona & mencatat deal.",
+  rq_pending: "Menunggu",
+  rq_approved: "Disetujui",
+  rq_rejected: "Ditolak",
+  rq_all: "Semua",
+  rq_brand: "Brand",
+  rq_athlete: "Atlet",
+  rq_zone: "Zona",
+  rq_event: "Event",
+  rq_price: "Harga",
+  rq_submitted: "Diajukan",
+  rq_approve: "Setujui",
+  rq_reject: "Tolak",
+  rq_confirmApprove:
+    "Setujui {company} untuk zona {zone} milik {athlete}? Zona jadi terisi, deal (paid) tercatat, dan memengaruhi revenue & top brand.",
+  rq_confirmReject: "Tolak pengajuan dari {company} ini?",
+  rq_none: "Belum ada pengajuan.",
+  rq_note: "Catatan",
 };
 
 export const messages: Record<Locale, Dict> = { en, id };
