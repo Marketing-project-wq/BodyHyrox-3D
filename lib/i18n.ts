@@ -61,6 +61,11 @@ const en = {
   ov_bySpending: "by spending",
   ov_upcomingEvents: "Upcoming Events",
   athletesSuffix: "athletes",
+  ov_noAthleteData: "No athlete data yet.",
+  ov_noBrandData: "No brand data yet.",
+  ov_noTx: "No transactions yet.",
+  ov_noEvents: "No upcoming events.",
+  ov_noRevenue: "No revenue yet.",
 
   // athletes
   ath_registered: "athletes registered",
@@ -79,6 +84,7 @@ const en = {
     "Deactivate {name}? Their zones will be hidden on the public Sponsor My Body page.",
   ath_confirmActivate: "Reactivate {name}?",
   ath_noMatch: "No athletes match.",
+  ath_empty: "No athletes yet. Add your first athlete to get started.",
   deactivate: "Deactivate",
   activate: "Activate",
 
@@ -92,6 +98,7 @@ const en = {
   br_formSave: "Save brand",
   br_confirmToggle: "{action} brand {name}?",
   br_noMatch: "No brands match.",
+  br_empty: "No brands yet. Add your first brand.",
 
   // transactions
   tx_shown: "transactions shown",
@@ -112,6 +119,7 @@ const en = {
   ev_regOpen: "Registration open",
   ev_regClosed: "Registration closed",
   ev_formSave: "Save event",
+  ev_empty: "No events yet. Create your first event.",
 
   // zone pricing
   zn_count: "body zones",
@@ -202,6 +210,11 @@ const id: Dict = {
   ov_bySpending: "berdasarkan spending",
   ov_upcomingEvents: "Event Mendatang",
   athletesSuffix: "atlet",
+  ov_noAthleteData: "Belum ada data atlet.",
+  ov_noBrandData: "Belum ada data brand.",
+  ov_noTx: "Belum ada transaksi.",
+  ov_noEvents: "Belum ada event mendatang.",
+  ov_noRevenue: "Belum ada revenue.",
 
   ath_registered: "atlet terdaftar",
   ath_active: "aktif",
@@ -219,6 +232,7 @@ const id: Dict = {
     "Nonaktifkan {name}? Zona atlet ini akan disembunyikan di halaman publik Sponsor My Body.",
   ath_confirmActivate: "Aktifkan kembali {name}?",
   ath_noMatch: "Tidak ada atlet yang cocok.",
+  ath_empty: "Belum ada atlet. Tambah atlet pertama untuk mulai.",
   deactivate: "Nonaktifkan",
   activate: "Aktifkan",
 
@@ -231,6 +245,7 @@ const id: Dict = {
   br_formSave: "Simpan brand",
   br_confirmToggle: "{action} brand {name}?",
   br_noMatch: "Tidak ada brand yang cocok.",
+  br_empty: "Belum ada brand. Tambah brand pertama.",
 
   tx_shown: "transaksi ditampilkan",
   chip_all: "Semua",
@@ -249,6 +264,7 @@ const id: Dict = {
   ev_regOpen: "Registrasi dibuka",
   ev_regClosed: "Registrasi ditutup",
   ev_formSave: "Simpan event",
+  ev_empty: "Belum ada event. Buat event pertama.",
 
   zn_count: "zona tubuh",
   zn_adjust: "Sesuaikan harga",

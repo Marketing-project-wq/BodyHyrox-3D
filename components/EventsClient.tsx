@@ -5,7 +5,7 @@ import { Plus } from "lucide-react";
 import type { EventRow } from "@/lib/data";
 import { type Dict, type Locale } from "@/lib/i18n";
 import { formatNumber } from "@/lib/format";
-import { Badge } from "@/components/ui";
+import { Badge, EmptyState } from "@/components/ui";
 import { createEvent } from "@/app/admin/actions";
 
 export function EventsClient({
@@ -50,6 +50,20 @@ export function EventsClient({
         </form>
       )}
 
+      {events.length === 0 ? (
+        <div className="card flex flex-1 items-center justify-center lg:min-h-0">
+          <EmptyState
+            title={m.ev_empty}
+            action={
+              canManage ? (
+                <button className="btn btn-primary" onClick={() => setShowAdd(true)}>
+                  <Plus size={16} /> {m.ev_create}
+                </button>
+              ) : undefined
+            }
+          />
+        </div>
+      ) : (
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 lg:min-h-0 lg:flex-1 lg:content-start lg:overflow-y-auto lg:pr-1">
         {events.map((e) => {
           const d = new Date(e.date);
@@ -80,6 +94,7 @@ export function EventsClient({
           );
         })}
       </div>
+      )}
     </div>
   );
 }

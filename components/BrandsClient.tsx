@@ -6,7 +6,7 @@ import type { BrandRow } from "@/lib/data";
 import { ACTIVE_STATUS } from "@/lib/config";
 import { type Dict, tActive, fmt } from "@/lib/i18n";
 import { formatIDRCompact, formatNumber } from "@/lib/format";
-import { Badge, Avatar } from "@/components/ui";
+import { Badge, Avatar, EmptyState } from "@/components/ui";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { createBrand, setBrandStatus } from "@/app/admin/actions";
 
@@ -61,6 +61,21 @@ export function BrandsClient({
         </form>
       )}
 
+      {brands.length === 0 ? (
+        <div className="card flex flex-1 items-center justify-center lg:min-h-0">
+          <EmptyState
+            title={m.br_empty}
+            action={
+              canEdit ? (
+                <button className="btn btn-primary" onClick={() => setShowAdd(true)}>
+                  <Plus size={16} /> {m.br_add}
+                </button>
+              ) : undefined
+            }
+          />
+        </div>
+      ) : (
+      <>
       <div className="flex flex-wrap items-center gap-3">
         <div className="relative w-full max-w-xs">
           <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-faint" />
@@ -130,6 +145,8 @@ export function BrandsClient({
         </table>
        </div>
       </div>
+      </>
+      )}
     </div>
   );
 }

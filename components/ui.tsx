@@ -26,6 +26,33 @@ export function Logo({
   );
 }
 
+/* ---------- Empty state (no data yet) ---------- */
+export function EmptyState({
+  title,
+  hint,
+  action,
+  className = "",
+  compact = false,
+}: {
+  title: string;
+  hint?: string;
+  action?: React.ReactNode;
+  className?: string;
+  compact?: boolean;
+}) {
+  return (
+    <div
+      className={`flex flex-col items-center justify-center gap-2 text-center ${
+        compact ? "px-4 py-6" : "px-6 py-12"
+      } ${className}`}
+    >
+      <p className={`font-medium text-text ${compact ? "text-sm" : "text-base"}`}>{title}</p>
+      {hint && <p className="max-w-xs text-xs text-muted">{hint}</p>}
+      {action && <div className="mt-1">{action}</div>}
+    </div>
+  );
+}
+
 /* ---------- Status badge (colored dot + tinted background) ---------- */
 const TONES: Record<BadgeTone, { dot: string; text: string; bg: string }> = {
   green: { dot: "bg-green", text: "text-green", bg: "bg-[rgba(18,150,90,0.12)]" },
@@ -110,7 +137,22 @@ export function SectionCard({
 }
 
 /* ---------- Revenue area + line chart (fills its container height) ---------- */
-export function RevenueChart({ points }: { points: { label: string; value: number }[] }) {
+export function RevenueChart({
+  points,
+  emptyLabel,
+}: {
+  points: { label: string; value: number }[];
+  emptyLabel?: string;
+}) {
+  const hasData = points.length > 0 && points.some((p) => p.value > 0);
+  if (!hasData) {
+    return (
+      <div className="flex h-full min-h-[150px] items-center justify-center lg:min-h-0">
+        <p className="text-sm text-muted">{emptyLabel ?? "No data yet."}</p>
+      </div>
+    );
+  }
+
   const W = 640;
   const H = 180;
   const PADX = 6;
