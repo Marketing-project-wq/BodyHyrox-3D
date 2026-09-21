@@ -6,7 +6,7 @@ import type { AthleteRow } from "@/lib/data";
 import { ACTIVE_STATUS } from "@/lib/config";
 import { type Dict, tActive, tGender, fmt } from "@/lib/i18n";
 import { formatIDRCompact, formatNumber } from "@/lib/format";
-import { Badge, Avatar } from "@/components/ui";
+import { Badge, Avatar, EmptyState } from "@/components/ui";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { createAthlete, setAthleteStatus } from "@/app/admin/actions";
 
@@ -84,6 +84,21 @@ export function AthletesClient({
         </form>
       )}
 
+      {total === 0 ? (
+        <div className="card flex flex-1 items-center justify-center lg:min-h-0">
+          <EmptyState
+            title={m.ath_empty}
+            action={
+              canEdit ? (
+                <button className="btn btn-primary" onClick={() => setShowAdd(true)}>
+                  <Plus size={16} /> {m.ath_add}
+                </button>
+              ) : undefined
+            }
+          />
+        </div>
+      ) : (
+      <>
       {/* Gender separation */}
       <div className="flex flex-wrap gap-2">
         {genderTabs.map((t) => (
@@ -174,6 +189,8 @@ export function AthletesClient({
         </table>
        </div>
       </div>
+      </>
+      )}
     </div>
   );
 }

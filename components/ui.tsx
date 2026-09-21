@@ -1,6 +1,58 @@
 import type { BadgeTone } from "@/lib/config";
 import { initials } from "@/lib/format";
 
+/* ---------- Brand logo (white lockup — stays legible on light or dark) ---------- */
+const LOGO_SRC = "https://media.20fit.id/wp-content/uploads/2026/09/new-logo-20fit.png";
+
+export function Logo({
+  imgClassName = "h-6",
+  className = "",
+}: {
+  imgClassName?: string;
+  className?: string;
+}) {
+  return (
+    <span
+      className={`inline-flex items-center rounded-lg border border-black/5 bg-white px-2.5 py-1.5 shadow-sm ${className}`}
+    >
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={LOGO_SRC}
+        alt="20FIT"
+        className={`${imgClassName} w-auto select-none`}
+        draggable={false}
+      />
+    </span>
+  );
+}
+
+/* ---------- Empty state (no data yet) ---------- */
+export function EmptyState({
+  title,
+  hint,
+  action,
+  className = "",
+  compact = false,
+}: {
+  title: string;
+  hint?: string;
+  action?: React.ReactNode;
+  className?: string;
+  compact?: boolean;
+}) {
+  return (
+    <div
+      className={`flex flex-col items-center justify-center gap-2 text-center ${
+        compact ? "px-4 py-6" : "px-6 py-12"
+      } ${className}`}
+    >
+      <p className={`font-medium text-text ${compact ? "text-sm" : "text-base"}`}>{title}</p>
+      {hint && <p className="max-w-xs text-xs text-muted">{hint}</p>}
+      {action && <div className="mt-1">{action}</div>}
+    </div>
+  );
+}
+
 /* ---------- Status badge (colored dot + tinted background) ---------- */
 const TONES: Record<BadgeTone, { dot: string; text: string; bg: string }> = {
   green: { dot: "bg-green", text: "text-green", bg: "bg-[rgba(18,150,90,0.12)]" },
@@ -85,7 +137,22 @@ export function SectionCard({
 }
 
 /* ---------- Revenue area + line chart (fills its container height) ---------- */
-export function RevenueChart({ points }: { points: { label: string; value: number }[] }) {
+export function RevenueChart({
+  points,
+  emptyLabel,
+}: {
+  points: { label: string; value: number }[];
+  emptyLabel?: string;
+}) {
+  const hasData = points.length > 0 && points.some((p) => p.value > 0);
+  if (!hasData) {
+    return (
+      <div className="flex h-full min-h-[150px] items-center justify-center lg:min-h-0">
+        <p className="text-sm text-muted">{emptyLabel ?? "No data yet."}</p>
+      </div>
+    );
+  }
+
   const W = 640;
   const H = 180;
   const PADX = 6;
@@ -137,11 +204,7 @@ export function NotConfigured() {
   return (
     <div className="flex min-h-[100dvh] items-center justify-center bg-bg px-4">
       <div className="card max-w-md p-6 text-center">
-        <div className="mx-auto mb-4 flex items-center gap-1 font-condensed text-2xl font-bold tracking-tight">
-          <span>2</span>
-          <span className="inline-block h-[0.5em] w-[0.5em] rounded-full bg-accent" />
-          <span>FIT</span>
-        </div>
+        <Logo imgClassName="h-8" className="mx-auto mb-4" />
         <h1 className="text-lg font-bold">Dashboard hampir siap</h1>
         <p className="mt-2 text-sm text-muted">
           Tinggal satu langkah: admin menambahkan variabel{" "}

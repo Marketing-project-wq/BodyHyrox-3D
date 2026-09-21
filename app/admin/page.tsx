@@ -18,7 +18,7 @@ import {
 import { getMessages, getLocale } from "@/lib/i18n-server";
 import { tTxStatus } from "@/lib/i18n";
 import { TX_STATUS } from "@/lib/config";
-import { Badge, KpiCard, SectionCard, RevenueChart, Avatar, Bar } from "@/components/ui";
+import { Badge, KpiCard, SectionCard, RevenueChart, Avatar, Bar, EmptyState } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -74,7 +74,7 @@ export default async function OverviewPage() {
         {/* Left (wider) */}
         <div className="flex flex-col gap-3 lg:col-span-2 lg:min-h-0">
           <SectionCard title={m.revenue6m} hint={m.inMillionRp} className="overflow-hidden lg:flex-[2] lg:min-h-0">
-            <RevenueChart points={chart} />
+            <RevenueChart points={chart} emptyLabel={m.ov_noRevenue} />
           </SectionCard>
 
           <SectionCard
@@ -88,6 +88,9 @@ export default async function OverviewPage() {
             bodyClassName="p-0 overflow-x-auto"
             scrollBody
           >
+            {recent.length === 0 ? (
+              <EmptyState compact title={m.ov_noTx} className="h-full justify-center" />
+            ) : (
             <table className="w-full min-w-[560px]">
               <thead className="thead-sticky">
                 <tr className="border-b border-border">
@@ -112,12 +115,16 @@ export default async function OverviewPage() {
                 ))}
               </tbody>
             </table>
+            )}
           </SectionCard>
         </div>
 
         {/* Right column */}
         <div className="flex flex-col gap-3 lg:min-h-0">
           <SectionCard title={m.ov_topAthletes} hint={m.ov_byRevenue} className="lg:min-h-0 lg:flex-1" scrollBody>
+            {topAthletes.length === 0 ? (
+              <EmptyState compact title={m.ov_noAthleteData} />
+            ) : (
             <ul className="space-y-2.5">
               {topAthletes.map((a, i) => (
                 <li key={a.id} className="flex items-center gap-2.5">
@@ -133,9 +140,13 @@ export default async function OverviewPage() {
                 </li>
               ))}
             </ul>
+            )}
           </SectionCard>
 
           <SectionCard title={m.ov_topBrands} hint={m.ov_bySpending} className="lg:min-h-0 lg:flex-1" scrollBody>
+            {topBrands.length === 0 ? (
+              <EmptyState compact title={m.ov_noBrandData} />
+            ) : (
             <ul className="space-y-2.5">
               {topBrands.map((b) => (
                 <li key={b.id} className="flex items-center gap-2.5">
@@ -148,6 +159,7 @@ export default async function OverviewPage() {
                 </li>
               ))}
             </ul>
+            )}
           </SectionCard>
 
           <SectionCard
@@ -160,6 +172,9 @@ export default async function OverviewPage() {
               </Link>
             }
           >
+            {events.length === 0 ? (
+              <EmptyState compact title={m.ov_noEvents} />
+            ) : (
             <ul className="space-y-2.5">
               {events.map((e) => {
                 const d = new Date(e.date);
@@ -180,6 +195,7 @@ export default async function OverviewPage() {
                 );
               })}
             </ul>
+            )}
           </SectionCard>
         </div>
       </div>
