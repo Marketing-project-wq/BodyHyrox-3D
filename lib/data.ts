@@ -264,3 +264,109 @@ export async function getSelectOptions() {
     zones: (zones.data ?? []) as { id: string; nama: string }[],
   };
 }
+
+/* ---------- Public (Tampilan Atlet) — read-only, no sponsor brand exposed ---------- */
+export type ZoneStatus = "tersedia" | "terisi" | "nonaktif";
+
+export type PublicAthlete = {
+  id: string;
+  nama: string;
+  handle: string;
+  kota: string;
+  gender: Gender;
+  discipline: string | null;
+  photoUrl: string | null;
+  podiumCount: number;
+  rank: number | null;
+  framesPerSeason: number;
+  zonesTotal: number;
+  zonesAvailable: number;
+};
+
+export async function getPublicAthletes(): Promise<PublicAthlete[]> {
+  const { data, error } = await db().rpc("smb_public_athletes");
+  if (error) throw error;
+  return (data ?? []).map((r: Record<string, unknown>) => ({
+    id: String(r.id),
+    nama: String(r.nama),
+    handle: String(r.handle),
+    kota: String(r.kota),
+    gender: (String(r.gender) === "female" ? "female" : "male") as Gender,
+    discipline: r.discipline == null ? null : String(r.discipline),
+    photoUrl: r.photo_url == null ? null : String(r.photo_url),
+    podiumCount: n(r.podium_count),
+    rank: r.rank == null ? null : n(r.rank),
+    framesPerSeason: n(r.frames_per_season),
+    zonesTotal: n(r.zones_total),
+    zonesAvailable: n(r.zones_available),
+  }));
+}
+
+export type PublicZone = {
+  athleteZoneId: string;
+  zoneId: string;
+  nama: string;
+  basePrice: number;
+  exclusive: boolean;
+  status: ZoneStatus;
+};
+export type PublicRace = {
+  event: string;
+  venue: string;
+  date: string;
+  placement: number | null;
+  isPodium: boolean;
+};
+export type PublicAthleteDetail = Omit<PublicAthlete, "zonesTotal" | "zonesAvailable"> & {
+  zones: PublicZone[];
+  races: PublicRace[];
+};
+
+export async function getPublicAthlete(id: string): Promise<PublicAthleteDetail | null> {
+  const { data, error } = await db().rpc("smb_public_athlete", { p_id: id });
+  if (error) throw error;
+  if (!data) return null;
+  const d = data as Record<string, unknown>;
+  const zones = (d.zones as Record<string, unknown>[] | null) ?? [];
+  const races = (d.races as Record<string, unknown>[] | null) ?? [];
+  return {
+    id: String(d.id),
+    nama: String(d.nama),
+    handle: String(d.handle),
+    kota: String(d.kota),
+    gender: (String(d.gender) === "female" ? "female" : "male") as Gender,
+    discipline: d.discipline == null ? null : String(d.discipline),
+    photoUrl: d.photo_url == null ? null : String(d.photo_url),
+    podiumCount: n(d.podium_count),
+    rank: d.rank == null ? null : n(d.rank),
+    framesPerSeason: n(d.frames_per_season),
+    zones: zones.map((z) => ({
+      athleteZoneId: String(z.athlete_zone_id),
+      zoneId: String(z.zone_id),
+      nama: String(z.nama),
+      basePrice: n(z.base_price),
+      exclusive: Boolean(z.exclusive),
+      status: String(z.status) as ZoneStatus,
+    })),
+    races: races.map((r) => ({
+      event: String(r.event),
+      venue: String(r.venue),
+      date: String(r.date),
+      placement: r.placement == null ? null : n(r.placement),
+      isPodium: Boolean(r.is_podium),
+    })),
+  };
+}
+
+export type PublicEvent = { id: string; nama: string; venue: string; date: string; isOpen: boolean };
+export async function getPublicEvents(): Promise<PublicEvent[]> {
+  const { data, error } = await db().rpc("smb_public_events");
+  if (error) throw error;
+  return (data ?? []).map((r: Record<string, unknown>) => ({
+    id: String(r.id),
+    nama: String(r.nama),
+    venue: String(r.venue),
+    date: String(r.event_date),
+    isOpen: Boolean(r.is_open),
+  }));
+}
