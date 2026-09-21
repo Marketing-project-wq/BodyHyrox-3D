@@ -1,5 +1,5 @@
 import { requireSession } from "@/lib/auth";
-import { getKpis, getAdminName } from "@/lib/data";
+import { getKpis, getAdminName, getPendingRequestCount } from "@/lib/data";
 import { isConfigured } from "@/lib/supabase";
 import { getLocale, getMessages } from "@/lib/i18n-server";
 import { AdminShell } from "@/components/AdminShell";
@@ -14,11 +14,15 @@ export default async function AdminLayout({
 }) {
   if (!isConfigured()) return <NotConfigured />;
   const session = requireSession();
-  const [kpis, liveName] = await Promise.all([getKpis(), getAdminName(session.sub)]);
+  const [kpis, liveName, pendingRequests] = await Promise.all([
+    getKpis(),
+    getAdminName(session.sub),
+    getPendingRequestCount(),
+  ]);
   return (
     <AdminShell
       session={{ nama: liveName ?? session.nama, role: session.role }}
-      counts={{ athletes: kpis.athletes_active, brands: kpis.brands_total }}
+      counts={{ athletes: kpis.athletes_active, brands: kpis.brands_total, pendingRequests }}
       m={getMessages()}
       locale={getLocale()}
     >
