@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
 import { isConfigured } from "@/lib/supabase";
 import { getMessages } from "@/lib/i18n-server";
-import { NotConfigured } from "@/components/ui";
+import { Logo, NotConfigured } from "@/components/ui";
 import { login } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -20,12 +20,8 @@ export default function LoginPage({
     <div className="flex min-h-screen items-center justify-center bg-bg px-4">
       <div className="w-full max-w-sm">
         <div className="mb-6 text-center">
-          <span className="inline-flex items-center gap-1 font-condensed text-3xl font-bold tracking-tight">
-            <span>2</span>
-            <span className="inline-block h-[0.5em] w-[0.5em] rounded-full bg-accent" />
-            <span>FIT</span>
-          </span>
-          <p className="mt-1 text-sm text-muted">{m.login_subtitle}</p>
+          <Logo imgClassName="h-10" />
+          <p className="mt-3 text-sm text-muted">{m.login_subtitle}</p>
         </div>
 
         <form action={login} className="card space-y-4 p-6">

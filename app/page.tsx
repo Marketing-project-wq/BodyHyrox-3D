@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import Link from "next/link";
+import { Logo } from "@/components/ui";
 
 export default function LandingPage() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -110,11 +111,7 @@ export default function LandingPage() {
       <canvas ref={canvasRef} className="fixed inset-0 z-0 h-full w-full" />
       <div className="relative z-10 flex min-h-[100dvh] flex-col p-5 sm:p-8 md:p-10">
         <header className="flex items-center justify-between">
-          <div className="flex items-center gap-1 font-condensed text-xl font-bold tracking-tight">
-            <span>2</span>
-            <span className="inline-block h-[0.5em] w-[0.5em] rounded-full bg-accent" />
-            <span>FIT</span>
-          </div>
+          <Logo imgClassName="h-7" />
           <Link
             href="/login"
             className="rounded-lg border border-white/25 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-white/10"

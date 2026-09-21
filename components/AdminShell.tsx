@@ -21,6 +21,7 @@ import { type Dict, type Locale, tRole } from "@/lib/i18n";
 import { initials } from "@/lib/format";
 import { logout } from "@/app/admin/actions";
 import { LangToggle } from "@/components/LangToggle";
+import { Logo } from "@/components/ui";
 
 export function AdminShell({
   session,
@@ -51,14 +52,6 @@ export function AdminShell({
   const isActive = (href: string) =>
     href === "/admin" ? pathname === "/admin" : pathname.startsWith(href);
 
-  const Wordmark = () => (
-    <div className="flex items-center gap-1 font-condensed text-xl font-bold tracking-tight text-white">
-      <span>2</span>
-      <span className="inline-block h-[0.5em] w-[0.5em] rounded-full bg-accent" />
-      <span>FIT</span>
-    </div>
-  );
-
   const roleLabel = tRole(m, session.role);
 
   return (
@@ -70,7 +63,7 @@ export function AdminShell({
         }`}
       >
         <div className="flex items-center justify-between px-5 py-4">
-          <Wordmark />
+          <Logo imgClassName="h-6" />
           <button className="text-sidebar-faint lg:hidden" onClick={() => setOpen(false)} aria-label="Menu">
             <X size={20} />
           </button>
@@ -136,7 +129,7 @@ export function AdminShell({
           <button className="text-white" onClick={() => setOpen(true)} aria-label="Menu">
             <Menu size={22} />
           </button>
-          <Wordmark />
+          <Logo imgClassName="h-5" />
         </div>
 
         <main className="p-4 md:p-5 lg:min-h-0 lg:flex-1 lg:overflow-hidden">{children}</main>
