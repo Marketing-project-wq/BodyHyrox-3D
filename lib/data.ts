@@ -358,6 +358,88 @@ export async function getPublicAthlete(id: string): Promise<PublicAthleteDetail 
   };
 }
 
+/* ---------- Admin athlete editor (full detail, all statuses, all catalog zones) ---------- */
+export type AdminZoneRow = {
+  zoneId: string;
+  nama: string;
+  sortOrder: number;
+  catalogPrice: number;
+  catalogActive: boolean;
+  athleteZoneId: string | null;
+  hasRow: boolean;
+  basePrice: number;
+  active: boolean;
+  exclusive: boolean;
+  status: ZoneStatus | null;
+};
+export type AdminRaceRow = {
+  id: string;
+  eventId: string;
+  event: string;
+  venue: string;
+  date: string;
+  placement: number | null;
+  isPodium: boolean;
+};
+export type AdminAthleteDetail = {
+  id: string;
+  nama: string;
+  handle: string;
+  kota: string;
+  gender: Gender;
+  status: ActiveStatus;
+  discipline: string | null;
+  photoUrl: string | null;
+  podiumCount: number;
+  rank: number | null;
+  framesPerSeason: number;
+  zones: AdminZoneRow[];
+  races: AdminRaceRow[];
+};
+export async function getAdminAthlete(id: string): Promise<AdminAthleteDetail | null> {
+  const { data, error } = await db().rpc("smb_admin_athlete", { p_id: id });
+  if (error) throw error;
+  if (!data) return null;
+  const d = data as Record<string, unknown>;
+  const zones = (d.zones as Record<string, unknown>[] | null) ?? [];
+  const races = (d.races as Record<string, unknown>[] | null) ?? [];
+  return {
+    id: String(d.id),
+    nama: String(d.nama),
+    handle: String(d.handle),
+    kota: String(d.kota),
+    gender: (String(d.gender) === "female" ? "female" : "male") as Gender,
+    status: String(d.status) as ActiveStatus,
+    discipline: d.discipline == null ? null : String(d.discipline),
+    photoUrl: d.photo_url == null ? null : String(d.photo_url),
+    podiumCount: n(d.podium_count),
+    rank: d.rank == null ? null : n(d.rank),
+    framesPerSeason: n(d.frames_per_season),
+    zones: zones.map((z) => ({
+      zoneId: String(z.zone_id),
+      nama: String(z.nama),
+      sortOrder: n(z.sort_order),
+      catalogPrice: n(z.catalog_price),
+      catalogActive: Boolean(z.catalog_active),
+      athleteZoneId: z.athlete_zone_id == null ? null : String(z.athlete_zone_id),
+      hasRow: Boolean(z.has_row),
+      basePrice: n(z.base_price),
+      active: Boolean(z.active),
+      exclusive: Boolean(z.exclusive),
+      status: z.status == null ? null : (String(z.status) as ZoneStatus),
+    })),
+    races: races.map((r) => ({
+      id: String(r.id),
+      eventId: String(r.event_id),
+      event: String(r.event),
+      venue: String(r.venue),
+      date: String(r.date),
+      placement: r.placement == null ? null : n(r.placement),
+      isPodium: Boolean(r.is_podium),
+    })),
+  };
+}
+
 export type RequestStatus = "pending" | "approved" | "rejected";
 export type SponsorRequest = {
   id: string;
