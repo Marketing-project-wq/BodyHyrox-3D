@@ -14,9 +14,11 @@ export function PublicHeader({
 }) {
   return (
     <header className="sticky top-0 z-20 flex items-center justify-between gap-4 border-b border-white/10 bg-[#0b0b0d]/90 px-5 py-3.5 backdrop-blur md:px-8">
-      <Link href="/" aria-label="20FIT" className="shrink-0">
+      {/* Landing (/) is a static page served via rewrite, not an app route — use a
+          plain anchor for a clean hard navigation (avoids a client-router flash). */}
+      <a href="/" aria-label="20FIT" className="shrink-0">
         <Logo imgClassName="h-6" />
-      </Link>
+      </a>
       <div className="flex items-center gap-4">
         {back && (
           <Link href={back.href} className="text-sm text-white/70 transition-colors hover:text-white">
