@@ -117,6 +117,8 @@ export type AthleteRow = {
   gender: Gender;
   revenue: number;
   zonesSold: number;
+  /** How many zones this athlete has a custom (override) price on. */
+  customPriceCount: number;
 };
 export async function getAthletes(): Promise<AthleteRow[]> {
   const { data, error } = await db().rpc("smb_list_athletes");
@@ -130,6 +132,7 @@ export async function getAthletes(): Promise<AthleteRow[]> {
     gender: (String(r.gender) === "female" ? "female" : "male") as Gender,
     revenue: n(r.revenue),
     zonesSold: n(r.zones_sold),
+    customPriceCount: n(r.custom_price_count),
   }));
 }
 
@@ -367,7 +370,11 @@ export type AdminZoneRow = {
   catalogActive: boolean;
   athleteZoneId: string | null;
   hasRow: boolean;
-  basePrice: number;
+  /** Effective price = override if set, else catalog (template). */
+  effectivePrice: number;
+  /** The per-athlete override, or null when following the template. */
+  overridePrice: number | null;
+  isOverride: boolean;
   active: boolean;
   exclusive: boolean;
   status: ZoneStatus | null;
@@ -423,7 +430,9 @@ export async function getAdminAthlete(id: string): Promise<AdminAthleteDetail | 
       catalogActive: Boolean(z.catalog_active),
       athleteZoneId: z.athlete_zone_id == null ? null : String(z.athlete_zone_id),
       hasRow: Boolean(z.has_row),
-      basePrice: n(z.base_price),
+      effectivePrice: n(z.effective_price),
+      overridePrice: z.override_price == null ? null : n(z.override_price),
+      isOverride: Boolean(z.is_override),
       active: Boolean(z.active),
       exclusive: Boolean(z.exclusive),
       status: z.status == null ? null : (String(z.status) as ZoneStatus),

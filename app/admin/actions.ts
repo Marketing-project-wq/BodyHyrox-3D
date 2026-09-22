@@ -127,9 +127,41 @@ export async function upsertAthleteZone(formData: FormData) {
   const { error } = await db().rpc("smb_upsert_athlete_zone", {
     p_athlete_id: athleteId,
     p_zone_id: String(formData.get("zone_id")),
-    p_base_price: Number(formData.get("base_price") || 0),
     p_active: formData.get("active") === "on",
     p_exclusive: formData.get("exclusive") === "on",
+    p_actor_id: s.sub,
+    p_actor_name: s.nama,
+  });
+  if (error) throw new Error(error.message);
+  refreshAthlete(athleteId);
+}
+
+/** Set a per-athlete price override for one zone. */
+export async function setAthleteZonePrice(formData: FormData) {
+  const s = requireSession();
+  requirePermission(s, "zone.pricing");
+  const athleteId = String(formData.get("athlete_id"));
+  const priceRaw = String(formData.get("price") || "").trim();
+  const { error } = await db().rpc("smb_set_athlete_zone_price", {
+    p_athlete_id: athleteId,
+    p_zone_id: String(formData.get("zone_id")),
+    p_price: priceRaw === "" ? null : Number(priceRaw),
+    p_actor_id: s.sub,
+    p_actor_name: s.nama,
+  });
+  if (error) throw new Error(error.message);
+  refreshAthlete(athleteId);
+}
+
+/** Clear a zone's override so it follows the template (base) price again. */
+export async function resetAthleteZonePrice(formData: FormData) {
+  const s = requireSession();
+  requirePermission(s, "zone.pricing");
+  const athleteId = String(formData.get("athlete_id"));
+  const { error } = await db().rpc("smb_set_athlete_zone_price", {
+    p_athlete_id: athleteId,
+    p_zone_id: String(formData.get("zone_id")),
+    p_price: null,
     p_actor_id: s.sub,
     p_actor_name: s.nama,
   });

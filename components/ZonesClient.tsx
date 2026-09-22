@@ -23,12 +23,15 @@ export function ZonesClient({
 
   return (
     <div className="flex flex-col gap-4 lg:h-full lg:min-h-0">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-sm text-muted">
-          <span className="tabnum text-text">{formatNumber(zones.length)}</span> {m.zn_count}
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="max-w-2xl">
+          <p className="text-sm text-muted">
+            <span className="tabnum text-text">{formatNumber(zones.length)}</span> {m.zn_count}
+          </p>
+          <p className="mt-1 text-xs text-faint">{m.zn_subtitle}</p>
+        </div>
         {canPricing && (
-          <button className="btn btn-ghost" onClick={() => setEdit((v) => !v)}>
+          <button className="btn btn-ghost shrink-0" onClick={() => setEdit((v) => !v)}>
             <SlidersHorizontal size={16} /> {edit ? m.zn_done : m.zn_adjust}
           </button>
         )}
