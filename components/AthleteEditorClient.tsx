@@ -12,6 +12,8 @@ import { ConfirmButton } from "@/components/ConfirmButton";
 import {
   updateAthlete,
   upsertAthleteZone,
+  setAthleteZonePrice,
+  resetAthleteZonePrice,
   addAthleteRace,
   deleteAthleteRace,
 } from "@/app/admin/actions";
@@ -190,18 +192,22 @@ export function AthleteEditorClient({
           <div className="mb-1 flex items-center justify-between gap-2">
             <h2 className="text-sm font-semibold text-text">{m.ae_zones}</h2>
           </div>
-          <p className="mb-3 text-xs text-muted">{m.ae_zonesHint}</p>
-          {!canPricing && (
+          <p className="mb-2 text-xs text-muted">{m.ae_zonesHint}</p>
+          {canPricing ? (
+            <p className="mb-3 rounded-lg border border-border bg-surface-2 px-3 py-2 text-[11px] text-muted">
+              {m.ae_overrideNote}
+            </p>
+          ) : (
             <p className="mb-3 rounded-lg border border-border bg-surface-2 px-3 py-2 text-xs text-muted">
               {m.ae_pricingReadonly}
             </p>
           )}
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[720px]">
+            <table className="w-full min-w-[760px]">
               <thead>
                 <tr className="border-b border-border">
                   <th className="th">{m.ae_zone}</th>
-                  <th className="th">{m.ae_price}</th>
+                  <th className="th">{m.ae_effectivePrice}</th>
                   <th className="th text-center">{m.ae_offered}</th>
                   <th className="th text-center">{m.ae_exclusive}</th>
                   <th className="th">{m.status}</th>
@@ -214,6 +220,7 @@ export function AthleteEditorClient({
                     key={z.zoneId}
                     z={z}
                     athleteId={athlete.id}
+                    athleteName={athlete.nama}
                     canPricing={canPricing}
                     statusTone={z.status ? ZONE_TONE[z.status] : "gray"}
                     statusLabel={zoneStatusLabel(z.status)}
@@ -313,9 +320,22 @@ export function AthleteEditorClient({
   );
 }
 
+function SourceBadge({ isOverride, m }: { isOverride: boolean; m: Dict }) {
+  return (
+    <span
+      className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium ${
+        isOverride ? "bg-accent-soft text-accent" : "bg-surface-2 text-muted"
+      }`}
+    >
+      {isOverride ? m.ae_srcCustom : m.ae_srcBase}
+    </span>
+  );
+}
+
 function ZoneRow({
   z,
   athleteId,
+  athleteName,
   canPricing,
   statusTone,
   statusLabel,
@@ -323,18 +343,24 @@ function ZoneRow({
 }: {
   z: AdminZoneRow;
   athleteId: string;
+  athleteName: string;
   canPricing: boolean;
   statusTone: BadgeTone;
   statusLabel: string;
   m: Dict;
 }) {
+  const [editing, setEditing] = useState(false);
   const isTaken = z.status === "terisi";
+  const formId = `zone-${z.zoneId}`;
 
   if (!canPricing) {
     return (
       <tr className="border-b border-border/60 last:border-0">
         <td className="td font-medium">{z.nama}</td>
-        <td className="td tabnum">{formatIDR(z.basePrice)}</td>
+        <td className="td">
+          <span className="tabnum">{formatIDR(z.effectivePrice)}</span>{" "}
+          <SourceBadge isOverride={z.isOverride} m={m} />
+        </td>
         <td className="td text-center text-muted">{z.active ? "✓" : "—"}</td>
         <td className="td text-center text-muted">{z.exclusive ? "✓" : "—"}</td>
         <td className="td"><Badge tone={statusTone}>{statusLabel}</Badge></td>
@@ -343,51 +369,78 @@ function ZoneRow({
   }
 
   return (
-    <tr className="border-b border-border/60 last:border-0 align-middle">
+    <tr className="border-b border-border/60 last:border-0 align-top">
       <td className="td font-medium">{z.nama}</td>
+
+      {/* Effective price + source, with edit / reset */}
       <td className="td">
-        <form action={upsertAthleteZone} id={`zone-${z.zoneId}`}>
+        {editing ? (
+          <form action={setAthleteZonePrice} className="flex flex-wrap items-center gap-2">
+            <input type="hidden" name="athlete_id" value={athleteId} />
+            <input type="hidden" name="zone_id" value={z.zoneId} />
+            <input
+              name="price"
+              type="number"
+              min="0"
+              step="1"
+              defaultValue={z.effectivePrice}
+              autoFocus
+              className="input w-32 tabnum"
+            />
+            <button type="submit" className="text-xs font-medium text-accent hover:underline">{m.ae_savePrice}</button>
+            <button type="button" onClick={() => setEditing(false)} className="text-xs text-muted hover:text-text">{m.ae_cancel}</button>
+          </form>
+        ) : (
+          <div className="flex flex-col gap-0.5">
+            <div className="flex items-center gap-2">
+              <span className="tabnum">{formatIDR(z.effectivePrice)}</span>
+              <SourceBadge isOverride={z.isOverride} m={m} />
+            </div>
+            <div className="flex items-center gap-3">
+              <button type="button" onClick={() => setEditing(true)} className="text-xs font-medium text-accent hover:underline">
+                {m.ae_editPrice}
+              </button>
+              {z.isOverride && (
+                <form action={resetAthleteZonePrice} className="inline">
+                  <input type="hidden" name="athlete_id" value={athleteId} />
+                  <input type="hidden" name="zone_id" value={z.zoneId} />
+                  <ConfirmButton
+                    message={fmt(m.ae_confirmResetPrice, { zone: z.nama, name: athleteName })}
+                    className="text-xs text-muted hover:text-text"
+                  >
+                    {m.ae_resetPrice}
+                  </ConfirmButton>
+                </form>
+              )}
+            </div>
+            {z.isOverride && (
+              <span className="text-[11px] text-faint">
+                {fmt(m.ae_catalogRef, { price: formatIDRCompact(z.catalogPrice) })}
+              </span>
+            )}
+          </div>
+        )}
+      </td>
+
+      {/* Offered / Exclusive / Status / Save (active + exclusive only) */}
+      <td className="td text-center">
+        <form id={formId} action={upsertAthleteZone}>
           <input type="hidden" name="athlete_id" value={athleteId} />
           <input type="hidden" name="zone_id" value={z.zoneId} />
           {isTaken && <input type="hidden" name="active" value="on" />}
-          <input
-            name="base_price"
-            type="number"
-            min="0"
-            step="1"
-            defaultValue={z.basePrice}
-            className="input w-36 tabnum"
-          />
-          <span className="mt-1 block text-[11px] text-faint">
-            {fmt(m.ae_catalogRef, { price: formatIDRCompact(z.catalogPrice) })}
-          </span>
         </form>
-      </td>
-      <td className="td text-center">
         {isTaken ? (
           <span className="text-xs text-amber" title={m.ae_zoneTakenNote}>🔒</span>
         ) : (
-          <input
-            form={`zone-${z.zoneId}`}
-            name="active"
-            type="checkbox"
-            defaultChecked={z.active}
-            className="h-4 w-4 accent-accent"
-          />
+          <input form={formId} name="active" type="checkbox" defaultChecked={z.active} className="h-4 w-4 accent-accent" />
         )}
       </td>
       <td className="td text-center">
-        <input
-          form={`zone-${z.zoneId}`}
-          name="exclusive"
-          type="checkbox"
-          defaultChecked={z.exclusive}
-          className="h-4 w-4 accent-accent"
-        />
+        <input form={formId} name="exclusive" type="checkbox" defaultChecked={z.exclusive} className="h-4 w-4 accent-accent" />
       </td>
       <td className="td"><Badge tone={statusTone}>{statusLabel}</Badge></td>
       <td className="td text-right">
-        <button type="submit" form={`zone-${z.zoneId}`} className="text-xs font-medium text-accent hover:underline">
+        <button type="submit" form={formId} className="text-xs font-medium text-accent hover:underline">
           {m.ae_saveZone}
         </button>
       </td>

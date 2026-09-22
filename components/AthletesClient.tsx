@@ -27,6 +27,7 @@ export function AthletesClient({
   const [q, setQ] = useState(initialQuery);
   const [status, setStatus] = useState<"all" | "active" | "inactive">("all");
   const [gender, setGender] = useState<"all" | "male" | "female">("all");
+  const [onlyCustom, setOnlyCustom] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
 
   const total = athletes.length;
@@ -37,6 +38,7 @@ export function AthletesClient({
     return athletes.filter((a) => {
       if (status !== "all" && a.status !== status) return false;
       if (gender !== "all" && a.gender !== gender) return false;
+      if (onlyCustom && a.customPriceCount === 0) return false;
       if (!term) return true;
       return (
         a.nama.toLowerCase().includes(term) ||
@@ -44,7 +46,7 @@ export function AthletesClient({
         a.kota.toLowerCase().includes(term)
       );
     });
-  }, [athletes, q, status, gender]);
+  }, [athletes, q, status, gender, onlyCustom]);
 
   const genderTabs: { key: "all" | "male" | "female"; label: string }[] = [
     { key: "all", label: m.allGenders },
@@ -125,6 +127,15 @@ export function AthletesClient({
           <option value="active">{m.active}</option>
           <option value="inactive">{m.inactive}</option>
         </select>
+        <label className="flex items-center gap-2 text-sm text-muted">
+          <input
+            type="checkbox"
+            checked={onlyCustom}
+            onChange={(e) => setOnlyCustom(e.target.checked)}
+            className="h-4 w-4 accent-accent"
+          />
+          {m.ath_filterCustom}
+        </label>
       </div>
 
       <div className="card flex flex-col overflow-hidden lg:min-h-0 lg:flex-1">
@@ -150,7 +161,14 @@ export function AthletesClient({
                     <Link href={`/admin/atlet/${a.id}`} className="group flex items-center gap-3">
                       <Avatar name={a.nama} />
                       <div>
-                        <div className="font-medium group-hover:text-accent">{a.nama}</div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium group-hover:text-accent">{a.nama}</span>
+                          {a.customPriceCount > 0 && (
+                            <span className="rounded-full bg-accent-soft px-1.5 py-0.5 text-[10px] font-medium text-accent">
+                              {m.ath_customPrice}
+                            </span>
+                          )}
+                        </div>
                         <div className="text-xs text-faint">{a.handle}</div>
                       </div>
                     </Link>

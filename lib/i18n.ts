@@ -87,6 +87,8 @@ const en = {
   ath_empty: "No athletes yet. Add your first athlete to get started.",
   deactivate: "Deactivate",
   activate: "Activate",
+  ath_customPrice: "Custom price",
+  ath_filterCustom: "Custom price only",
 
   // athlete editor (manage a single athlete)
   ae_manage: "Manage",
@@ -116,6 +118,16 @@ const en = {
   ae_st_terisi: "Taken",
   ae_st_nonaktif: "Off",
   ae_zoneTakenNote: "Taken by an approved sponsor — deactivating is blocked.",
+  ae_effectivePrice: "Effective price",
+  ae_srcBase: "Base",
+  ae_srcCustom: "Custom",
+  ae_editPrice: "Edit price",
+  ae_savePrice: "Save",
+  ae_cancel: "Cancel",
+  ae_resetPrice: "Reset to base",
+  ae_confirmResetPrice: "Reset {zone} to the base (template) price for {name}?",
+  ae_overrideNote:
+    "A custom price affects only this athlete and future deals — existing deals keep their locked price. Leaving a zone on “Base” means it follows the template and reflects base-price changes.",
   ae_races: "Race history",
   ae_racesHint: "Events this athlete has competed in. Shown on the public profile.",
   ae_addRace: "Add race",
@@ -164,6 +176,8 @@ const en = {
 
   // zone pricing
   zn_count: "body zones",
+  zn_subtitle:
+    "Base (template) price per zone. It applies to every athlete without a custom price — set per-athlete prices on the athlete page. Changing a base price affects all athletes still on “Base”.",
   zn_adjust: "Adjust prices",
   zn_done: "Done",
   zn_basePrice: "Base price",
@@ -358,6 +372,8 @@ const id: Dict = {
   ath_empty: "Belum ada atlet. Tambah atlet pertama untuk mulai.",
   deactivate: "Nonaktifkan",
   activate: "Aktifkan",
+  ath_customPrice: "Harga khusus",
+  ath_filterCustom: "Hanya harga khusus",
 
   // athlete editor (kelola satu atlet)
   ae_manage: "Kelola",
@@ -387,6 +403,16 @@ const id: Dict = {
   ae_st_terisi: "Terisi",
   ae_st_nonaktif: "Nonaktif",
   ae_zoneTakenNote: "Terisi sponsor yang disetujui — tidak bisa dinonaktifkan.",
+  ae_effectivePrice: "Harga efektif",
+  ae_srcBase: "Dasar",
+  ae_srcCustom: "Khusus",
+  ae_editPrice: "Ubah harga",
+  ae_savePrice: "Simpan",
+  ae_cancel: "Batal",
+  ae_resetPrice: "Kembalikan ke dasar",
+  ae_confirmResetPrice: "Kembalikan {zone} ke harga dasar (template) untuk {name}?",
+  ae_overrideNote:
+    "Harga khusus hanya memengaruhi atlet ini & deal baru — deal lama tetap pakai harga yang dikunci. Zona bertanda “Dasar” mengikuti template dan ikut berubah bila harga dasar diubah.",
   ae_races: "Riwayat race",
   ae_racesHint: "Event yang pernah diikuti atlet ini. Tampil di profil publik.",
   ae_addRace: "Tambah race",
@@ -431,6 +457,8 @@ const id: Dict = {
   ev_empty: "Belum ada event. Buat event pertama.",
 
   zn_count: "zona tubuh",
+  zn_subtitle:
+    "Harga dasar (template) per zona. Berlaku untuk semua atlet tanpa harga khusus — atur harga per atlet di halaman atlet. Mengubah harga dasar memengaruhi semua atlet yang masih “Dasar”.",
   zn_adjust: "Sesuaikan harga",
   zn_done: "Selesai",
   zn_basePrice: "Harga dasar",
