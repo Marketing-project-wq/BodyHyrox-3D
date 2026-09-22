@@ -26,11 +26,13 @@ export function Viewer360({
   const [ready, setReady] = useState(false);
   const [displayFrame, setDisplayFrame] = useState(1); // 1-based, for hotspots + counter
 
-  // Imperatively-driven rotation state (no re-render per frame).
   const imgRefs = useRef<(HTMLImageElement | null)[]>([]);
-  const posRef = useRef(0); // fractional frame position, [0, total)
-  const velRef = useRef(0); // frames per ms
+  const targetRef = useRef(0); // where the finger/momentum wants to be (fractional frame)
+  const renderRef = useRef(0); // what is actually painted; eases toward target
+  const velRef = useRef(0); // frames per ms (momentum, applied to target)
   const rafRef = useRef<number | null>(null);
+  const runningRef = useRef(false);
+  const lastTRef = useRef(0);
   const draggingRef = useRef(false);
   const didDragRef = useRef(false);
   const startXRef = useRef(0);
@@ -41,11 +43,20 @@ export function Viewer360({
   const urls = media.frames.map((f) => `${media.baseUrl.replace(/\/$/, "")}/${f}`);
 
   const norm = useCallback((p: number) => ((p % total) + total) % total, [total]);
+  // shortest signed distance from a to b around the loop, range [-total/2, total/2]
+  const wrapDelta = useCallback(
+    (d: number) => {
+      let x = ((d % total) + total) % total;
+      if (x > total / 2) x -= total;
+      return x;
+    },
+    [total],
+  );
 
-  // Paint the two nearest frames with crossfade opacity; sync hotspot frame on integer change.
+  // Paint the two nearest frames with crossfade opacity from renderRef.
   const paint = useCallback(() => {
     if (total === 0) return;
-    const pos = posRef.current;
+    const pos = renderRef.current;
     const base = Math.floor(pos) % total;
     const frac = pos - Math.floor(pos);
     const next = (base + 1) % total;
@@ -61,6 +72,44 @@ export function Viewer360({
       setDisplayFrame(rounded);
     }
   }, [total]);
+
+  // Single animation loop: momentum moves target, render eases toward target.
+  const ensureLoop = useCallback(() => {
+    if (runningRef.current) return;
+    runningRef.current = true;
+    lastTRef.current = performance.now();
+    const tick = (now: number) => {
+      const dt = Math.min(now - lastTRef.current, 64);
+      lastTRef.current = now;
+
+      // Momentum (only when not actively dragging) nudges the target.
+      if (!draggingRef.current && Math.abs(velRef.current) > 0) {
+        targetRef.current = norm(targetRef.current + velRef.current * dt);
+        velRef.current *= Math.pow(VIEWER_360.momentumFriction, dt / 16.667);
+        if (Math.abs(velRef.current) < VIEWER_360.momentumStopThreshold) velRef.current = 0;
+      }
+
+      // Ease the rendered position toward the target (frame-rate independent).
+      const diff = wrapDelta(targetRef.current - renderRef.current);
+      const k = 1 - Math.pow(1 - VIEWER_360.followPerFrame, dt / 16.667);
+      renderRef.current = norm(renderRef.current + diff * k);
+      paint();
+
+      const settled =
+        !draggingRef.current &&
+        velRef.current === 0 &&
+        Math.abs(wrapDelta(targetRef.current - renderRef.current)) < VIEWER_360.settleEpsilon;
+      if (settled) {
+        renderRef.current = targetRef.current;
+        paint();
+        runningRef.current = false;
+        rafRef.current = null;
+        return;
+      }
+      rafRef.current = requestAnimationFrame(tick);
+    };
+    rafRef.current = requestAnimationFrame(tick);
+  }, [norm, wrapDelta, paint]);
 
   // Preload all frames, then enable.
   useEffect(() => {
@@ -85,43 +134,21 @@ export function Viewer360({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [media.baseUrl, total]);
 
-  const stopMomentum = useCallback(() => {
-    if (rafRef.current != null) {
-      cancelAnimationFrame(rafRef.current);
-      rafRef.current = null;
-    }
-    velRef.current = 0;
-  }, []);
-
-  const startMomentum = useCallback(() => {
-    let lastT = performance.now();
-    const tick = (now: number) => {
-      const dt = Math.min(now - lastT, 64); // clamp long frames
-      lastT = now;
-      posRef.current = norm(posRef.current + velRef.current * dt);
-      // frame-rate-independent decay
-      velRef.current *= Math.pow(VIEWER_360.momentumFriction, dt / 16.667);
-      paint();
-      if (Math.abs(velRef.current) < VIEWER_360.momentumStopThreshold) {
-        velRef.current = 0;
-        rafRef.current = null;
-        return;
-      }
-      rafRef.current = requestAnimationFrame(tick);
-    };
-    rafRef.current = requestAnimationFrame(tick);
-  }, [norm, paint]);
-
-  useEffect(() => () => stopMomentum(), [stopMomentum]);
+  useEffect(
+    () => () => {
+      if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
+    },
+    [],
+  );
 
   const onPointerDown = (e: React.PointerEvent) => {
     if (!ready) return;
-    stopMomentum();
+    velRef.current = 0; // cancel any momentum
     draggingRef.current = false;
     didDragRef.current = false;
     startXRef.current = e.clientX;
     lastXRef.current = e.clientX;
-    samplesRef.current = [{ t: performance.now(), pos: posRef.current }];
+    samplesRef.current = [{ t: performance.now(), pos: targetRef.current }];
   };
 
   const onPointerMove = (e: React.PointerEvent) => {
@@ -135,14 +162,12 @@ export function Viewer360({
     }
     const dx = e.clientX - lastXRef.current;
     lastXRef.current = e.clientX;
-    // Drag direction follows the finger.
-    posRef.current = norm(posRef.current - dx * framesPerPx);
-    paint();
+    targetRef.current = norm(targetRef.current - dx * framesPerPx); // follows the finger
     const now = performance.now();
-    const samples = samplesRef.current;
-    samples.push({ t: now, pos: posRef.current });
-    // keep only the recent window
-    while (samples.length > 2 && now - samples[0].t > VIEWER_360.velocitySampleMs) samples.shift();
+    const s = samplesRef.current;
+    s.push({ t: now, pos: targetRef.current });
+    while (s.length > 2 && now - s[0].t > VIEWER_360.velocitySampleMs) s.shift();
+    ensureLoop();
   };
 
   const endDrag = (e: React.PointerEvent) => {
@@ -153,21 +178,14 @@ export function Viewer360({
     } catch {
       /* no-op */
     }
-    // Estimate release velocity from the sample window, accounting for wrap.
-    const samples = samplesRef.current;
-    if (samples.length >= 2) {
-      const first = samples[0];
-      const last = samples[samples.length - 1];
+    const s = samplesRef.current;
+    if (s.length >= 2) {
+      const first = s[0];
+      const last = s[s.length - 1];
       const dt = last.t - first.t;
-      if (dt > 0) {
-        let dPos = last.pos - first.pos;
-        // unwrap shortest path around the loop
-        if (dPos > total / 2) dPos -= total;
-        if (dPos < -total / 2) dPos += total;
-        velRef.current = dPos / dt;
-      }
+      if (dt > 0) velRef.current = wrapDelta(last.pos - first.pos) / dt;
     }
-    if (Math.abs(velRef.current) > VIEWER_360.momentumStopThreshold) startMomentum();
+    ensureLoop();
   };
 
   const frameNo = displayFrame; // 1-based, matches hotspot point keys
