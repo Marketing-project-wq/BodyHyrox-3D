@@ -233,6 +233,14 @@ const en = {
   pub_home: "Home",
   pub_perEvent: "/ event",
 
+  // 360° viewer
+  v360_title: "360° view",
+  v360_placeholder: "Placeholder · test photos",
+  v360_loading: "Loading…",
+  v360_taken: "Taken",
+  v360_frameOf: "{n} / {total}",
+  v360_hint: "Drag to rotate",
+
   // brand auth
   br_login_title: "Brand sign in",
   br_login_sub: "Sign in to apply as a sponsor.",
@@ -511,6 +519,14 @@ const id: Dict = {
   pub_none: "Belum ada atlet.",
   pub_home: "Beranda",
   pub_perEvent: "/ event",
+
+  // 360° viewer
+  v360_title: "Tampilan 360°",
+  v360_placeholder: "Placeholder · foto uji",
+  v360_loading: "Memuat…",
+  v360_taken: "Sudah diambil",
+  v360_frameOf: "{n} / {total}",
+  v360_hint: "Seret untuk memutar",
 
   // brand auth
   br_login_title: "Masuk Brand",
