@@ -315,6 +315,12 @@ document.addEventListener('DOMContentLoaded', async function() {
     // createElement so they execute, awaiting onload for src scripts to
     // preserve ordering (React before ReactDOM before Babel before text/babel).
     const doc = new DOMParser().parseFromString(template, 'text/html');
+    // Carry the dark canvas onto the swapped-in <html> BEFORE it replaces the
+    // old one. The page styles only the <body>; the <html> element itself is
+    // transparent, so on the swap the browser paints one bare (white) frame
+    // before the body background fills the viewport. Setting it inline here
+    // keeps the root dark from the first paint — no white flash. View-only.
+    doc.documentElement.style.backgroundColor = '#0B0B0D';
     document.documentElement.replaceWith(doc.documentElement);
 
     // Resolve page-frame markers: mint this document's own blob for each
