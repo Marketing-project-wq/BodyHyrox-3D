@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { Plus, Search } from "lucide-react";
 import type { AthleteRow } from "@/lib/data";
 import { ACTIVE_STATUS } from "@/lib/config";
@@ -137,7 +138,7 @@ export function AthletesClient({
               <th className="th text-right">{m.col_revenue}</th>
               <th className="th">{m.city}</th>
               <th className="th">{m.status}</th>
-              {canToggle && <th className="th text-right">{m.action}</th>}
+              {(canEdit || canToggle) && <th className="th text-right">{m.action}</th>}
             </tr>
           </thead>
           <tbody>
@@ -146,35 +147,47 @@ export function AthletesClient({
               return (
                 <tr key={a.id} className="border-b border-border/60 last:border-0">
                   <td className="td">
-                    <div className="flex items-center gap-3">
+                    <Link href={`/admin/atlet/${a.id}`} className="group flex items-center gap-3">
                       <Avatar name={a.nama} />
                       <div>
-                        <div className="font-medium">{a.nama}</div>
+                        <div className="font-medium group-hover:text-accent">{a.nama}</div>
                         <div className="text-xs text-faint">{a.handle}</div>
                       </div>
-                    </div>
+                    </Link>
                   </td>
                   <td className="td text-muted">{tGender(m, a.gender)}</td>
                   <td className="td text-right tabnum">{formatNumber(a.zonesSold)}</td>
                   <td className="td text-right tabnum">{formatIDRCompact(a.revenue)}</td>
                   <td className="td text-muted">{a.kota}</td>
                   <td className="td"><Badge tone={ACTIVE_STATUS[a.status].tone}>{tActive(m, a.status)}</Badge></td>
-                  {canToggle && (
+                  {(canEdit || canToggle) && (
                     <td className="td text-right">
-                      <form action={setAthleteStatus} className="inline">
-                        <input type="hidden" name="id" value={a.id} />
-                        <input type="hidden" name="status" value={next} />
-                        <ConfirmButton
-                          message={
-                            next === "inactive"
-                              ? fmt(m.ath_confirmDeactivate, { name: a.nama })
-                              : fmt(m.ath_confirmActivate, { name: a.nama })
-                          }
-                          className="text-xs font-medium text-accent hover:underline"
-                        >
-                          {next === "inactive" ? m.deactivate : m.activate}
-                        </ConfirmButton>
-                      </form>
+                      <div className="flex items-center justify-end gap-3">
+                        {canEdit && (
+                          <Link
+                            href={`/admin/atlet/${a.id}`}
+                            className="text-xs font-medium text-muted hover:text-text"
+                          >
+                            {m.ae_manage}
+                          </Link>
+                        )}
+                        {canToggle && (
+                          <form action={setAthleteStatus} className="inline">
+                            <input type="hidden" name="id" value={a.id} />
+                            <input type="hidden" name="status" value={next} />
+                            <ConfirmButton
+                              message={
+                                next === "inactive"
+                                  ? fmt(m.ath_confirmDeactivate, { name: a.nama })
+                                  : fmt(m.ath_confirmActivate, { name: a.nama })
+                              }
+                              className="text-xs font-medium text-accent hover:underline"
+                            >
+                              {next === "inactive" ? m.deactivate : m.activate}
+                            </ConfirmButton>
+                          </form>
+                        )}
+                      </div>
                     </td>
                   )}
                 </tr>
@@ -182,7 +195,7 @@ export function AthletesClient({
             })}
             {rows.length === 0 && (
               <tr>
-                <td colSpan={canToggle ? 7 : 6} className="td text-center text-faint">{m.ath_noMatch}</td>
+                <td colSpan={canEdit || canToggle ? 7 : 6} className="td text-center text-faint">{m.ath_noMatch}</td>
               </tr>
             )}
           </tbody>

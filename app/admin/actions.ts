@@ -20,6 +20,14 @@ function refreshAll() {
   revalidatePath("/admin/pengajuan");
 }
 
+/** Also refresh a single athlete's admin editor and the public-facing pages. */
+function refreshAthlete(id: string) {
+  refreshAll();
+  revalidatePath(`/admin/atlet/${id}`);
+  revalidatePath("/atlet");
+  revalidatePath(`/atlet/${id}`);
+}
+
 export async function logout() {
   clearSessionCookie();
   redirect("/login");
@@ -84,6 +92,79 @@ export async function createAthlete(formData: FormData) {
   });
   if (error) throw new Error(error.message);
   refreshAll();
+}
+
+export async function updateAthlete(formData: FormData) {
+  const s = requireSession();
+  requirePermission(s, "athlete.edit");
+  const id = String(formData.get("id"));
+  let handle = String(formData.get("handle") || "").trim();
+  if (handle && !handle.startsWith("@")) handle = "@" + handle;
+  const rankRaw = String(formData.get("rank") || "").trim();
+  const { error } = await db().rpc("smb_update_athlete", {
+    p_id: id,
+    p_nama: String(formData.get("nama")),
+    p_handle: handle,
+    p_kota: String(formData.get("kota")),
+    p_gender: String(formData.get("gender") || "male"),
+    p_discipline: String(formData.get("discipline") || ""),
+    p_rank: rankRaw === "" ? null : Number(rankRaw),
+    p_photo_url: String(formData.get("photo_url") || ""),
+    p_podium_count: Number(formData.get("podium_count") || 0),
+    p_frames_per_season: Number(formData.get("frames_per_season") || 0),
+    p_status: String(formData.get("status") || "active"),
+    p_actor_id: s.sub,
+    p_actor_name: s.nama,
+  });
+  if (error) throw new Error(error.message);
+  refreshAthlete(id);
+}
+
+export async function upsertAthleteZone(formData: FormData) {
+  const s = requireSession();
+  requirePermission(s, "zone.pricing");
+  const athleteId = String(formData.get("athlete_id"));
+  const { error } = await db().rpc("smb_upsert_athlete_zone", {
+    p_athlete_id: athleteId,
+    p_zone_id: String(formData.get("zone_id")),
+    p_base_price: Number(formData.get("base_price") || 0),
+    p_active: formData.get("active") === "on",
+    p_exclusive: formData.get("exclusive") === "on",
+    p_actor_id: s.sub,
+    p_actor_name: s.nama,
+  });
+  if (error) throw new Error(error.message);
+  refreshAthlete(athleteId);
+}
+
+export async function addAthleteRace(formData: FormData) {
+  const s = requireSession();
+  requirePermission(s, "athlete.edit");
+  const athleteId = String(formData.get("athlete_id"));
+  const placementRaw = String(formData.get("placement") || "").trim();
+  const { error } = await db().rpc("smb_add_athlete_race", {
+    p_athlete_id: athleteId,
+    p_event_id: String(formData.get("event_id")),
+    p_placement: placementRaw === "" ? null : Number(placementRaw),
+    p_is_podium: formData.get("is_podium") === "on",
+    p_actor_id: s.sub,
+    p_actor_name: s.nama,
+  });
+  if (error) throw new Error(error.message);
+  refreshAthlete(athleteId);
+}
+
+export async function deleteAthleteRace(formData: FormData) {
+  const s = requireSession();
+  requirePermission(s, "athlete.edit");
+  const athleteId = String(formData.get("athlete_id"));
+  const { error } = await db().rpc("smb_delete_athlete_race", {
+    p_race_id: String(formData.get("id")),
+    p_actor_id: s.sub,
+    p_actor_name: s.nama,
+  });
+  if (error) throw new Error(error.message);
+  refreshAthlete(athleteId);
 }
 
 export async function setBrandStatus(formData: FormData) {
