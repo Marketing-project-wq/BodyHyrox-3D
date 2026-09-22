@@ -109,6 +109,22 @@ export function can(role: Role | undefined, perm: Permission): boolean {
   return ROLE_PERMISSIONS[role]?.includes(perm) ?? false;
 }
 
+/**
+ * 360° viewer interaction tuning (drag sensitivity + release momentum).
+ * Frame count/order come from the DB (smb_athlete_media_360.frames); only the
+ * feel of the interaction is configured here so it is easy to adjust.
+ */
+export const VIEWER_360 = {
+  /** Horizontal drag distance (px) for one full rotation. Lower = more sensitive. */
+  dragFullTurnPx: 340,
+  /** Velocity multiplier applied each animation frame after release (0..1). Higher = longer glide. */
+  momentumFriction: 0.93,
+  /** Momentum stops when |velocity| drops below this (frames per ms). */
+  momentumStopThreshold: 0.0008,
+  /** Window (ms) used to estimate release velocity from recent pointer samples. */
+  velocitySampleMs: 90,
+} as const;
+
 /** Default notification toggles for a fresh platform. */
 export const DEFAULT_NOTIFICATIONS = {
   new_transaction: true,
