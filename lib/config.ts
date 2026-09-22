@@ -118,11 +118,20 @@ export const VIEWER_360 = {
   /** Horizontal drag distance (px) for one full rotation. Lower = more sensitive. */
   dragFullTurnPx: 340,
   /** Velocity multiplier applied each animation frame after release (0..1). Higher = longer glide. */
-  momentumFriction: 0.93,
+  momentumFriction: 0.94,
   /** Momentum stops when |velocity| drops below this (frames per ms). */
-  momentumStopThreshold: 0.0008,
+  momentumStopThreshold: 0.0006,
   /** Window (ms) used to estimate release velocity from recent pointer samples. */
   velocitySampleMs: 90,
+  /**
+   * How quickly the rendered position eases toward the target each ~16.7ms
+   * frame (0..1). Higher = tighter to the finger; lower = silkier glide.
+   * Runs every frame via requestAnimationFrame so motion stays fluid
+   * regardless of how often pointer events fire.
+   */
+  followPerFrame: 0.4,
+  /** Rendered position snaps to target once within this many frames (ends the loop). */
+  settleEpsilon: 0.002,
 } as const;
 
 /** Default notification toggles for a fresh platform. */
