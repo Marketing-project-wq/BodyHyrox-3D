@@ -6,6 +6,7 @@ import { getMessages, getLocale } from "@/lib/i18n-server";
 import { fmt, tGender } from "@/lib/i18n";
 import { formatIDR, formatNumber } from "@/lib/format";
 import { PublicHeader } from "@/components/PublicHeader";
+import { Viewer360 } from "@/components/Viewer360";
 import { NotConfigured } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
@@ -57,6 +58,13 @@ export default async function AtletDetailPage({ params }: { params: { id: string
             </p>
           </div>
         </div>
+
+        {/* 360° viewer (only when this athlete has 360 media) */}
+        {a.media360 && a.media360.frames.length > 0 && (
+          <div className="mt-8 rounded-2xl border border-white/10 bg-white/[0.02] p-5">
+            <Viewer360 athleteId={a.id} media={a.media360} m={m} />
+          </div>
+        )}
 
         <div className="mt-10 grid grid-cols-1 gap-10 lg:grid-cols-[1.4fr_1fr]">
           {/* Zones */}

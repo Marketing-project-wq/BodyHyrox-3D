@@ -320,10 +320,58 @@ export type PublicRace = {
   placement: number | null;
   isPodium: boolean;
 };
+/** A clickable body-zone marker positioned per frame (normalized 0..1 coords). */
+export type Media360Hotspot = {
+  athleteZoneId: string | null;
+  label: string;
+  /** frameIndex (1-based, as string) -> { x, y } normalized within the frame. */
+  points: Record<string, { x: number; y: number }>;
+  zoneNama: string | null;
+  status: ZoneStatus | null;
+  effectivePrice: number | null;
+};
+export type Media360 = {
+  baseUrl: string;
+  frames: string[];
+  autospin: boolean;
+  crossfade: boolean;
+  isPlaceholder: boolean;
+  hotspots: Media360Hotspot[];
+};
 export type PublicAthleteDetail = Omit<PublicAthlete, "zonesTotal" | "zonesAvailable"> & {
   zones: PublicZone[];
   races: PublicRace[];
+  media360: Media360 | null;
 };
+
+function mapMedia360(raw: unknown): Media360 | null {
+  if (!raw || typeof raw !== "object") return null;
+  const m = raw as Record<string, unknown>;
+  const frames = Array.isArray(m.frames) ? m.frames.map((f) => String(f)) : [];
+  const hotspotsRaw = Array.isArray(m.hotspots) ? (m.hotspots as Record<string, unknown>[]) : [];
+  return {
+    baseUrl: String(m.base_url ?? ""),
+    frames,
+    autospin: Boolean(m.autospin),
+    crossfade: Boolean(m.crossfade),
+    isPlaceholder: Boolean(m.is_placeholder),
+    hotspots: hotspotsRaw.map((h) => {
+      const pointsRaw = (h.points ?? {}) as Record<string, { x: number; y: number }>;
+      const points: Record<string, { x: number; y: number }> = {};
+      for (const [k, v] of Object.entries(pointsRaw)) {
+        if (v && typeof v === "object") points[k] = { x: n(v.x), y: n(v.y) };
+      }
+      return {
+        athleteZoneId: h.athlete_zone_id == null ? null : String(h.athlete_zone_id),
+        label: String(h.label ?? ""),
+        points,
+        zoneNama: h.zone_nama == null ? null : String(h.zone_nama),
+        status: h.status == null ? null : (String(h.status) as ZoneStatus),
+        effectivePrice: h.effective_price == null ? null : n(h.effective_price),
+      };
+    }),
+  };
+}
 
 export async function getPublicAthlete(id: string): Promise<PublicAthleteDetail | null> {
   const { data, error } = await db().rpc("smb_public_athlete", { p_id: id });
@@ -358,6 +406,7 @@ export async function getPublicAthlete(id: string): Promise<PublicAthleteDetail 
       placement: r.placement == null ? null : n(r.placement),
       isPodium: Boolean(r.is_podium),
     })),
+    media360: mapMedia360(d.media_360),
   };
 }
 
