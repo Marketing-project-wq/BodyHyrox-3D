@@ -89,7 +89,27 @@ def cutout(bgr: np.ndarray, args) -> np.ndarray:
         biggest = 1 + int(np.argmax(stats[1:, cv2.CC_STAT_AREA]))
         fg = np.where(lbl == biggest, 255, 0).astype(np.uint8)
 
-    # Pull the edge in 1px (kill grey halo), then feather for a smooth alpha.
+    # 4b) Final hole-fill on the CLEANED mask so the body is fully opaque — no
+    #     see-through gaps left inside the silhouette (the "tembus pandang" bug).
+    ff = (255 - fg).copy()
+    ffmask = np.zeros((h + 2, w + 2), np.uint8)
+    cv2.floodFill(ff, ffmask, (0, 0), 0)
+    fg[ff > 0] = 255
+
+    # 4c) Inpaint small dark specks/bites left on the body (low-res cut-out noise
+    #     & retained shadow on the legs) so they don't read as dirt on the stage.
+    gray = cv2.cvtColor(bgr, cv2.COLOR_BGR2GRAY)
+    dark = ((gray < args.speck_dark) & (fg > 0)).astype(np.uint8)
+    nc, dl, ds, _ = cv2.connectedComponentsWithStats(dark, 8)
+    speck = np.zeros_like(dark)
+    for c in range(1, nc):
+        if ds[c, cv2.CC_STAT_AREA] <= args.speck_area:
+            speck[dl == c] = 255
+    if speck.any():
+        bgr = cv2.inpaint(bgr, cv2.dilate(speck, k, iterations=1), 3, cv2.INPAINT_TELEA)
+
+    # Pull the edge in 1px (kill grey halo); interior stays fully opaque, only a
+    # ~1px edge is softened so there is no partial-transparency across the body.
     fg = cv2.erode(fg, k, iterations=1)
     alpha = cv2.GaussianBlur(fg, (3, 3), 0)
 
@@ -107,6 +127,8 @@ def main() -> int:
     ap.add_argument("--iters", type=int, default=6, help="GrabCut iterations.")
     ap.add_argument("--bg-dist", type=float, default=28.0, help="Lab distance under which a pixel counts as backdrop.")
     ap.add_argument("--bg-sat", type=int, default=48, help="Max HSV saturation for a backdrop pixel.")
+    ap.add_argument("--speck-dark", type=int, default=60, help="Luminance below which a body pixel is a dark speck.")
+    ap.add_argument("--speck-area", type=int, default=70, help="Max area (px) of a dark speck to inpaint.")
     args = ap.parse_args()
 
     from PIL import Image  # local import: only needed for the alpha PNG save
