@@ -244,6 +244,7 @@ const en = {
   v360_taken: "Taken",
   v360_frameOf: "{n} / {total}",
   v360_hint: "Drag to rotate",
+  v3d_fallback: "Your browser doesn't support 3D — showing photos instead.",
 
   // brand auth
   br_login_title: "Brand sign in",
@@ -535,6 +536,7 @@ const id: Dict = {
   v360_taken: "Sudah diambil",
   v360_frameOf: "{n} / {total}",
   v360_hint: "Seret untuk memutar",
+  v3d_fallback: "Peramban tidak mendukung 3D — menampilkan foto.",
 
   // brand auth
   br_login_title: "Masuk Brand",
