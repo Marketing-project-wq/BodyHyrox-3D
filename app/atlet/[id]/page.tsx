@@ -8,6 +8,7 @@ import { formatIDR, formatNumber, initials } from "@/lib/format";
 import { viewer360FrameStyle } from "@/lib/config";
 import { PublicHeader } from "@/components/PublicHeader";
 import { Viewer360 } from "@/components/Viewer360";
+import { AthleteViewer3D } from "@/components/AthleteViewer";
 import { AthleteStage } from "@/components/AthleteStage";
 import { NotConfigured } from "@/components/ui";
 
@@ -19,7 +20,13 @@ function raceDate(iso: string, intl: string) {
   );
 }
 
-export default async function AtletDetailPage({ params }: { params: { id: string } }) {
+export default async function AtletDetailPage({
+  params,
+  searchParams,
+}: {
+  params: { id: string };
+  searchParams?: { v?: string };
+}) {
   if (!isConfigured()) return <NotConfigured />;
   const m = getMessages();
   const locale = getLocale();
@@ -29,6 +36,9 @@ export default async function AtletDetailPage({ params }: { params: { id: string
 
   const available = a.zones.filter((z) => z.status === "tersedia").length;
   const has360 = !!a.media360 && a.media360.frames.length > 0;
+  // 3D viewer is preview-only for now: opt in per view with ?v=3d. Production
+  // default stays on the photo viewer until a real per-athlete GLB is dropped in.
+  const want3d = searchParams?.v === "3d";
 
   const chips = [
     { n: a.podiumCount, label: m.pub_podiums },
@@ -61,9 +71,13 @@ export default async function AtletDetailPage({ params }: { params: { id: string
         <PublicHeader locale={locale} overlay back={{ href: "/atlet", label: m.pub_back }} />
 
         <AthleteStage>
-          <div className="mx-auto w-full" style={{ maxWidth: "min(300px, 82vw)" }}>
-            {figure}
-          </div>
+          {want3d ? (
+            <AthleteViewer3D athleteId={a.id} media={a.media360} zones={a.zones} m={m} />
+          ) : (
+            <div className="mx-auto w-full" style={{ maxWidth: "min(300px, 82vw)" }}>
+              {figure}
+            </div>
+          )}
         </AthleteStage>
 
         {/* Athlete name + meta — overlay near the top */}
