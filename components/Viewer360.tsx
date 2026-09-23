@@ -61,10 +61,18 @@ export function Viewer360({
     const frac = pos - Math.floor(pos);
     const next = (base + 1) % total;
     const imgs = imgRefs.current;
-    for (let i = 0; i < imgs.length; i++) {
-      const el = imgs[i];
-      if (!el) continue;
-      el.style.opacity = i === base ? String(1 - frac) : i === next ? String(frac) : "0";
+    if (VIEWER_360.crossfade) {
+      for (let i = 0; i < imgs.length; i++) {
+        const el = imgs[i];
+        if (!el) continue;
+        el.style.opacity = i === base ? String(1 - frac) : i === next ? String(frac) : "0";
+      }
+    } else {
+      const nearest = Math.round(pos) % total;
+      for (let i = 0; i < imgs.length; i++) {
+        const el = imgs[i];
+        if (el) el.style.opacity = i === nearest ? "1" : "0";
+      }
     }
     const rounded = (Math.round(pos) % total) + 1; // 1-based
     if (rounded !== displayFrameRef.current) {
@@ -87,6 +95,12 @@ export function Viewer360({
         targetRef.current = norm(targetRef.current + velRef.current * dt);
         velRef.current *= Math.pow(VIEWER_360.momentumFriction, dt / 16.667);
         if (Math.abs(velRef.current) < VIEWER_360.momentumStopThreshold) velRef.current = 0;
+      }
+
+      // Once motion has stopped, settle onto the nearest whole frame so the
+      // figure rests on a crisp frame, not a blended half-frame (ghosting).
+      if (VIEWER_360.snapOnSettle && !draggingRef.current && velRef.current === 0) {
+        targetRef.current = norm(Math.round(targetRef.current));
       }
 
       // Ease the rendered position toward the target (frame-rate independent).
@@ -196,9 +210,17 @@ export function Viewer360({
   const frameStyle = viewer360FrameStyle();
 
   return (
-    <div className="w-full">
-      <div className="mb-1.5 flex items-center justify-center gap-2">
-        <span className="font-condensed text-xs font-bold uppercase tracking-[0.2em] text-white/60">{m.v360_title}</span>
+    <div
+      className="relative mx-auto cursor-ew-resize touch-none select-none"
+      style={frameStyle}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={endDrag}
+      onPointerCancel={endDrag}
+    >
+      {/* 360 label — overlay above the figure so the figure stays centered */}
+      <div className="pointer-events-none absolute inset-x-0 -top-8 flex items-center justify-center gap-2">
+        <span className="font-condensed text-xs font-bold uppercase tracking-[0.2em] text-white/55">{m.v360_title}</span>
         {media.isPlaceholder && (
           <span className="rounded-full border border-white/15 bg-white/5 px-2 py-0.5 font-mono text-[9px] uppercase text-white/45">
             {m.v360_placeholder}
@@ -206,16 +228,8 @@ export function Viewer360({
         )}
       </div>
 
-      <div
-        className="relative mx-auto cursor-ew-resize touch-none select-none"
-        style={frameStyle}
-        onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={endDrag}
-        onPointerCancel={endDrag}
-      >
-        {/* Ground-contact shadow (behind the frames) so the athlete stands, not floats */}
-        <div className="stage-contact" aria-hidden />
+      {/* Ground-contact shadow (behind the frames) so the athlete stands, not floats */}
+      <div className="stage-contact" aria-hidden />
 
         {/* Frames — opacity is managed imperatively (not in JSX) so re-renders don't clobber it */}
         {urls.map((u, i) => (
@@ -275,15 +289,15 @@ export function Viewer360({
             );
           })}
 
-        {/* Frame counter */}
-        <div className="pointer-events-none absolute bottom-2 left-1/2 -translate-x-1/2 rounded-full bg-black/55 px-2.5 py-0.5 font-mono text-[10px] text-white/80">
+      {/* Frame counter + drag hint — overlay below the figure */}
+      <div className="pointer-events-none absolute inset-x-0 -bottom-9 flex flex-col items-center gap-1.5">
+        <div className="rounded-full bg-black/55 px-2.5 py-0.5 font-mono text-[10px] text-white/80">
           {fmt(m.v360_frameOf, { n: String(frameNo), total: String(total) })}
         </div>
-      </div>
-
-      <div className="mt-2 flex items-center justify-center gap-1.5 text-xs text-white/45">
-        <RotateCcw size={12} />
-        {m.v360_hint}
+        <div className="flex items-center gap-1.5 text-xs text-white/45">
+          <RotateCcw size={12} />
+          {m.v360_hint}
+        </div>
       </div>
     </div>
   );

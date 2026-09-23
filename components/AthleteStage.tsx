@@ -1,19 +1,28 @@
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
+import { stageMotionVars } from "@/lib/config";
 
 /**
  * Original 20FIT "neon stage": a dark room with a red-tinted perspective grid
- * floor, soft ambient glow, a few thin neon beams, and a glowing platform the
- * athlete figure (its children) stands on. Purely presentational — no data,
- * no client JS. All effects are CSS/SVG (see `.stage-*` in globals.css), kept
- * light and reduced on phones / prefers-reduced-motion.
+ * floor, an ambient glow that slowly breathes, a few thin neon beams, faint
+ * drifting dust, and a glowing platform the athlete figure (its children)
+ * stands on. Fills its (full-screen) parent edge-to-edge and centers the
+ * figure. Purely presentational — no data, no client JS. All motion is CSS
+ * (see `.stage-*` in globals.css); durations/intensity come from config, and
+ * everything is reduced on phones / disabled for prefers-reduced-motion.
+ *
+ * Only used by the public athlete page (`/atlet/[id]`); the `.stage-*` classes
+ * are namespaced, so nothing else is affected.
  */
 export function AthleteStage({ children }: { children: ReactNode }) {
   return (
-    <div className="stage relative overflow-hidden rounded-3xl border border-white/10 bg-[#08080a]">
-      <div className="stage-glow stage-pulse" aria-hidden />
+    <div
+      className="stage absolute inset-0 overflow-hidden bg-[#08080a]"
+      style={stageMotionVars() as CSSProperties}
+    >
+      <div className="stage-glow stage-breathe" aria-hidden />
 
       <svg
-        className="stage-beams"
+        className="stage-beams stage-beam-pulse"
         viewBox="0 0 1000 620"
         preserveAspectRatio="xMidYMid slice"
         aria-hidden
@@ -26,11 +35,19 @@ export function AthleteStage({ children }: { children: ReactNode }) {
         </g>
       </svg>
 
-      <div className="stage-floor" aria-hidden />
+      <div className="stage-floor stage-floor-drift" aria-hidden />
+
+      {/* Faint floating dust — a few slow motes; disabled for reduced-motion. */}
+      <div className="stage-dust" aria-hidden>
+        {Array.from({ length: 7 }).map((_, i) => (
+          <span key={i} className={`stage-mote stage-mote-${i + 1}`} />
+        ))}
+      </div>
+
       <div className="stage-platform" aria-hidden />
 
-      {/* Figure stands centered on the platform */}
-      <div className="relative z-10 flex min-h-[420px] items-end justify-center px-6 pb-10 pt-8 sm:min-h-[500px] sm:pb-14 sm:pt-10">
+      {/* Figure stands centered on the platform, filling the stage height */}
+      <div className="relative z-10 flex h-full items-center justify-center px-6">
         {children}
       </div>
 

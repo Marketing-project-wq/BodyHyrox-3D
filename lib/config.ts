@@ -133,15 +133,49 @@ export const VIEWER_360 = {
   /** Rendered position snaps to target once within this many frames (ends the loop). */
   settleEpsilon: 0.002,
   /**
-   * On-screen size of the athlete figure. Height is capped to a share of the
-   * viewport so the whole body (head to feet) fits without scrolling; width
-   * follows from the frame's aspect ratio. `maxWidthPx` keeps it from getting
-   * too wide on tall/narrow phones. Tune here — never hardcode in components.
+   * Blend the two nearest frames by the fractional position (smooths rotation).
+   * With aligned frames this reads as rotation; set false for a crisp hard-swap.
    */
-  maxHeightSvh: 58,
-  maxHeightPx: 540,
-  maxWidthPx: 260,
+  crossfade: true,
+  /**
+   * When motion stops, ease onto the nearest whole frame (a soft detent) so the
+   * figure rests on one crisp frame instead of a blended half-frame.
+   */
+  snapOnSettle: true,
+  /**
+   * On-screen size of the athlete figure inside the full-screen stage. Height
+   * is capped to a share of the viewport so the whole body (head to feet) fits;
+   * width follows from the frame's aspect ratio. `maxWidthPx` keeps it from
+   * getting too wide on tall/narrow phones. Tune here — never hardcode.
+   */
+  maxHeightSvh: 60,
+  maxHeightPx: 560,
+  maxWidthPx: 300,
 } as const;
+
+/**
+ * Ambient motion of the neon stage (durations in seconds, intensity 0..1).
+ * Kept slow/subtle ("halus & elegan"); all animation is CSS and is disabled
+ * under `prefers-reduced-motion`. Exposed as CSS variables by <AthleteStage>
+ * so nothing about the animation is hardcoded in the stylesheet.
+ */
+export const STAGE_MOTION = {
+  breatheSec: 7,   // ambient glow "breathing"
+  beamSec: 6.5,    // neon beams pulse
+  floorSec: 24,    // perspective grid drift
+  dustSec: 16,     // floating dust particles
+  intensity: 1,    // amplitude scalar (1 = elegant default)
+} as const;
+
+export function stageMotionVars(): Record<string, string> {
+  return {
+    "--stage-breathe": `${STAGE_MOTION.breatheSec}s`,
+    "--stage-beam": `${STAGE_MOTION.beamSec}s`,
+    "--stage-floor": `${STAGE_MOTION.floorSec}s`,
+    "--stage-dust": `${STAGE_MOTION.dustSec}s`,
+    "--stage-intensity": String(STAGE_MOTION.intensity),
+  };
+}
 
 /**
  * Inline style for the portrait athlete figure (360 viewer or fallback photo).
