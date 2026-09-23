@@ -5,6 +5,7 @@ import { isConfigured } from "@/lib/supabase";
 import { getMessages, getLocale } from "@/lib/i18n-server";
 import { fmt, tGender } from "@/lib/i18n";
 import { formatIDR, formatNumber, initials } from "@/lib/format";
+import { viewer360FrameStyle } from "@/lib/config";
 import { PublicHeader } from "@/components/PublicHeader";
 import { Viewer360 } from "@/components/Viewer360";
 import { AthleteStage } from "@/components/AthleteStage";
@@ -38,20 +39,53 @@ export default async function AtletDetailPage({ params }: { params: { id: string
   return (
     <div className="min-h-[100dvh] bg-[#0b0b0d] text-[#f3f3f4]">
       <PublicHeader locale={locale} back={{ href: "/atlet", label: m.pub_back }} />
-      <main className="mx-auto max-w-5xl px-5 py-8 md:px-8 md:py-10">
-        {/* Title + short caption */}
-        <div className="mb-6 flex flex-col gap-3 sm:mb-8">
+      <main className="mx-auto max-w-5xl px-5 py-5 md:px-8 md:py-7">
+        {/* Title — kept compact so the whole figure fits above the fold */}
+        <div className="mb-3 flex flex-col gap-1.5 sm:mb-4">
           <div className="flex items-baseline gap-3">
             <span className="font-mono text-sm text-[#ff3b57]">
               {a.rank != null ? String(a.rank).padStart(2, "0") : "--"}
             </span>
-            <h1 className="font-condensed text-4xl font-bold uppercase leading-[0.95] sm:text-5xl">{a.nama}</h1>
+            <h1 className="font-condensed text-3xl font-bold uppercase leading-[0.95] sm:text-5xl">{a.nama}</h1>
           </div>
           <p className="text-sm text-white/55">
             {a.discipline ?? tGender(m, a.gender)} · {a.kota} · {a.handle}
           </p>
-          <p className="max-w-xl text-sm leading-relaxed text-white/60">{m.pub_stageCaption}</p>
-          <div className="mt-1 flex flex-wrap items-center gap-2">
+        </div>
+
+        {/* Neon stage with the athlete figure */}
+        <AthleteStage>
+          <div className="mx-auto w-full" style={{ maxWidth: "min(260px, 82vw)" }}>
+            {has360 ? (
+              <Viewer360 athleteId={a.id} media={a.media360!} m={m} />
+            ) : (
+              // No 360: the athlete photo (or initials) stands on the stage too —
+              // transparent, height-capped, with the same ground-contact shadow.
+              <div className="relative mx-auto" style={viewer360FrameStyle()}>
+                <div className="stage-contact" aria-hidden />
+                {a.photoUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={a.photoUrl} alt={a.nama} className="absolute inset-0 h-full w-full object-contain" />
+                ) : (
+                  <div className="absolute inset-0 flex items-center justify-center font-condensed text-6xl font-bold text-white/25">
+                    {initials(a.nama)}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </AthleteStage>
+
+        {/* Primary CTA + short context (caption + real stats) below the figure */}
+        <div className="mt-5 flex flex-col items-center gap-4">
+          <a
+            href="#zona-sponsor"
+            className="rounded-full bg-[#ff3b57] px-8 py-3 text-sm font-semibold text-white shadow-[0_0_26px_rgba(255,45,85,0.45)] transition-colors hover:bg-[#e42e48]"
+          >
+            {m.pub_viewSponsors}
+          </a>
+          <p className="max-w-xl text-center text-sm leading-relaxed text-white/60">{m.pub_stageCaption}</p>
+          <div className="flex flex-wrap items-center justify-center gap-2">
             {chips.map((c, i) => (
               <span
                 key={i}
@@ -61,36 +95,6 @@ export default async function AtletDetailPage({ params }: { params: { id: string
               </span>
             ))}
           </div>
-        </div>
-
-        {/* Neon stage with the athlete figure */}
-        <AthleteStage>
-          <div className="w-[190px] sm:w-[220px] lg:w-[240px]">
-            {has360 ? (
-              <Viewer360 athleteId={a.id} media={a.media360!} m={m} />
-            ) : (
-              <div className="aspect-[168/395] w-full overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03]">
-                {a.photoUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={a.photoUrl} alt={a.nama} className="h-full w-full object-cover" />
-                ) : (
-                  <div className="flex h-full w-full items-center justify-center font-condensed text-4xl font-bold text-white/25">
-                    {initials(a.nama)}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        </AthleteStage>
-
-        {/* Primary CTA → scroll to sponsor zones */}
-        <div className="mt-6 flex justify-center">
-          <a
-            href="#zona-sponsor"
-            className="rounded-full bg-[#ff3b57] px-8 py-3 text-sm font-semibold text-white shadow-[0_0_26px_rgba(255,45,85,0.45)] transition-colors hover:bg-[#e42e48]"
-          >
-            {m.pub_viewSponsors}
-          </a>
         </div>
 
         {/* Zones + race history */}
