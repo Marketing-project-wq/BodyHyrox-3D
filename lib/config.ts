@@ -133,10 +133,11 @@ export const VIEWER_360 = {
   /** Rendered position snaps to target once within this many frames (ends the loop). */
   settleEpsilon: 0.002,
   /**
-   * Blend the two nearest frames by the fractional position (smooths rotation).
-   * With aligned frames this reads as rotation; set false for a crisp hard-swap.
+   * Blend the two nearest frames by the fractional position. With only 12 frames
+   * (30° apart) this ghosts/doubles, so the default is a crisp HARD-SWAP; turn
+   * on only once frames are dense/clean enough that blending helps.
    */
-  crossfade: true,
+  crossfade: false,
   /**
    * When motion stops, ease onto the nearest frame (a soft detent) so the figure
    * rests on one crisp frame instead of a blended half-frame.
