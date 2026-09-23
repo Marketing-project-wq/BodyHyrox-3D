@@ -30,7 +30,7 @@ export function AthleteStage({ children }: { children: ReactNode }) {
       <div className="stage-platform" aria-hidden />
 
       {/* Figure stands centered on the platform */}
-      <div className="relative z-10 flex min-h-[440px] items-end justify-center px-6 pb-12 pt-12 sm:min-h-[520px] sm:pb-16">
+      <div className="relative z-10 flex min-h-[420px] items-end justify-center px-6 pb-10 pt-8 sm:min-h-[500px] sm:pb-14 sm:pt-10">
         {children}
       </div>
 

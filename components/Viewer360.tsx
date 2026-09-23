@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { RotateCcw } from "lucide-react";
 import type { Media360 } from "@/lib/data";
-import { VIEWER_360 } from "@/lib/config";
+import { VIEWER_360, viewer360FrameStyle } from "@/lib/config";
 import { type Dict, fmt } from "@/lib/i18n";
 import { formatIDR } from "@/lib/format";
 
@@ -191,24 +191,32 @@ export function Viewer360({
   const frameNo = displayFrame; // 1-based, matches hotspot point keys
   const activeHotspots = media.hotspots.filter((h) => h.points[String(frameNo)]);
 
+  // Size the figure by viewport height so head-to-toe fits without scrolling;
+  // width follows the frame aspect ratio (values from config, never hardcoded).
+  const frameStyle = viewer360FrameStyle();
+
   return (
     <div className="w-full">
-      <div className="mb-2 flex items-center justify-between">
-        <h2 className="font-condensed text-xl font-bold uppercase tracking-wide">{m.v360_title}</h2>
+      <div className="mb-1.5 flex items-center justify-center gap-2">
+        <span className="font-condensed text-xs font-bold uppercase tracking-[0.2em] text-white/60">{m.v360_title}</span>
         {media.isPlaceholder && (
-          <span className="rounded-full border border-white/15 bg-white/5 px-2 py-0.5 font-mono text-[10px] uppercase text-white/50">
+          <span className="rounded-full border border-white/15 bg-white/5 px-2 py-0.5 font-mono text-[9px] uppercase text-white/45">
             {m.v360_placeholder}
           </span>
         )}
       </div>
 
       <div
-        className="relative mx-auto aspect-[168/395] w-full max-w-[300px] cursor-ew-resize touch-none select-none overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03]"
+        className="relative mx-auto cursor-ew-resize touch-none select-none"
+        style={frameStyle}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={endDrag}
         onPointerCancel={endDrag}
       >
+        {/* Ground-contact shadow (behind the frames) so the athlete stands, not floats */}
+        <div className="stage-contact" aria-hidden />
+
         {/* Frames — opacity is managed imperatively (not in JSX) so re-renders don't clobber it */}
         {urls.map((u, i) => (
           // eslint-disable-next-line @next/next/no-img-element
@@ -220,7 +228,7 @@ export function Viewer360({
             src={u}
             alt=""
             draggable={false}
-            className="pointer-events-none absolute inset-0 h-full w-full object-cover"
+            className="pointer-events-none absolute inset-0 h-full w-full object-contain"
             style={{ opacity: i === 0 ? 1 : 0, willChange: "opacity" }}
           />
         ))}

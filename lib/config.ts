@@ -132,7 +132,30 @@ export const VIEWER_360 = {
   followPerFrame: 0.4,
   /** Rendered position snaps to target once within this many frames (ends the loop). */
   settleEpsilon: 0.002,
+  /**
+   * On-screen size of the athlete figure. Height is capped to a share of the
+   * viewport so the whole body (head to feet) fits without scrolling; width
+   * follows from the frame's aspect ratio. `maxWidthPx` keeps it from getting
+   * too wide on tall/narrow phones. Tune here — never hardcode in components.
+   */
+  maxHeightSvh: 58,
+  maxHeightPx: 540,
+  maxWidthPx: 260,
 } as const;
+
+/**
+ * Inline style for the portrait athlete figure (360 viewer or fallback photo).
+ * Height-capped to the viewport so the whole body fits without scrolling; width
+ * follows the frame aspect ratio. Shared so the viewer and the page stay in sync.
+ */
+export function viewer360FrameStyle() {
+  return {
+    height: `min(${VIEWER_360.maxHeightSvh}svh, ${VIEWER_360.maxHeightPx}px)`,
+    width: "auto",
+    aspectRatio: "168 / 395",
+    maxWidth: `min(${VIEWER_360.maxWidthPx}px, 82vw)`,
+  };
+}
 
 /** Default notification toggles for a fresh platform. */
 export const DEFAULT_NOTIFICATIONS = {
