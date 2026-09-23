@@ -6,6 +6,7 @@ import { getMessages, getLocale } from "@/lib/i18n-server";
 import { fmt, tGender } from "@/lib/i18n";
 import { formatIDR, formatNumber, initials } from "@/lib/format";
 import { viewer360FrameStyle } from "@/lib/config";
+import { VIEWER_3D } from "@/lib/viewer3d";
 import { PublicHeader } from "@/components/PublicHeader";
 import { Viewer360 } from "@/components/Viewer360";
 import { AthleteViewer3D } from "@/components/AthleteViewer";
@@ -36,9 +37,10 @@ export default async function AtletDetailPage({
 
   const available = a.zones.filter((z) => z.status === "tersedia").length;
   const has360 = !!a.media360 && a.media360.frames.length > 0;
-  // 3D viewer is preview-only for now: opt in per view with ?v=3d. Production
-  // default stays on the photo viewer until a real per-athlete GLB is dropped in.
-  const want3d = searchParams?.v === "3d";
+  // 3D viewer default is controlled by VIEWER_3D.enabledFor (per-athlete), so the
+  // placeholder mannequin doesn't show site-wide. ?v=3d forces it on for anyone,
+  // ?v=photo forces the photo viewer.
+  const want3d = searchParams?.v === "3d" || (searchParams?.v !== "photo" && VIEWER_3D.enabledFor.includes(a.id));
 
   const chips = [
     { n: a.podiumCount, label: m.pub_podiums },
