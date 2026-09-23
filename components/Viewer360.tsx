@@ -97,10 +97,12 @@ export function Viewer360({
         if (Math.abs(velRef.current) < VIEWER_360.momentumStopThreshold) velRef.current = 0;
       }
 
-      // Once motion has stopped, settle onto the nearest whole frame so the
-      // figure rests on a crisp frame, not a blended half-frame (ghosting).
+      // Once motion has stopped, settle onto the nearest real frame (every
+      // settleStep-th) so the figure rests on a crisp source photo, not a
+      // blended or synthetic frame. Motion still uses all frames for smoothness.
       if (VIEWER_360.snapOnSettle && !draggingRef.current && velRef.current === 0) {
-        targetRef.current = norm(Math.round(targetRef.current));
+        const step = Math.max(1, VIEWER_360.settleStep);
+        targetRef.current = norm(Math.round(targetRef.current / step) * step);
       }
 
       // Ease the rendered position toward the target (frame-rate independent).

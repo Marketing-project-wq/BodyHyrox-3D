@@ -27,7 +27,7 @@ export function AthleteStage({ children }: { children: ReactNode }) {
         preserveAspectRatio="xMidYMid slice"
         aria-hidden
       >
-        <g fill="none" stroke="#ff2d55" strokeWidth="1.4" strokeLinecap="round">
+        <g fill="none" stroke="#ff2d55" strokeWidth="1.7" strokeLinecap="round">
           <line x1="150" y1="-20" x2="332" y2="640" />
           <line x1="850" y1="-20" x2="668" y2="640" />
           <line x1="44" y1="130" x2="-26" y2="640" strokeOpacity="0.55" />

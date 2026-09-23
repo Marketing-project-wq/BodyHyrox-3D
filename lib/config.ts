@@ -138,10 +138,17 @@ export const VIEWER_360 = {
    */
   crossfade: true,
   /**
-   * When motion stops, ease onto the nearest whole frame (a soft detent) so the
-   * figure rests on one crisp frame instead of a blended half-frame.
+   * When motion stops, ease onto the nearest frame (a soft detent) so the figure
+   * rests on one crisp frame instead of a blended half-frame.
    */
   snapOnSettle: true,
+  /**
+   * Settle only onto every Nth frame. With interpolated sequences the real
+   * source frames are every `settleStep`-th (here 3 => the 12 real angles of a
+   * 36-frame set), so rest always lands on a clean photo while motion still uses
+   * all frames for smoothness. Set 1 to settle onto any frame.
+   */
+  settleStep: 3,
   /**
    * On-screen size of the athlete figure inside the full-screen stage. Height
    * is capped to a share of the viewport so the whole body (head to feet) fits;
@@ -160,11 +167,11 @@ export const VIEWER_360 = {
  * so nothing about the animation is hardcoded in the stylesheet.
  */
 export const STAGE_MOTION = {
-  breatheSec: 7,   // ambient glow "breathing"
-  beamSec: 6.5,    // neon beams pulse
-  floorSec: 24,    // perspective grid drift
-  dustSec: 16,     // floating dust particles
-  intensity: 1,    // amplitude scalar (1 = elegant default)
+  breatheSec: 6,    // ambient glow "breathing"
+  beamSec: 5.5,     // neon beams pulse
+  floorSec: 22,     // perspective grid drift
+  dustSec: 15,      // floating dust particles
+  intensity: 1.35,  // amplitude scalar (1 = elegant, >1 = more dramatic neon)
 } as const;
 
 export function stageMotionVars(): Record<string, string> {
