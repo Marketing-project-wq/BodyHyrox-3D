@@ -232,6 +232,10 @@ const en = {
   pub_none: "No athletes available yet.",
   pub_home: "Home",
   pub_perEvent: "/ event",
+  pub_viewSponsors: "View sponsors",
+  pub_openZones: "zones open",
+  pub_stageCaption:
+    "Put your brand on this athlete's body zones — seen in every photo, race and podium.",
 
   // 360° viewer
   v360_title: "360° view",
@@ -519,6 +523,10 @@ const id: Dict = {
   pub_none: "Belum ada atlet.",
   pub_home: "Beranda",
   pub_perEvent: "/ event",
+  pub_viewSponsors: "Lihat sponsor",
+  pub_openZones: "zona tersedia",
+  pub_stageCaption:
+    "Pasang merek Anda di zona tubuh atlet ini — tampil di setiap foto, race, dan podium.",
 
   // 360° viewer
   v360_title: "Tampilan 360°",
