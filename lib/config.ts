@@ -143,12 +143,11 @@ export const VIEWER_360 = {
    */
   snapOnSettle: true,
   /**
-   * Settle only onto every Nth frame. With interpolated sequences the real
-   * source frames are every `settleStep`-th (here 3 => the 12 real angles of a
-   * 36-frame set), so rest always lands on a clean photo while motion still uses
-   * all frames for smoothness. Set 1 to settle onto any frame.
+   * Settle onto every Nth frame. For an interpolated sequence set this to the
+   * interpolation factor so rest lands on a real source frame; for a plain
+   * sequence of real frames (the current 12) keep 1 (every frame is real).
    */
-  settleStep: 3,
+  settleStep: 1,
   /**
    * On-screen size of the athlete figure inside the full-screen stage. Height
    * is capped to a share of the viewport so the whole body (head to feet) fits;
