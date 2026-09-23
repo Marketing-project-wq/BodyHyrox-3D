@@ -28,7 +28,7 @@ export const VIEWER_3D = {
    * ids here as real models land. `?v=photo` forces the photo viewer for anyone;
    * `?v=3d` forces 3D for anyone.
    */
-  enabledFor: ["f328e4e0-98c2-483d-b9ae-4be7fd6bf635"] as string[],
+  enabledFor: [] as string[],
 
   camera: { position: [0, 0.1, 3.6] as [number, number, number], fov: 30 },
 
