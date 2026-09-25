@@ -9,6 +9,32 @@ import { issueUpload, finalizeMedia } from "@/app/atlet/[id]/media-actions";
 
 type Phase = "idle" | "uploading" | "done" | "error";
 
+/** Downscale a blob so cutout inference is fast and uploads stay small. */
+async function shrink(blob: Blob, maxPx: number): Promise<Blob> {
+  const url = URL.createObjectURL(blob);
+  try {
+    const img = await new Promise<HTMLImageElement>((res, rej) => {
+      const im = new Image();
+      im.onload = () => res(im);
+      im.onerror = rej;
+      im.src = url;
+    });
+    const scale = Math.min(1, maxPx / Math.max(img.width, img.height));
+    if (scale >= 1) return blob;
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(img.width * scale);
+    canvas.height = Math.round(img.height * scale);
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return blob;
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    return await new Promise<Blob>((res) => canvas.toBlob((b) => res(b || blob), "image/jpeg", 0.9));
+  } catch {
+    return blob;
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
 export function Athlete360Admin({
   athleteId,
   currentFrames,
@@ -32,6 +58,7 @@ export function Athlete360Admin({
   const [cutout, setCutout] = useState(true);
   const [phase, setPhase] = useState<Phase>("idle");
   const [done, setDone] = useState(0);
+  const [cur, setCur] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [expanding, setExpanding] = useState(false);
 
@@ -109,6 +136,7 @@ export function Athlete360Admin({
     }
     setPhase("uploading");
     setDone(0);
+    setCur(0);
     try {
       let removeBackground: ((input: Blob) => Promise<Blob>) | null = null;
       if (cutout) {
@@ -130,10 +158,12 @@ export function Athlete360Admin({
       const slots = await issueUpload(athleteId, names);
 
       for (let i = 0; i < files.length; i++) {
+        setCur(i + 1);
         let body: Blob = files[i];
         let contentType = files[i].type || "application/octet-stream";
         if (removeBackground) {
-          body = await removeBackground(files[i]); // transparent PNG
+          const small = await shrink(files[i], 1100); // faster inference + smaller upload
+          body = await removeBackground(small); // transparent PNG
           contentType = "image/png";
         }
         const res = await fetch(slots[i].uploadUrl, {
@@ -252,7 +282,7 @@ export function Athlete360Admin({
       <div className="mt-4 flex items-center gap-3">
         <button onClick={upload} disabled={busy || expanding || files.length === 0} className="btn btn-primary disabled:cursor-not-allowed disabled:opacity-50">
           {busy ? <RotateCw className="h-4 w-4 animate-spin" /> : <UploadCloud className="h-4 w-4" />}
-          {busy ? fmt(cutout ? m.m360_processing : m.m360_uploading, { done, total: files.length }) : m.m360_submit}
+          {busy ? fmt(cutout ? m.m360_processing : m.m360_uploading, { done: cur, total: files.length }) : m.m360_submit}
         </button>
         {busy && (
           <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-surface-2">
@@ -263,6 +293,7 @@ export function Athlete360Admin({
           </div>
         )}
       </div>
+      {busy && cutout && <p className="mt-2 text-xs text-faint">{m.m360_first_slow}</p>}
     </section>
   );
 }
