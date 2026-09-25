@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { Dict } from "@/lib/i18n";
 import { brandLogout } from "@/app/brand/actions";
 
 /** Top nav for the signed-in sponsor area (dashboard / cart / account / logout). */
@@ -6,10 +7,12 @@ export function BrandAccountNav({
   active,
   cartCount = 0,
   company,
+  m,
 }: {
   active: "dashboard" | "keranjang" | "akun";
   cartCount?: number;
   company?: string;
+  m: Dict;
 }) {
   const item = (href: string, key: string, label: string, badge?: number) => (
     <Link
@@ -30,15 +33,15 @@ export function BrandAccountNav({
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 pb-4">
       <div className="flex flex-wrap items-center gap-1">
-        {item("/brand/dashboard", "dashboard", "Dashboard")}
-        {item("/brand/keranjang", "keranjang", "Keranjang", cartCount)}
-        {item("/brand/akun", "akun", "Akun")}
+        {item("/brand/dashboard", "dashboard", m.ban_dashboard)}
+        {item("/brand/keranjang", "keranjang", m.ban_cart, cartCount)}
+        {item("/brand/akun", "akun", m.ban_account)}
       </div>
       <div className="flex items-center gap-3">
         {company && <span className="hidden text-xs text-white/40 sm:inline">{company}</span>}
         <form action={brandLogout}>
           <button className="rounded-full border border-white/15 px-3.5 py-1.5 text-sm text-white/70 hover:bg-white/5 hover:text-white">
-            Keluar
+            {m.ban_logout}
           </button>
         </form>
       </div>

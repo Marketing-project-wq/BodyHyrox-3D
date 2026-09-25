@@ -3,6 +3,7 @@ import { db } from "@/lib/supabase";
 import { isConfigured } from "@/lib/supabase";
 import { hashToken } from "@/lib/brand-auth";
 import { getLocale, getMessages } from "@/lib/i18n-server";
+import { fmt } from "@/lib/i18n";
 import { PublicHeader } from "@/components/PublicHeader";
 import { NotConfigured } from "@/components/ui";
 import { resendVerification } from "@/app/brand/actions";
@@ -42,13 +43,13 @@ export default async function VerifikasiPage({
   if (tokenState === "ok") {
     return wrap(
       <div className={card}>
-        <h1 className="font-condensed text-2xl font-bold uppercase">Email terverifikasi ✓</h1>
-        <p className="mt-2 text-sm text-white/60">Akun kamu sudah aktif. Silakan masuk untuk mulai mengajukan sponsor.</p>
+        <h1 className="font-condensed text-2xl font-bold uppercase">{m.ver_ok_title}</h1>
+        <p className="mt-2 text-sm text-white/60">{m.ver_ok_body}</p>
         <Link
           href="/brand/masuk"
           className="mt-5 inline-block rounded-lg bg-[#ff3b57] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#e42e48]"
         >
-          Masuk
+          {m.ver_signin}
         </Link>
       </div>,
     );
@@ -56,49 +57,41 @@ export default async function VerifikasiPage({
   if (tokenState === "invalid") {
     return wrap(
       <div className={card}>
-        <h1 className="font-condensed text-2xl font-bold uppercase">Link tidak valid</h1>
-        <p className="mt-2 text-sm text-white/60">
-          Link verifikasi tidak valid atau sudah kedaluwarsa. Masukkan email untuk kirim ulang link verifikasi.
-        </p>
+        <h1 className="font-condensed text-2xl font-bold uppercase">{m.ver_invalid_title}</h1>
+        <p className="mt-2 text-sm text-white/60">{m.ver_invalid_body}</p>
         <form action={resendVerification} className="mt-5 flex flex-col gap-3">
-          <input name="email" type="email" required defaultValue={email} placeholder="Email" className={field} />
+          <input name="email" type="email" required defaultValue={email} placeholder={m.br_email} className={field} />
           <input type="hidden" name="next" value={next} />
           <button className="rounded-lg bg-[#ff3b57] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#e42e48]">
-            Kirim ulang verifikasi
+            {m.ver_resend}
           </button>
         </form>
       </div>,
     );
   }
 
-  // No token: "check your email" (or pending admin verification if email is off)
   return wrap(
     <>
-      <h1 className="font-condensed text-3xl font-bold uppercase">Verifikasi email</h1>
+      <h1 className="font-condensed text-3xl font-bold uppercase">{m.ver_title}</h1>
       {searchParams.pending ? (
         <div className={card}>
-          <p className="text-sm text-white/70">
-            Akun kamu sudah dibuat{email ? ` untuk ${email}` : ""}. Layanan email verifikasi belum aktif, jadi admin
-            akan memverifikasi akunmu sebentar lagi. Kamu bisa masuk setelah diverifikasi.
-          </p>
+          <p className="text-sm text-white/70">{m.ver_pending}</p>
+          {email && <p className="mt-2 text-sm text-white">{email}</p>}
         </div>
       ) : (
         <div className={card}>
-          <p className="text-sm text-white/70">
-            Kami mengirim link verifikasi ke <span className="text-white">{email || "email kamu"}</span>. Buka email itu
-            dan klik link-nya untuk mengaktifkan akun (berlaku 48 jam). Cek juga folder spam.
-          </p>
+          <p className="text-sm text-white/70">{fmt(m.ver_sent, { email: email || m.ver_your_email })}</p>
           <form action={resendVerification} className="mt-5 flex flex-col gap-3">
-            <input name="email" type="email" required defaultValue={email} placeholder="Email" className={field} />
+            <input name="email" type="email" required defaultValue={email} placeholder={m.br_email} className={field} />
             <input type="hidden" name="next" value={next} />
             <button className="rounded-lg border border-white/15 px-4 py-2.5 text-sm font-medium text-white hover:bg-white/5">
-              Kirim ulang verifikasi
+              {m.ver_resend}
             </button>
           </form>
         </div>
       )}
       <Link href="/brand/masuk" className="mt-5 inline-block text-sm text-[#ff3b57] hover:underline">
-        Kembali ke halaman masuk
+        {m.ver_back_login}
       </Link>
     </>,
   );

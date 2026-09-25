@@ -46,7 +46,7 @@ export default function BrandLoginPage({
             href={`/brand/verifikasi?email=${encodeURIComponent(searchParams.email || "")}&next=${encodeURIComponent(next)}`}
             className="mt-2 inline-block text-sm text-[#ff3b57] hover:underline"
           >
-            Kirim ulang email verifikasi →
+            {m.br_resend_link}
           </Link>
         )}
         <form action={brandLogin} className="mt-6 flex flex-col gap-4">
