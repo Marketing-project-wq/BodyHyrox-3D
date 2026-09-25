@@ -17,8 +17,8 @@ visible). Nothing here is athlete-specific — the factor and paths are argument
 
 Usage:
   python3 scripts/interpolate-360.py \
-      --src public/media/atlet-360/rani-pratiwi/_src \
-      --out public/media/atlet-360/rani-pratiwi \
+      --src public/media/atlet-360/<slug>/_src \
+      --out public/media/atlet-360/<slug> \
       --pattern 'frame_*.png' --factor 3 \
       --hotspots-in /tmp/hot12.json --hotspots-out /tmp/hot36.json
 """
