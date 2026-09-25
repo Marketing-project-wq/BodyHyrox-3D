@@ -49,7 +49,7 @@ export default async function AtletDetailPage({
     searchParams?.cart === "added"
       ? { ok: true, text: m.cart_add + " ✓" }
       : searchParams?.cart && searchParams.cart !== "added"
-        ? { ok: false, text: "Zona ini sudah tidak tersedia." }
+        ? { ok: false, text: m.pub_cart_unavailable }
         : null;
 
   const available = a.zones.filter((z) => z.status === "tersedia").length;
@@ -142,7 +142,7 @@ export default async function AtletDetailPage({
                 )}
               </Link>
               <Link href="/brand/dashboard" className="text-white/70 hover:text-white">
-                Dashboard
+                {m.pub_dashboard}
               </Link>
             </div>
           </div>
@@ -173,6 +173,7 @@ export default async function AtletDetailPage({
               isPlaceholder={a.media360?.isPlaceholder ?? false}
               initialAutospin={a.media360?.autospin ?? true}
               initialCrossfade={a.media360?.crossfade ?? false}
+              m={m}
             />
           </div>
         )}

@@ -85,10 +85,7 @@ export default async function TambahKeranjangPage({
         </div>
       </form>
 
-      <p className="mt-6 text-xs text-white/40">
-        Event dipilih nanti saat checkout, berlaku untuk semua item di keranjang. Pengajuan tetap menunggu persetujuan
-        admin.
-      </p>
+      <p className="mt-6 text-xs text-white/40">{m.aj_cart_note}</p>
     </>,
   );
 }

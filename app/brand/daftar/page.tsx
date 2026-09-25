@@ -44,7 +44,7 @@ export default function BrandRegisterPage({
           </div>
           <div>
             <label className="text-xs text-white/50">{m.br_kategori}</label>
-            <input name="kategori" className={field} placeholder="Sport / F&B / Apparel…" />
+            <input name="kategori" className={field} placeholder={m.br_kategori_ph} />
           </div>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>

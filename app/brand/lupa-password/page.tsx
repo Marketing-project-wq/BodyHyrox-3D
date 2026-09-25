@@ -17,20 +17,16 @@ export default function LupaPasswordPage({ searchParams }: { searchParams: { sen
 
   return (
     <div className="min-h-[100dvh] bg-[#0b0b0d] text-[#f3f3f4]">
-      <PublicHeader locale={locale} back={{ href: "/brand/masuk", label: "Masuk" }} />
+      <PublicHeader locale={locale} back={{ href: "/brand/masuk", label: m.ver_signin }} />
       <main className="mx-auto max-w-md px-5 py-14">
-        <h1 className="font-condensed text-3xl font-bold uppercase">Lupa password</h1>
-        <p className="mt-2 text-sm text-white/55">
-          Masukkan email akun sponsor kamu. Kami akan mengirim link untuk mengatur password baru.
-        </p>
+        <h1 className="font-condensed text-3xl font-bold uppercase">{m.fp_title}</h1>
+        <p className="mt-2 text-sm text-white/55">{m.fp_sub}</p>
         {searchParams.sent ? (
           <div className="mt-6 rounded-2xl border border-[#12b76a]/40 bg-[#12b76a]/10 p-5 text-sm text-white/80">
-            Jika email tersebut terdaftar, link reset sudah kami kirim. Cek inbox (dan folder spam). Link berlaku 1 jam.
+            {m.fp_sent}
             <br />
             <br />
-            <span className="text-white/55">
-              Belum ada layanan email? Hubungi admin 20FIT untuk reset password akunmu.
-            </span>
+            <span className="text-white/55">{m.fp_sent_admin}</span>
           </div>
         ) : (
           <form action={requestPasswordReset} className="mt-6 flex flex-col gap-4">
@@ -39,12 +35,12 @@ export default function LupaPasswordPage({ searchParams }: { searchParams: { sen
               <input name="email" type="email" required autoFocus className={field} />
             </div>
             <button className="mt-1 rounded-lg bg-[#ff3b57] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#e42e48]">
-              Kirim link reset
+              {m.fp_submit}
             </button>
           </form>
         )}
         <Link href="/brand/masuk" className="mt-5 inline-block text-sm text-[#ff3b57] hover:underline">
-          Kembali ke halaman masuk
+          {m.ver_back_login}
         </Link>
       </main>
     </div>
