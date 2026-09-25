@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { UploadCloud, Check, RotateCw } from "lucide-react";
+import { UploadCloud, Check, RotateCw, X } from "lucide-react";
 import { SPONSOR_360_UPLOAD } from "@/lib/config";
 import { type Dict, fmt } from "@/lib/i18n";
 import { issueUpload, finalizeMedia } from "@/app/atlet/[id]/media-actions";
@@ -49,6 +49,12 @@ export function Athlete360Admin({
       return;
     }
     setFiles(picked);
+  }
+
+  function removeAt(idx: number) {
+    setError(null);
+    setPhase("idle");
+    setFiles((prev) => prev.filter((_, i) => i !== idx));
   }
 
   async function upload() {
@@ -113,7 +119,9 @@ export function Athlete360Admin({
   return (
     <section className="card p-4">
       <div className="flex items-center gap-2">
-        <span className="badge bg-accent-soft text-accent">{m.m360_admin}</span>
+        <span className="rounded-md border border-border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted">
+          {m.m360_admin}
+        </span>
         <h2 className="text-sm font-semibold text-text">{m.m360_title}</h2>
       </div>
       <p className="mt-1 text-xs text-muted">
@@ -148,10 +156,21 @@ export function Athlete360Admin({
           </div>
           <div className="mt-2 grid grid-cols-6 gap-1.5 sm:grid-cols-9">
             {previews.map((u, i) => (
-              <div key={i} className="relative aspect-[3/4] overflow-hidden rounded-md border border-border bg-surface-2">
+              <div key={i} className="group relative aspect-[3/4] overflow-hidden rounded-md border border-border bg-surface-2">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={u} alt={`frame ${i + 1}`} className="h-full w-full object-contain" />
                 <span className="absolute bottom-0 left-0 bg-black/60 px-1 text-[9px] text-white">{i + 1}</span>
+                {!busy && (
+                  <button
+                    type="button"
+                    onClick={() => removeAt(i)}
+                    aria-label={m.crt_remove}
+                    title={m.crt_remove}
+                    className="absolute right-0.5 top-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-black/70 text-white opacity-80 transition hover:bg-accent hover:opacity-100"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                )}
               </div>
             ))}
           </div>
