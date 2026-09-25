@@ -26,6 +26,7 @@ export function Athlete360Admin({
   const [files, setFiles] = useState<File[]>([]);
   const [autospin, setAutospin] = useState(initialAutospin);
   const [crossfade, setCrossfade] = useState(initialCrossfade);
+  const [cutout, setCutout] = useState(true);
   const [phase, setPhase] = useState<Phase>("idle");
   const [done, setDone] = useState(0);
   const [error, setError] = useState<string | null>(null);
@@ -56,12 +57,43 @@ export function Athlete360Admin({
     setPhase("uploading");
     setDone(0);
     try {
-      const slots = await issueUpload(athleteId, files.map((f) => f.name));
+      // When cutout is on, the background is removed IN THE BROWSER (WASM) before
+      // upload, so each frame becomes a transparent PNG. The library is loaded from
+      // a CDN at runtime (webpackIgnore) — it doesn't bundle cleanly under webpack
+      // and this keeps it out of the app bundle; its model is fetched on first use.
+      let removeBackground: ((input: Blob) => Promise<Blob>) | null = null;
+      if (cutout) {
+        try {
+          // Runtime import that neither webpack nor TS resolves statically, so the
+          // CDN ESM loads in the browser and never enters the app bundle.
+          // eslint-disable-next-line @typescript-eslint/no-implied-eval, no-new-func
+          const cdnImport = new Function("u", "return import(u)") as (
+            u: string,
+          ) => Promise<{ removeBackground: (i: Blob) => Promise<Blob> }>;
+          const mod = await cdnImport("https://esm.sh/@imgly/background-removal@1");
+          removeBackground = mod.removeBackground;
+        } catch {
+          throw new Error(
+            "Gagal memuat modul hapus-background. Matikan opsi 'Hapus background otomatis' lalu unggah foto PNG transparan, atau coba lagi.",
+          );
+        }
+      }
+
+      // Frame extension follows the uploaded bytes: png when cut, else original.
+      const names = files.map((f) => (cutout ? f.name.replace(/\.[^.]+$/, "") + ".png" : f.name));
+      const slots = await issueUpload(athleteId, names);
+
       for (let i = 0; i < files.length; i++) {
+        let body: Blob = files[i];
+        let contentType = files[i].type || "application/octet-stream";
+        if (removeBackground) {
+          body = await removeBackground(files[i]); // transparent PNG
+          contentType = "image/png";
+        }
         const res = await fetch(slots[i].uploadUrl, {
           method: "PUT",
-          headers: { "content-type": files[i].type || "application/octet-stream", "x-upsert": "true" },
-          body: files[i],
+          headers: { "content-type": contentType, "x-upsert": "true" },
+          body,
         });
         if (!res.ok) throw new Error(`Upload gagal (HTTP ${res.status}) pada frame ${i + 1}.`);
         setDone(i + 1);
@@ -90,8 +122,8 @@ export function Athlete360Admin({
         {currentFrames > 0
           ? `Saat ini ${currentFrames} frame${isPlaceholder ? " (placeholder)" : ""}.`
           : "Belum ada foto 360°."}{" "}
-        Unggah {minFrames}–{maxFrames} foto berputar (urut sesuai nama file). Untuk latar transparan, unggah PNG yang
-        sudah di-cutout. Set baru akan langsung menggantikan tampilan yang dilihat sponsor.
+        Unggah {minFrames}–{maxFrames} foto berputar (urut sesuai nama file). Background dihapus otomatis (bisa
+        dimatikan di bawah). Set baru akan langsung menggantikan tampilan yang dilihat sponsor.
       </p>
 
       <div className="mt-4">
@@ -134,6 +166,10 @@ export function Athlete360Admin({
 
       <div className="mt-4 flex flex-wrap items-center gap-4">
         <label className="flex items-center gap-2 text-sm text-white/70">
+          <input type="checkbox" checked={cutout} onChange={(e) => setCutout(e.target.checked)} className="accent-[#ff3b57]" />
+          Hapus background otomatis (transparan)
+        </label>
+        <label className="flex items-center gap-2 text-sm text-white/70">
           <input type="checkbox" checked={autospin} onChange={(e) => setAutospin(e.target.checked)} className="accent-[#ff3b57]" />
           Putar otomatis
         </label>
@@ -142,6 +178,12 @@ export function Athlete360Admin({
           Transisi halus (crossfade)
         </label>
       </div>
+      {cutout && (
+        <p className="mt-2 text-xs text-white/40">
+          Background dihapus otomatis di browser sebelum diunggah (butuh koneksi; unduh model sekali di awal, proses tiap
+          frame perlu beberapa detik). Matikan bila fotomu sudah transparan/di-cutout dari luar.
+        </p>
+      )}
 
       {error && <p className="mt-3 rounded-lg bg-[#ff3b57]/15 px-3 py-2 text-sm text-[#ff8a9c]">{error}</p>}
       {phase === "done" && (
@@ -157,7 +199,7 @@ export function Athlete360Admin({
           className="inline-flex items-center gap-2 rounded-lg bg-[#ff3b57] px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#e42e48] disabled:cursor-not-allowed disabled:opacity-40"
         >
           {busy ? <RotateCw className="h-4 w-4 animate-spin" /> : <UploadCloud className="h-4 w-4" />}
-          {busy ? `Mengunggah ${done}/${files.length}…` : "Unggah & simpan"}
+          {busy ? `${cutout ? "Memproses" : "Mengunggah"} ${done}/${files.length}…` : "Unggah & simpan"}
         </button>
         {busy && (
           <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/10">
