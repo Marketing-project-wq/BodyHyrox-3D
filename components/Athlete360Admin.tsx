@@ -33,14 +33,58 @@ export function Athlete360Admin({
   const [phase, setPhase] = useState<Phase>("idle");
   const [done, setDone] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [expanding, setExpanding] = useState(false);
 
   const previews = useMemo(() => files.map((f) => URL.createObjectURL(f)), [files]);
   useEffect(() => () => previews.forEach((u) => URL.revokeObjectURL(u)), [previews]);
 
-  function onPick(list: FileList | null) {
+  // Split one PDF into a frame per page, rendered in the browser (capped size).
+  async function pdfToFiles(file: File): Promise<File[]> {
+    // eslint-disable-next-line @typescript-eslint/no-implied-eval, no-new-func
+    const cdnImport = new Function("u", "return import(u)") as (u: string) => Promise<Record<string, unknown>>;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const pdfjs = (await cdnImport("https://esm.sh/pdfjs-dist@4/build/pdf.min.mjs")) as any;
+    pdfjs.GlobalWorkerOptions.workerSrc = `https://esm.sh/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
+    const data = await file.arrayBuffer();
+    const pdf = await pdfjs.getDocument({ data }).promise;
+    const n = Math.min(pdf.numPages, maxFrames);
+    const out: File[] = [];
+    for (let p = 1; p <= n; p++) {
+      const page = await pdf.getPage(p);
+      const base = page.getViewport({ scale: 1 });
+      const scale = Math.min(2, 1600 / Math.max(base.width, base.height)) || 1;
+      const viewport = page.getViewport({ scale });
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.ceil(viewport.width);
+      canvas.height = Math.ceil(viewport.height);
+      const ctx = canvas.getContext("2d");
+      if (!ctx) continue;
+      await page.render({ canvasContext: ctx, viewport }).promise;
+      const blob: Blob = await new Promise((res) => canvas.toBlob((b) => res(b as Blob), "image/jpeg", 0.9));
+      out.push(new File([blob], `page_${String(p).padStart(2, "0")}.jpg`, { type: "image/jpeg" }));
+    }
+    return out;
+  }
+
+  async function onPick(list: FileList | null) {
     setError(null);
     setPhase("idle");
-    const picked = Array.from(list || [])
+    const arr = Array.from(list || []);
+    const pdf = arr.find((f) => f.type === "application/pdf" || /\.pdf$/i.test(f.name));
+    if (pdf) {
+      setExpanding(true);
+      try {
+        const frames = await pdfToFiles(pdf);
+        if (frames.length === 0) throw new Error("empty");
+        setFiles(frames);
+      } catch {
+        setError(m.m360_err_pdf);
+      } finally {
+        setExpanding(false);
+      }
+      return;
+    }
+    const picked = arr
       .filter((f) => (acceptMime as readonly string[]).includes(f.type))
       .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
     const tooBig = picked.find((f) => f.size > maxFileMB * 1024 * 1024);
@@ -135,13 +179,18 @@ export function Athlete360Admin({
           <span className="text-xs text-faint">{fmt(m.m360_pick_sub, { mb: maxFileMB })}</span>
           <input
             type="file"
-            accept={acceptMime.join(",")}
+            accept={[...acceptMime, "application/pdf"].join(",")}
             multiple
             className="hidden"
-            disabled={busy}
+            disabled={busy || expanding}
             onChange={(e) => onPick(e.target.files)}
           />
         </label>
+        {expanding && (
+          <p className="mt-2 flex items-center gap-1.5 text-xs text-muted">
+            <RotateCw className="h-3 w-3 animate-spin" /> {m.m360_extracting}
+          </p>
+        )}
       </div>
 
       {files.length > 0 && (
@@ -201,7 +250,7 @@ export function Athlete360Admin({
       )}
 
       <div className="mt-4 flex items-center gap-3">
-        <button onClick={upload} disabled={busy || files.length === 0} className="btn btn-primary disabled:cursor-not-allowed disabled:opacity-50">
+        <button onClick={upload} disabled={busy || expanding || files.length === 0} className="btn btn-primary disabled:cursor-not-allowed disabled:opacity-50">
           {busy ? <RotateCw className="h-4 w-4 animate-spin" /> : <UploadCloud className="h-4 w-4" />}
           {busy ? fmt(cutout ? m.m360_processing : m.m360_uploading, { done, total: files.length }) : m.m360_submit}
         </button>
