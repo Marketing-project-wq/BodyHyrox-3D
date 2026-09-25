@@ -554,3 +554,105 @@ export async function getPublicEvents(): Promise<PublicEvent[]> {
     isOpen: Boolean(r.is_open),
   }));
 }
+
+/* ---------- Sponsor account: cart, dashboard, admin list ---------- */
+export type CartItem = {
+  id: string;
+  athleteZoneId: string;
+  athleteId: string;
+  athleteNama: string;
+  zoneNama: string;
+  effectivePrice: number;
+  status: ZoneStatus;
+  available: boolean;
+  note: string | null;
+  createdAt: string;
+};
+export async function getCart(brandUserId: string): Promise<CartItem[]> {
+  const { data, error } = await db().rpc("smb_cart_list", { p_brand_user_id: brandUserId });
+  if (error) throw error;
+  return (data ?? []).map((r: Record<string, unknown>) => ({
+    id: String(r.id),
+    athleteZoneId: String(r.athlete_zone_id),
+    athleteId: String(r.athlete_id),
+    athleteNama: String(r.athlete_nama),
+    zoneNama: String(r.zone_nama),
+    effectivePrice: n(r.effective_price),
+    status: String(r.status) as ZoneStatus,
+    available: Boolean(r.available),
+    note: r.note == null ? null : String(r.note),
+    createdAt: String(r.created_at),
+  }));
+}
+export async function getCartCount(brandUserId: string): Promise<number> {
+  const { count, error } = await db()
+    .from("smb_brand_cart_items")
+    .select("id", { count: "exact", head: true })
+    .eq("brand_user_id", brandUserId);
+  if (error) return 0;
+  return count ?? 0;
+}
+
+export type MyRequest = {
+  id: string;
+  athleteId: string;
+  athleteNama: string;
+  zoneNama: string;
+  eventNama: string | null;
+  eventDate: string | null;
+  status: RequestStatus;
+  price: number;
+  createdAt: string;
+};
+export async function getMyRequests(brandUserId: string): Promise<MyRequest[]> {
+  const { data, error } = await db().rpc("smb_brand_my_requests", { p_brand_user_id: brandUserId });
+  if (error) throw error;
+  return (data ?? []).map((r: Record<string, unknown>) => ({
+    id: String(r.id),
+    athleteId: String(r.athlete_id),
+    athleteNama: String(r.athlete_nama),
+    zoneNama: String(r.zone_nama),
+    eventNama: r.event_nama == null ? null : String(r.event_nama),
+    eventDate: r.event_date == null ? null : String(r.event_date),
+    status: String(r.status) as RequestStatus,
+    price: n(r.price),
+    createdAt: String(r.created_at),
+  }));
+}
+
+export type BrandUserRow = {
+  id: string;
+  email: string;
+  company: string;
+  kategori: string | null;
+  namaPic: string | null;
+  noHp: string | null;
+  status: ActiveStatus;
+  emailVerified: boolean;
+  mustChangePassword: boolean;
+  createdBy: string;
+  createdAt: string;
+  brandId: string | null;
+  brandNama: string | null;
+  requestCount: number;
+};
+export async function getBrandUsers(): Promise<BrandUserRow[]> {
+  const { data, error } = await db().rpc("smb_list_brand_users");
+  if (error) throw error;
+  return (data ?? []).map((r: Record<string, unknown>) => ({
+    id: String(r.id),
+    email: String(r.email),
+    company: String(r.company),
+    kategori: r.kategori == null ? null : String(r.kategori),
+    namaPic: r.nama_pic == null ? null : String(r.nama_pic),
+    noHp: r.no_hp == null ? null : String(r.no_hp),
+    status: (String(r.status) === "inactive" ? "inactive" : "active") as ActiveStatus,
+    emailVerified: Boolean(r.email_verified),
+    mustChangePassword: Boolean(r.must_change_password),
+    createdBy: String(r.created_by ?? "self"),
+    createdAt: String(r.created_at),
+    brandId: r.brand_id == null ? null : String(r.brand_id),
+    brandNama: r.brand_nama == null ? null : String(r.brand_nama),
+    requestCount: n(r.request_count),
+  }));
+}

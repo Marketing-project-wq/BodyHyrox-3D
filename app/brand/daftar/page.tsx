@@ -43,6 +43,20 @@ export default function BrandRegisterPage({
             <input name="company" required autoFocus className={field} />
           </div>
           <div>
+            <label className="text-xs text-white/50">{m.br_kategori}</label>
+            <input name="kategori" className={field} placeholder="Sport / F&B / Apparel…" />
+          </div>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div>
+              <label className="text-xs text-white/50">{m.br_nama_pic}</label>
+              <input name="nama_pic" required className={field} />
+            </div>
+            <div>
+              <label className="text-xs text-white/50">{m.br_no_hp}</label>
+              <input name="no_hp" className={field} placeholder="08…" />
+            </div>
+          </div>
+          <div>
             <label className="text-xs text-white/50">{m.br_email}</label>
             <input name="email" type="email" required className={field} />
           </div>

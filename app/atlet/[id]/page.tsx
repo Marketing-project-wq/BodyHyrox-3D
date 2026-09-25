@@ -1,16 +1,19 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getPublicAthlete } from "@/lib/data";
+import { getPublicAthlete, getCartCount } from "@/lib/data";
 import { isConfigured } from "@/lib/supabase";
+import { getSession } from "@/lib/auth";
+import { getBrandSession } from "@/lib/brand-auth";
 import { getMessages, getLocale } from "@/lib/i18n-server";
 import { fmt, tGender } from "@/lib/i18n";
 import { formatIDR, formatNumber, initials } from "@/lib/format";
-import { viewer360FrameStyle } from "@/lib/config";
+import { viewer360FrameStyle, can } from "@/lib/config";
 import { VIEWER_3D } from "@/lib/viewer3d";
 import { PublicHeader } from "@/components/PublicHeader";
 import { Viewer360 } from "@/components/Viewer360";
 import { AthleteViewer3D } from "@/components/AthleteViewer";
 import { AthleteStage } from "@/components/AthleteStage";
+import { Athlete360Admin } from "@/components/Athlete360Admin";
 import { NotConfigured } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
@@ -26,7 +29,7 @@ export default async function AtletDetailPage({
   searchParams,
 }: {
   params: { id: string };
-  searchParams?: { v?: string };
+  searchParams?: { v?: string; cart?: string };
 }) {
   if (!isConfigured()) return <NotConfigured />;
   const m = getMessages();
@@ -34,6 +37,20 @@ export default async function AtletDetailPage({
   const intl = locale === "id" ? "id-ID" : "en-US";
   const a = await getPublicAthlete(params.id);
   if (!a) notFound();
+
+  // Role-based view: admins get management controls (360 upload); sponsors and
+  // anonymous visitors get the read-only viewer + prices. Role is resolved and
+  // enforced on the SERVER (the upload actions re-check it too).
+  const adminSession = getSession();
+  const isAdmin = can(adminSession?.role, "athlete.edit");
+  const brand = getBrandSession();
+  const cartCount = brand ? await getCartCount(brand.sub) : 0;
+  const cartMsg =
+    searchParams?.cart === "added"
+      ? { ok: true, text: m.cart_add + " ✓" }
+      : searchParams?.cart && searchParams.cart !== "added"
+        ? { ok: false, text: "Zona ini sudah tidak tersedia." }
+        : null;
 
   const available = a.zones.filter((z) => z.status === "tersedia").length;
   const has360 = !!a.media360 && a.media360.frames.length > 0;
@@ -110,6 +127,56 @@ export default async function AtletDetailPage({
 
       {/* Below the fold: short context + sponsor zones + race history */}
       <main className="mx-auto max-w-5xl px-5 py-10 md:px-8 md:py-12">
+        {brand && (
+          <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-2.5 text-sm">
+            <span className="text-white/55">
+              {m.br_signedInAs} <span className="text-white">{brand.company}</span>
+            </span>
+            <div className="flex items-center gap-4">
+              <Link href="/brand/keranjang" className="text-white/70 hover:text-white">
+                {m.cart_view}
+                {cartCount > 0 && (
+                  <span className="ml-1.5 rounded-full bg-[#ff3b57] px-1.5 py-0.5 text-[10px] font-semibold text-white">
+                    {cartCount}
+                  </span>
+                )}
+              </Link>
+              <Link href="/brand/dashboard" className="text-white/70 hover:text-white">
+                Dashboard
+              </Link>
+            </div>
+          </div>
+        )}
+
+        {cartMsg && (
+          <div
+            className={`mb-6 rounded-xl border px-4 py-2.5 text-sm ${
+              cartMsg.ok
+                ? "border-[#12b76a]/40 bg-[#12b76a]/10 text-[#6ee7b7]"
+                : "border-[#ff3b57]/40 bg-[#ff3b57]/10 text-[#ff8a9c]"
+            }`}
+          >
+            {cartMsg.text}
+            {cartMsg.ok && (
+              <Link href="/brand/keranjang" className="ml-2 underline hover:no-underline">
+                {m.cart_view}
+              </Link>
+            )}
+          </div>
+        )}
+
+        {isAdmin && (
+          <div className="mb-10">
+            <Athlete360Admin
+              athleteId={a.id}
+              currentFrames={has360 ? a.media360!.frames.length : 0}
+              isPlaceholder={a.media360?.isPlaceholder ?? false}
+              initialAutospin={a.media360?.autospin ?? true}
+              initialCrossfade={a.media360?.crossfade ?? false}
+            />
+          </div>
+        )}
+
         <div className="mb-10 flex flex-col items-center gap-4 text-center">
           <p className="max-w-xl text-sm leading-relaxed text-white/60">{m.pub_stageCaption}</p>
           <div className="flex flex-wrap items-center justify-center gap-2">
@@ -166,7 +233,7 @@ export default async function AtletDetailPage({
                           href={`/atlet/${a.id}/ajukan?zone=${z.athleteZoneId}`}
                           className="shrink-0 rounded-full bg-[#ff3b57] px-3.5 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-[#e42e48]"
                         >
-                          {m.pub_apply}
+                          {m.cart_add}
                         </Link>
                       </>
                     )}
