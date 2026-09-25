@@ -200,6 +200,71 @@ export function AthleteEditorClient({
                 </select>
               </label>
 
+              {/* Optional profile stats — shown on the public stage card only when filled. */}
+              <div className="col-span-1 mt-1 border-t border-line pt-3 sm:col-span-2">
+                <p className="eyebrow">{m.ae_statsHeading}</p>
+                <p className="mt-0.5 text-[11px] text-faint">{m.ae_statsHint}</p>
+              </div>
+              <label className="flex flex-col gap-1">
+                <span className="eyebrow">{m.ae_berat}</span>
+                <input
+                  name="berat_kg"
+                  type="number"
+                  min="0"
+                  step="0.1"
+                  defaultValue={athlete.beratKg ?? ""}
+                  className="input"
+                  disabled={!canEdit}
+                />
+              </label>
+              <label className="flex flex-col gap-1">
+                <span className="eyebrow">{m.ae_tinggi}</span>
+                <input
+                  name="tinggi_cm"
+                  type="number"
+                  min="0"
+                  defaultValue={athlete.tinggiCm ?? ""}
+                  className="input"
+                  disabled={!canEdit}
+                />
+              </label>
+              <label className="flex flex-col gap-1">
+                <span className="eyebrow">{m.ae_usia}</span>
+                <input
+                  name="usia"
+                  type="number"
+                  min="0"
+                  defaultValue={athlete.usia ?? ""}
+                  className="input"
+                  disabled={!canEdit}
+                />
+              </label>
+              <label className="flex flex-col gap-1">
+                <span className="eyebrow">{m.ae_totalBest}</span>
+                <input
+                  name="total_terbaik_kg"
+                  type="number"
+                  min="0"
+                  step="0.1"
+                  defaultValue={athlete.totalTerbaikKg ?? ""}
+                  className="input"
+                  disabled={!canEdit}
+                />
+              </label>
+              <label className="flex flex-col gap-1 sm:col-span-2">
+                <span className="eyebrow">{m.ae_totalBestLabel}</span>
+                <input
+                  name="total_terbaik_label"
+                  type="text"
+                  maxLength={40}
+                  defaultValue={athlete.totalTerbaikLabel ?? ""}
+                  placeholder={m.ae_totalBestLabelPlaceholder}
+                  className="input"
+                  disabled={!canEdit}
+                />
+                <span className="text-[11px] text-faint">{m.ae_totalBestLabelHint}</span>
+              </label>
+
               {canEdit && (
                 <div className="col-span-1 sm:col-span-2">
                   <SaveButton label={m.ae_saveProfile} />

@@ -14,13 +14,23 @@ export function Viewer360({
   athleteId,
   media,
   m,
+  onFrameChange,
+  chrome = true,
 }: {
   athleteId: string;
   media: Media360;
   m: Dict;
+  /** Fires when the nearest displayed frame changes (1-based). Used for the angle readout. */
+  onFrameChange?: (frame: number, total: number) => void;
+  /** Show the built-in title/counter/hint. Off when the parent supplies its own (stage card). */
+  chrome?: boolean;
 }) {
   const router = useRouter();
   const total = media.frames.length;
+  const onFrameChangeRef = useRef(onFrameChange);
+  useEffect(() => {
+    onFrameChangeRef.current = onFrameChange;
+  }, [onFrameChange]);
   const framesPerPx = total > 0 ? total / VIEWER_360.dragFullTurnPx : 0;
 
   const [ready, setReady] = useState(false);
@@ -78,6 +88,7 @@ export function Viewer360({
     if (rounded !== displayFrameRef.current) {
       displayFrameRef.current = rounded;
       setDisplayFrame(rounded);
+      onFrameChangeRef.current?.(rounded, total);
     }
   }, [total]);
 
@@ -221,14 +232,16 @@ export function Viewer360({
       onPointerCancel={endDrag}
     >
       {/* 360 label — overlay above the figure so the figure stays centered */}
-      <div className="pointer-events-none absolute inset-x-0 -top-8 flex items-center justify-center gap-2">
-        <span className="font-condensed text-xs font-bold uppercase tracking-[0.2em] text-white/55">{m.v360_title}</span>
-        {media.isPlaceholder && (
-          <span className="rounded-full border border-white/15 bg-white/5 px-2 py-0.5 font-mono text-[9px] uppercase text-white/45">
-            {m.v360_placeholder}
-          </span>
-        )}
-      </div>
+      {chrome && (
+        <div className="pointer-events-none absolute inset-x-0 -top-8 flex items-center justify-center gap-2">
+          <span className="font-condensed text-xs font-bold uppercase tracking-[0.2em] text-white/55">{m.v360_title}</span>
+          {media.isPlaceholder && (
+            <span className="rounded-full border border-white/15 bg-white/5 px-2 py-0.5 font-mono text-[9px] uppercase text-white/45">
+              {m.v360_placeholder}
+            </span>
+          )}
+        </div>
+      )}
 
       {/* Ground-contact shadow (behind the frames) so the athlete stands, not floats */}
       <div className="stage-contact" aria-hidden />
@@ -292,15 +305,17 @@ export function Viewer360({
           })}
 
       {/* Frame counter + drag hint — overlay below the figure */}
-      <div className="pointer-events-none absolute inset-x-0 -bottom-9 flex flex-col items-center gap-1.5">
-        <div className="rounded-full bg-black/55 px-2.5 py-0.5 font-mono text-[10px] text-white/80">
-          {fmt(m.v360_frameOf, { n: String(frameNo), total: String(total) })}
+      {chrome && (
+        <div className="pointer-events-none absolute inset-x-0 -bottom-9 flex flex-col items-center gap-1.5">
+          <div className="rounded-full bg-black/55 px-2.5 py-0.5 font-mono text-[10px] text-white/80">
+            {fmt(m.v360_frameOf, { n: String(frameNo), total: String(total) })}
+          </div>
+          <div className="flex items-center gap-1.5 text-xs text-white/45">
+            <RotateCcw size={12} />
+            {m.v360_hint}
+          </div>
         </div>
-        <div className="flex items-center gap-1.5 text-xs text-white/45">
-          <RotateCcw size={12} />
-          {m.v360_hint}
-        </div>
-      </div>
+      )}
     </div>
   );
 }

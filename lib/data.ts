@@ -338,11 +338,20 @@ export type Media360 = {
   isPlaceholder: boolean;
   hotspots: Media360Hotspot[];
 };
-export type PublicAthleteDetail = Omit<PublicAthlete, "zonesTotal" | "zonesAvailable"> & {
-  zones: PublicZone[];
-  races: PublicRace[];
-  media360: Media360 | null;
+/** Optional profile stats shown on the stage card. Null = not filled → hidden. */
+export type AthleteProfileStats = {
+  beratKg: number | null;
+  tinggiCm: number | null;
+  usia: number | null;
+  totalTerbaikKg: number | null;
+  totalTerbaikLabel: string | null;
 };
+export type PublicAthleteDetail = Omit<PublicAthlete, "zonesTotal" | "zonesAvailable"> &
+  AthleteProfileStats & {
+    zones: PublicZone[];
+    races: PublicRace[];
+    media360: Media360 | null;
+  };
 
 function mapMedia360(raw: unknown): Media360 | null {
   if (!raw || typeof raw !== "object") return null;
@@ -373,6 +382,17 @@ function mapMedia360(raw: unknown): Media360 | null {
   };
 }
 
+/** Map the optional profile-stat columns from an athlete row. Null when absent. */
+function mapStats(d: Record<string, unknown>): AthleteProfileStats {
+  return {
+    beratKg: d.berat_kg == null ? null : n(d.berat_kg),
+    tinggiCm: d.tinggi_cm == null ? null : n(d.tinggi_cm),
+    usia: d.usia == null ? null : n(d.usia),
+    totalTerbaikKg: d.total_terbaik_kg == null ? null : n(d.total_terbaik_kg),
+    totalTerbaikLabel: d.total_terbaik_label == null ? null : String(d.total_terbaik_label),
+  };
+}
+
 export async function getPublicAthlete(id: string): Promise<PublicAthleteDetail | null> {
   const { data, error } = await db().rpc("smb_public_athlete", { p_id: id });
   if (error) throw error;
@@ -391,6 +411,7 @@ export async function getPublicAthlete(id: string): Promise<PublicAthleteDetail 
     podiumCount: n(d.podium_count),
     rank: d.rank == null ? null : n(d.rank),
     framesPerSeason: n(d.frames_per_season),
+    ...mapStats(d),
     zones: zones.map((z) => ({
       athleteZoneId: String(z.athlete_zone_id),
       zoneId: String(z.zone_id),
@@ -451,7 +472,7 @@ export type AdminAthleteDetail = {
   framesPerSeason: number;
   zones: AdminZoneRow[];
   races: AdminRaceRow[];
-};
+} & AthleteProfileStats;
 export async function getAdminAthlete(id: string): Promise<AdminAthleteDetail | null> {
   const { data, error } = await db().rpc("smb_admin_athlete", { p_id: id });
   if (error) throw error;
@@ -471,6 +492,7 @@ export async function getAdminAthlete(id: string): Promise<AdminAthleteDetail | 
     podiumCount: n(d.podium_count),
     rank: d.rank == null ? null : n(d.rank),
     framesPerSeason: n(d.frames_per_season),
+    ...mapStats(d),
     zones: zones.map((z) => ({
       zoneId: String(z.zone_id),
       nama: String(z.nama),

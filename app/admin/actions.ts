@@ -101,6 +101,13 @@ export async function updateAthlete(formData: FormData) {
   let handle = String(formData.get("handle") || "").trim();
   if (handle && !handle.startsWith("@")) handle = "@" + handle;
   const rankRaw = String(formData.get("rank") || "").trim();
+  // Optional profile stats — blank stays null (hidden on the card), never faked.
+  const numOrNull = (key: string) => {
+    const raw = String(formData.get(key) || "").trim().replace(",", ".");
+    if (raw === "") return null;
+    const v = Number(raw);
+    return Number.isFinite(v) ? v : null;
+  };
   const { error } = await db().rpc("smb_update_athlete", {
     p_id: id,
     p_nama: String(formData.get("nama")),
@@ -113,6 +120,11 @@ export async function updateAthlete(formData: FormData) {
     p_podium_count: Number(formData.get("podium_count") || 0),
     p_frames_per_season: Number(formData.get("frames_per_season") || 0),
     p_status: String(formData.get("status") || "active"),
+    p_berat_kg: numOrNull("berat_kg"),
+    p_tinggi_cm: numOrNull("tinggi_cm"),
+    p_usia: numOrNull("usia"),
+    p_total_terbaik_kg: numOrNull("total_terbaik_kg"),
+    p_total_terbaik_label: String(formData.get("total_terbaik_label") || ""),
     p_actor_id: s.sub,
     p_actor_name: s.nama,
   });
