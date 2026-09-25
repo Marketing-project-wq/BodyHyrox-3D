@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { getAdminAthlete, getEvents } from "@/lib/data";
+import { getAdminAthlete, getEvents, getAthleteMedia360Meta } from "@/lib/data";
 import { getSession } from "@/lib/auth";
 import { can } from "@/lib/config";
 import { getMessages } from "@/lib/i18n-server";
@@ -14,10 +14,11 @@ export default async function AtletDetailPage({
   params: { id: string };
   searchParams?: { saved?: string };
 }) {
-  const [athlete, events, session] = await Promise.all([
+  const [athlete, events, session, media360] = await Promise.all([
     getAdminAthlete(params.id),
     getEvents(),
     getSession(),
+    getAthleteMedia360Meta(params.id),
   ]);
   const m = getMessages();
 
@@ -39,6 +40,7 @@ export default async function AtletDetailPage({
       canEdit={can(session?.role, "athlete.edit")}
       canPricing={can(session?.role, "zone.pricing")}
       saved={searchParams?.saved === "1"}
+      media360={media360}
       m={m}
     />
   );

@@ -636,6 +636,24 @@ export type BrandUserRow = {
   brandNama: string | null;
   requestCount: number;
 };
+/** 360 media meta for the admin editor's upload panel (any status; service role). */
+export async function getAthleteMedia360Meta(
+  athleteId: string,
+): Promise<{ frames: number; autospin: boolean; crossfade: boolean; isPlaceholder: boolean }> {
+  const { data } = await db()
+    .from("smb_athlete_media_360")
+    .select("frames,autospin,crossfade,is_placeholder")
+    .eq("athlete_id", athleteId)
+    .maybeSingle();
+  const framesArr = Array.isArray(data?.frames) ? (data!.frames as unknown[]) : [];
+  return {
+    frames: framesArr.length,
+    autospin: data?.autospin ?? true,
+    crossfade: data?.crossfade ?? false,
+    isPlaceholder: data?.is_placeholder ?? false,
+  };
+}
+
 export async function getBrandUsers(): Promise<BrandUserRow[]> {
   const { data, error } = await db().rpc("smb_list_brand_users");
   if (error) throw error;
