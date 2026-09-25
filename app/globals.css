@@ -194,6 +194,73 @@ body {
     transparent 72%
   );
 }
+/* ---- Landscape "stage card" (athlete detail hero, matches the sponsor mockup):
+   a soft spotlight cone from the top and a glowing neon platform ring at the
+   feet. Namespaced `stagecard-*`, all gradient/shape based (cheap), static. */
+.stagecard-spot {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  z-index: 0;
+  width: min(58%, 620px);
+  height: 82%;
+  pointer-events: none;
+  transform: translateX(-50%);
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.12),
+    rgba(255, 45, 85, 0.06) 58%,
+    transparent 100%
+  );
+  clip-path: polygon(43% 0, 57% 0, 92% 100%, 8% 100%);
+  filter: blur(6px);
+  opacity: 0.9;
+}
+.stagecard-ring-outer {
+  position: absolute;
+  left: 50%;
+  bottom: 12%;
+  z-index: 0;
+  width: min(74%, 760px);
+  height: 150px;
+  pointer-events: none;
+  transform: translateX(-50%);
+  border-radius: 50%;
+  border: 1px solid rgba(255, 45, 85, 0.16);
+}
+.stagecard-ring {
+  position: absolute;
+  left: 50%;
+  bottom: 15.5%;
+  z-index: 1;
+  width: min(46%, 430px);
+  height: 92px;
+  pointer-events: none;
+  transform: translateX(-50%);
+  border-radius: 50%;
+  border: 2px solid rgba(255, 45, 85, 0.92);
+  box-shadow:
+    0 0 26px 2px rgba(255, 45, 85, 0.5),
+    inset 0 0 22px rgba(255, 45, 85, 0.35);
+}
+.stagecard-floorglow {
+  position: absolute;
+  left: 50%;
+  bottom: 15%;
+  z-index: 1;
+  width: min(38%, 360px);
+  height: 72px;
+  pointer-events: none;
+  transform: translateX(-50%);
+  border-radius: 50%;
+  background: radial-gradient(
+    50% 62% at 50% 50%,
+    rgba(255, 45, 85, 0.6),
+    rgba(255, 45, 85, 0.16) 48%,
+    transparent 74%
+  );
+}
+
 /* ---- Ambient motion — slow & elegant. Durations/intensity come from config
    (CSS vars set by <AthleteStage>); all of it is dropped for reduced-motion. */
 .stage-breathe {
