@@ -118,6 +118,9 @@ export async function updateAthlete(formData: FormData) {
   });
   if (error) throw new Error(error.message);
   refreshAthlete(id);
+  // Stay on the editor and show a clear "saved" confirmation (instead of silently
+  // re-rendering, which looked like nothing happened).
+  redirect(`/admin/atlet/${id}?saved=1`);
 }
 
 export async function upsertAthleteZone(formData: FormData) {

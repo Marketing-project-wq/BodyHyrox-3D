@@ -9,8 +9,10 @@ export const dynamic = "force-dynamic";
 
 export default async function AtletDetailPage({
   params,
+  searchParams,
 }: {
   params: { id: string };
+  searchParams?: { saved?: string };
 }) {
   const [athlete, events, session] = await Promise.all([
     getAdminAthlete(params.id),
@@ -36,6 +38,7 @@ export default async function AtletDetailPage({
       events={events}
       canEdit={can(session?.role, "athlete.edit")}
       canPricing={can(session?.role, "zone.pricing")}
+      saved={searchParams?.saved === "1"}
       m={m}
     />
   );
