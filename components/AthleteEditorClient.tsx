@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useFormStatus } from "react-dom";
 import Link from "next/link";
 import { ArrowLeft, Trophy, Trash2, Plus } from "lucide-react";
 import type { AdminAthleteDetail, AdminZoneRow, EventRow, ZoneStatus } from "@/lib/data";
@@ -24,17 +25,28 @@ const ZONE_TONE: Record<ZoneStatus, BadgeTone> = {
   nonaktif: "gray",
 };
 
+function SaveButton({ label }: { label: string }) {
+  const { pending } = useFormStatus();
+  return (
+    <button type="submit" disabled={pending} className="btn btn-primary disabled:cursor-not-allowed disabled:opacity-60">
+      {pending ? "Menyimpan…" : label}
+    </button>
+  );
+}
+
 export function AthleteEditorClient({
   athlete,
   events,
   canEdit,
   canPricing,
+  saved = false,
   m,
 }: {
   athlete: AdminAthleteDetail;
   events: EventRow[];
   canEdit: boolean;
   canPricing: boolean;
+  saved?: boolean;
   m: Dict;
 }) {
   const [photo, setPhoto] = useState(athlete.photoUrl ?? "");
@@ -70,7 +82,14 @@ export function AthleteEditorClient({
       <div className="flex flex-col gap-4 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:pr-1">
         {/* ---------- Profile ---------- */}
         <section className="card p-4">
-          <h2 className="mb-3 text-sm font-semibold text-text">{m.ae_profile}</h2>
+          <div className="mb-3 flex items-center gap-3">
+            <h2 className="text-sm font-semibold text-text">{m.ae_profile}</h2>
+            {saved && (
+              <span className="rounded-full bg-[#12b76a]/15 px-2.5 py-0.5 text-xs font-medium text-[#12b76a]">
+                Tersimpan ✓
+              </span>
+            )}
+          </div>
           <form action={updateAthlete} className="flex flex-col gap-4 sm:flex-row">
             <input type="hidden" name="id" value={athlete.id} />
             {/* Photo preview */}
@@ -180,7 +199,7 @@ export function AthleteEditorClient({
 
               {canEdit && (
                 <div className="col-span-1 sm:col-span-2">
-                  <button type="submit" className="btn btn-primary">{m.ae_saveProfile}</button>
+                  <SaveButton label={m.ae_saveProfile} />
                 </div>
               )}
             </div>
