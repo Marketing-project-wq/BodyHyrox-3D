@@ -2,18 +2,16 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getPublicAthlete, getCartCount } from "@/lib/data";
 import { isConfigured } from "@/lib/supabase";
-import { getSession } from "@/lib/auth";
 import { getBrandSession } from "@/lib/brand-auth";
 import { getMessages, getLocale } from "@/lib/i18n-server";
 import { fmt, tGender } from "@/lib/i18n";
 import { formatIDR, formatNumber, initials } from "@/lib/format";
-import { viewer360FrameStyle, can } from "@/lib/config";
+import { viewer360FrameStyle } from "@/lib/config";
 import { VIEWER_3D } from "@/lib/viewer3d";
 import { PublicHeader } from "@/components/PublicHeader";
 import { Viewer360 } from "@/components/Viewer360";
 import { AthleteViewer3D } from "@/components/AthleteViewer";
 import { AthleteStage } from "@/components/AthleteStage";
-import { Athlete360Admin } from "@/components/Athlete360Admin";
 import { NotConfigured } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
@@ -38,11 +36,8 @@ export default async function AtletDetailPage({
   const a = await getPublicAthlete(params.id);
   if (!a) notFound();
 
-  // Role-based view: admins get management controls (360 upload); sponsors and
-  // anonymous visitors get the read-only viewer + prices. Role is resolved and
-  // enforced on the SERVER (the upload actions re-check it too).
-  const adminSession = getSession();
-  const isAdmin = can(adminSession?.role, "athlete.edit");
+  // Public page = read-only viewer + prices for everyone (sponsors & visitors).
+  // Admins manage 360 photos from the admin editor (/admin/atlet/[id] → Manage).
   const brand = getBrandSession();
   const cartCount = brand ? await getCartCount(brand.sub) : 0;
   const cartMsg =
@@ -162,19 +157,6 @@ export default async function AtletDetailPage({
                 {m.cart_view}
               </Link>
             )}
-          </div>
-        )}
-
-        {isAdmin && (
-          <div className="mb-10">
-            <Athlete360Admin
-              athleteId={a.id}
-              currentFrames={has360 ? a.media360!.frames.length : 0}
-              isPlaceholder={a.media360?.isPlaceholder ?? false}
-              initialAutospin={a.media360?.autospin ?? true}
-              initialCrossfade={a.media360?.crossfade ?? false}
-              m={m}
-            />
           </div>
         )}
 
