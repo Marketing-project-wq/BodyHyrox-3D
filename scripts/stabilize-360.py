@@ -15,8 +15,8 @@ stay glued to the body.
 
 Usage:
   python3 scripts/stabilize-360.py \
-      --src public/media/atlet-360/rani-pratiwi \
-      --out public/media/atlet-360/rani-pratiwi \
+      --src public/media/atlet-360/<slug> \
+      --out public/media/atlet-360/<slug> \
       --pattern 'frame_*.png' --offsets /tmp/offsets.json
 
 Anchors are fractions of the frame (so nothing is hardcoded to one athlete):

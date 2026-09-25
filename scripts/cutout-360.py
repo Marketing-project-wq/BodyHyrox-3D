@@ -18,8 +18,8 @@ Pipeline (OpenCV only — no network, no ML model download):
 
 Usage:
   python3 scripts/cutout-360.py \
-      --src public/media/atlet-360/rani-pratiwi \
-      --out public/media/atlet-360/rani-pratiwi \
+      --src public/media/atlet-360/<slug> \
+      --out public/media/atlet-360/<slug> \
       --pattern 'frame_*.jpg'
 
 Output files keep the same basename with a .png extension. Tunables are CLI

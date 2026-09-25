@@ -25,3 +25,4 @@ npm-debug.log*
 Thumbs.db
 .vscode/
 .idea/
+__pycache__/
