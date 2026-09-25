@@ -10,6 +10,7 @@ import { type Dict, fmt, tActive } from "@/lib/i18n";
 import { formatIDR, formatIDRCompact, formatDayMonth, initials } from "@/lib/format";
 import { Badge } from "@/components/ui";
 import { ConfirmButton } from "@/components/ConfirmButton";
+import { Athlete360Admin } from "@/components/Athlete360Admin";
 import {
   updateAthlete,
   upsertAthleteZone,
@@ -40,6 +41,7 @@ export function AthleteEditorClient({
   canEdit,
   canPricing,
   saved = false,
+  media360,
   m,
 }: {
   athlete: AdminAthleteDetail;
@@ -47,6 +49,7 @@ export function AthleteEditorClient({
   canEdit: boolean;
   canPricing: boolean;
   saved?: boolean;
+  media360: { frames: number; autospin: boolean; crossfade: boolean; isPlaceholder: boolean };
   m: Dict;
 }) {
   const [photo, setPhoto] = useState(athlete.photoUrl ?? "");
@@ -205,6 +208,18 @@ export function AthleteEditorClient({
             </div>
           </form>
         </section>
+
+        {/* ---------- 360° photos (admin upload) ---------- */}
+        {canEdit && (
+          <Athlete360Admin
+            athleteId={athlete.id}
+            currentFrames={media360.frames}
+            isPlaceholder={media360.isPlaceholder}
+            initialAutospin={media360.autospin}
+            initialCrossfade={media360.crossfade}
+            m={m}
+          />
+        )}
 
         {/* ---------- Body zones ---------- */}
         <section className="card p-4">
