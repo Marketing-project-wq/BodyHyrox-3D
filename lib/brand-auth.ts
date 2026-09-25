@@ -36,6 +36,31 @@ export function verifyPassword(password: string, stored: string): boolean {
   return actual.length === expected.length && crypto.timingSafeEqual(actual, expected);
 }
 
+/** One-time token lifetimes (ms) for verify / reset links. */
+export const TOKEN_TTL = {
+  verify: 1000 * 60 * 60 * 48, // 48h
+  reset: 1000 * 60 * 60, // 1h
+} as const;
+
+/** A random, URL-safe one-time token (the RAW value goes only in the email link). */
+export function randomToken(): string {
+  return crypto.randomBytes(32).toString("base64url");
+}
+
+/** SHA-256 hex of a raw token — only the HASH is stored in the DB. */
+export function hashToken(raw: string): string {
+  return crypto.createHash("sha256").update(raw).digest("hex");
+}
+
+/** Generate a strong temporary password (for admin-created accounts). */
+export function generatePassword(len = 12): string {
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789";
+  const bytes = crypto.randomBytes(len);
+  let out = "";
+  for (let i = 0; i < len; i++) out += alphabet[bytes[i] % alphabet.length];
+  return out;
+}
+
 function sign(data: string): string {
   return crypto.createHmac("sha256", SECRET).update(data).digest("base64url");
 }

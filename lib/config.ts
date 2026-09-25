@@ -74,7 +74,8 @@ export type Permission =
   | "zone.pricing"
   | "event.manage"
   | "settings.manage"
-  | "request.review";
+  | "request.review"
+  | "sponsor_account.manage";
 
 const ALL: Permission[] = [
   "view",
@@ -88,6 +89,7 @@ const ALL: Permission[] = [
   "event.manage",
   "settings.manage",
   "request.review",
+  "sponsor_account.manage",
 ];
 
 export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
@@ -158,6 +160,20 @@ export const VIEWER_360 = {
   maxHeightSvh: 60,
   maxHeightPx: 560,
   maxWidthPx: 300,
+} as const;
+
+/**
+ * Admin 360° frame-upload rules (Build B). Frame count is flexible: the viewer
+ * reads however many frames are in the DB. These bounds only validate an upload
+ * so a set is neither too sparse to rotate nor absurdly large. Never hardcode in
+ * the component — read from here.
+ */
+export const SPONSOR_360_UPLOAD = {
+  bucket: "smb-athlete-360",
+  minFrames: 8,
+  maxFrames: 36,
+  maxFileMB: 5,
+  acceptMime: ["image/jpeg", "image/png", "image/webp"] as const,
 } as const;
 
 /**
