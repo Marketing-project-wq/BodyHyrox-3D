@@ -43,8 +43,10 @@ export const AthleteViews = forwardRef<
     label: string;
     /** ←/→ keys: +1 = next (Kanan direction), -1 = previous. */
     onStep: (delta: 1 | -1) => void;
+    /** The four view photos are decoded and painted. */
+    onReady?: () => void;
   } & DragCallbacks
->(function AthleteViews({ athleteId, media, view, m, label, onStep, onDragStart, onDragMove, onDragEnd }, ref) {
+>(function AthleteViews({ athleteId, media, view, m, label, onStep, onReady, onDragStart, onDragMove, onDragEnd }, ref) {
   const router = useRouter();
   const base = media.baseUrl.replace(/\/$/, "");
   const frames = media.frames;
@@ -186,6 +188,11 @@ export const AthleteViews = forwardRef<
   useEffect(() => {
     if (ready) paint(lastRef.current.a, lastRef.current.moving);
   }, [ready, paint]);
+  const onReadyRef = useRef(onReady);
+  onReadyRef.current = onReady;
+  useEffect(() => {
+    if (ready) onReadyRef.current?.();
+  }, [ready]);
 
   // Drag (mouse + touch). Only a mostly-horizontal gesture becomes a drag, so
   // vertical page scrolling on phones keeps working (touch-action: pan-y).

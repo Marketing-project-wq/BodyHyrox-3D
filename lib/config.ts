@@ -197,6 +197,32 @@ export const STAGE_ARENA = {
   platformRadiusM: 0.62,
   minSceneryRadiusM: 6,
   pillars: 10,
+  /** Neon light frames around the stage (evenly spaced). */
+  frames: 8,
+  /** Far ring of slim panels, faded by the fog, so no side of the turn is empty. */
+  farPanels: 16,
+  farRadiusM: 13,
+  /**
+   * Idle auto-rotate of the arena (the athlete photo stays on its view). One full
+   * turn per `autoRotateSecPerTurn`; direction 1 = the floor in front of the
+   * athlete drifts to the right (camera orbits toward the athlete's right side),
+   * -1 = the other way. Starts once the athlete photos and the arena are ready,
+   * easing in/out over `autoRotateEaseMs`; after a swipe it resumes
+   * `autoRotateResumeMs` later. Off under prefers-reduced-motion.
+   */
+  autoRotateSecPerTurn: 36,
+  autoRotateDirection: 1,
+  autoRotateEaseMs: 1200,
+  autoRotateResumeMs: 2500,
+  /**
+   * Adaptive quality while the arena turns: average FPS over `qualityWindowMs`.
+   * Below `dprDropFps` the canvas drops to dpr 1; below `halfRateFps` the
+   * auto-rotate draws every other frame; below `minTurnFps` (see below) the 3D
+   * arena is switched off for the visit.
+   */
+  qualityWindowMs: 2000,
+  dprDropFps: 50,
+  halfRateFps: 32,
   /** Max device pixel ratio for the WebGL canvas (keeps phones smooth). */
   maxDpr: 1.75,
   /** Touch devices: lower canvas resolution and no MSAA (phones are fill-rate bound). */

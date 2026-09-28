@@ -57,7 +57,7 @@ export function AthleteStageCard({
   const [view, setView] = useState(0);
   const viewRef = useRef(0);
   const ticksRef = useRef<SVGGElement>(null);
-  const arenaHandle = useRef<ArenaHandle>({ angleDeg: 0, invalidate: null });
+  const arenaHandle = useRef<ArenaHandle>({ angleDeg: 0, invalidate: null, setDpr: null });
   const platformRef = useRef<HTMLDivElement>(null);
   const figureRef = useRef<HTMLDivElement>(null);
   const [arenaWanted, setArenaWanted] = useState(false);
@@ -66,55 +66,199 @@ export function AthleteStageCard({
     setArenaWanted(hasWebGL());
   }, []);
 
-  // ONE orbit angle (deg, continuous) is the single source of truth. Every
-  // animation frame the same value is pushed to the 3D arena camera, the
-  // fallback ring ticks and the athlete photo renderer, so stage and athlete
-  // always turn together.
+  // ONE stage clock (a single requestAnimationFrame loop, delta-time based)
+  // drives everything, with no React state per frame:
+  //   viewAngle  = the view turn (tween on tab/arrow/key, or the finger on swipe)
+  //   autoAngle  = the arena's slow idle rotation (eases in/out, pausable)
+  //   arena + fallback ring  <- autoAngle + viewAngle
+  //   athlete photo          <- viewAngle   (stays on its view while idle)
   const viewsRef = useRef<AthleteViewsHandle>(null);
-  const angleRef = useRef(0); // what is painted now
-  const targetRef = useRef(0); // where the current turn ends (multiple of 90)
-  const tweenRef = useRef<number | null>(null);
-  const dragBaseRef = useRef<number | null>(null);
-  const renderAt = useCallback((deg: number, moving: boolean) => {
-    angleRef.current = deg;
-    ticksRef.current?.setAttribute("transform", `rotate(${(VIEWER_360.ringTurnDirection * deg).toFixed(2)})`);
-    arenaHandle.current.angleDeg = deg;
-    arenaHandle.current.invalidate?.();
-    viewsRef.current?.render(deg, moving);
-  }, []);
+  const viewAngleRef = useRef(0); // painted view angle
+  const targetRef = useRef(0); // where the current view turn ends (multiple of 90)
+  const tweenRef = useRef<{ from: number; to: number; t0: number; dur: number; frames: number } | null>(null);
+  const dragRef = useRef<{ base: number; angle: number } | null>(null);
+  const autoAngleRef = useRef(0);
+  const autoFactorRef = useRef(0); // 0..1 eased speed factor
+  const pausesRef = useRef(new Set<string>(["loading"]));
+  const resumeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const rafRef = useRef<number | null>(null);
+  const lastTRef = useRef(0);
+  const lastViewPaintRef = useRef<{ a: number; moving: boolean } | null>(null);
+  const qualityRef = useRef({ t0: 0, frames: 0, level: 0 }); // 0 full, 1 dpr 1, 2 half rate
+  const frameParityRef = useRef(0);
+
   const settleView = useCallback((deg: number) => {
     const v = ((Math.round(deg / 90) % 4) + 4) % 4;
     viewRef.current = v;
     setView(v);
   }, []);
-  // Weak-phone safety net: repeated slow turns switch the 3D arena off (the
-  // CSS ring platform takes over; the athlete keeps turning smoothly).
+
+  const disableArena = useCallback(() => {
+    setArenaOn(false);
+    setArenaWanted(false);
+  }, []);
+
+  // Weak-phone safety net for view turns (see STAGE_ARENA.minTurnFps).
   const slowTurnsRef = useRef(0);
-  const checkTurnFps = useCallback((frames: number, ms: number) => {
-    if (!arenaHandle.current.invalidate || ms < 200) return;
-    const fps = (frames * 1000) / ms;
-    if (fps >= STAGE_ARENA.minTurnFps) {
-      slowTurnsRef.current = 0;
+  const checkTurnFps = useCallback(
+    (frames: number, ms: number) => {
+      if (!arenaHandle.current.invalidate || ms < 200) return;
+      const fps = (frames * 1000) / ms;
+      if (fps >= STAGE_ARENA.minTurnFps) {
+        slowTurnsRef.current = 0;
+        return;
+      }
+      slowTurnsRef.current += 1;
+      if (slowTurnsRef.current >= STAGE_ARENA.slowTurnsToDisable) disableArena();
+    },
+    [disableArena],
+  );
+
+  const tick = useCallback(
+    (now: number) => {
+      const dt = Math.min(0.05, Math.max(0, (now - lastTRef.current) / 1000)); // s, clamped
+      lastTRef.current = now;
+
+      // View angle: tween, finger, or at rest.
+      let moving = false;
+      const tw = tweenRef.current;
+      if (dragRef.current) {
+        viewAngleRef.current = dragRef.current.angle;
+        moving = true;
+      } else if (tw) {
+        const t = Math.min(1, (now - tw.t0) / tw.dur);
+        const e = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2; // easeInOutCubic
+        viewAngleRef.current = tw.from + (tw.to - tw.from) * e;
+        tw.frames += 1;
+        moving = t < 1;
+        if (t >= 1) {
+          tweenRef.current = null;
+          checkTurnFps(tw.frames, now - tw.t0);
+        }
+      }
+
+      // Auto-rotate: ease the speed factor toward 1 (running) or 0 (paused).
+      const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      const want = !reduced && pausesRef.current.size === 0 ? 1 : 0;
+      const tau = STAGE_ARENA.autoRotateEaseMs / 1000 / 3;
+      let f = autoFactorRef.current + (want - autoFactorRef.current) * (1 - Math.exp(-dt / tau));
+      if (Math.abs(want - f) < 0.002) f = want;
+      autoFactorRef.current = f;
+      autoAngleRef.current += (STAGE_ARENA.autoRotateDirection * 360 * dt * f) / STAGE_ARENA.autoRotateSecPerTurn;
+
+      // Paint: stage = auto + view; athlete = view only.
+      const env = autoAngleRef.current + viewAngleRef.current;
+      ticksRef.current?.setAttribute("transform", `rotate(${(VIEWER_360.ringTurnDirection * env).toFixed(2)})`);
+      const h = arenaHandle.current;
+      h.angleDeg = env;
+      const halfRate = qualityRef.current.level >= 2 && !moving;
+      frameParityRef.current ^= 1;
+      if (!halfRate || frameParityRef.current === 0) h.invalidate?.();
+      const lv = lastViewPaintRef.current;
+      if (!lv || lv.a !== viewAngleRef.current || lv.moving !== moving) {
+        viewsRef.current?.render(viewAngleRef.current, moving);
+        lastViewPaintRef.current = { a: viewAngleRef.current, moving };
+      }
+
+      // Adaptive quality while the arena runs continuously.
+      if (h.invalidate && f > 0.5) {
+        const q = qualityRef.current;
+        if (!q.t0) q.t0 = now;
+        q.frames += 1;
+        if (now - q.t0 >= STAGE_ARENA.qualityWindowMs) {
+          const fps = (q.frames * 1000) / (now - q.t0);
+          if (fps < STAGE_ARENA.minTurnFps) disableArena();
+          else if (fps < STAGE_ARENA.halfRateFps && q.level < 2) q.level = 2;
+          else if (fps < STAGE_ARENA.dprDropFps && q.level < 1) {
+            q.level = 1;
+            h.setDpr?.(1);
+          }
+          q.t0 = now;
+          q.frames = 0;
+        }
+      } else {
+        qualityRef.current.t0 = 0;
+        qualityRef.current.frames = 0;
+      }
+
+      const busy = !!dragRef.current || !!tweenRef.current || f > 0 || want > 0;
+      rafRef.current = busy ? requestAnimationFrame(tick) : null;
+    },
+    [checkTurnFps, disableArena],
+  );
+
+  const ensureLoop = useCallback(() => {
+    if (rafRef.current != null) return;
+    lastTRef.current = performance.now();
+    rafRef.current = requestAnimationFrame(tick);
+  }, [tick]);
+
+  const pause = useCallback(
+    (reason: string) => {
+      pausesRef.current.add(reason);
+      ensureLoop(); // ease out
+    },
+    [ensureLoop],
+  );
+  const resume = useCallback(
+    (reason: string) => {
+      pausesRef.current.delete(reason);
+      ensureLoop(); // ease in
+    },
+    [ensureLoop],
+  );
+
+  useEffect(
+    () => () => {
+      if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
+      if (resumeTimerRef.current) clearTimeout(resumeTimerRef.current);
+    },
+    [],
+  );
+
+  // Pause while the tab is hidden or the card is scrolled out of view.
+  const sectionRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const onVis = () => (document.hidden ? pause("hidden") : resume("hidden"));
+    onVis();
+    document.addEventListener("visibilitychange", onVis);
+    let io: IntersectionObserver | null = null;
+    if (sectionRef.current && "IntersectionObserver" in window) {
+      io = new IntersectionObserver(([e]) => (e.isIntersecting ? resume("offscreen") : pause("offscreen")));
+      io.observe(sectionRef.current);
+    }
+    return () => {
+      document.removeEventListener("visibilitychange", onVis);
+      io?.disconnect();
+    };
+  }, [pause, resume]);
+
+  // Start once the athlete photos (and the arena, when there is one) are ready.
+  const [photosReady, setPhotosReady] = useState(!has360);
+  useEffect(() => {
+    if (!photosReady) return;
+    if (!arenaWanted || arenaOn) {
+      resume("loading");
       return;
     }
-    slowTurnsRef.current += 1;
-    if (slowTurnsRef.current >= STAGE_ARENA.slowTurnsToDisable) {
-      setArenaOn(false);
-      setArenaWanted(false);
-    }
-  }, []);
-  // Turn from wherever the angle is now to `to` (retargets cleanly mid-turn).
+    // Arena still loading: don't hold the idle rotation forever (CSS ring fallback).
+    const t = setTimeout(() => resume("loading"), 4000);
+    return () => clearTimeout(t);
+  }, [photosReady, arenaWanted, arenaOn, resume]);
+
+  // Turn the view from wherever it is now to `to` (retargets cleanly mid-turn);
+  // the auto-rotate keeps running underneath.
   const turnTo = useCallback(
     (to: number) => {
-      if (tweenRef.current != null) cancelAnimationFrame(tweenRef.current);
-      tweenRef.current = null;
       targetRef.current = to;
       settleView(to); // tabs + readout jump to the destination right away
-      const from = angleRef.current;
+      const from = viewAngleRef.current;
       const dist = Math.abs(to - from);
       const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
       if (reduced || dist < 0.01) {
-        renderAt(to, false);
+        tweenRef.current = null;
+        viewAngleRef.current = to;
+        ensureLoop();
         return;
       }
       const { turnMs90, turnMs180, minTurnMs } = VIEWER_VIEWS;
@@ -122,25 +266,10 @@ export function AthleteStageCard({
         dist <= 90
           ? Math.max(minTurnMs, (turnMs90 * dist) / 90)
           : turnMs90 + ((turnMs180 - turnMs90) * Math.min(90, dist - 90)) / 90;
-      const t0 = performance.now();
-      let frames = 0;
-      const tick = (now: number) => {
-        const t = Math.min(1, (now - t0) / dur);
-        const e = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2; // easeInOutCubic
-        renderAt(from + (to - from) * e, t < 1);
-        frames += 1;
-        tweenRef.current = t < 1 ? requestAnimationFrame(tick) : null;
-        if (t >= 1) checkTurnFps(frames, now - t0);
-      };
-      tweenRef.current = requestAnimationFrame(tick);
+      tweenRef.current = { from, to, t0: performance.now(), dur, frames: 0 };
+      ensureLoop();
     },
-    [renderAt, settleView, checkTurnFps],
-  );
-  useEffect(
-    () => () => {
-      if (tweenRef.current != null) cancelAnimationFrame(tweenRef.current);
-    },
-    [],
+    [settleView, ensureLoop],
   );
   // Tabs: shortest way round (Front -> Back = one 180° turn).
   const goTo = useCallback(
@@ -155,30 +284,38 @@ export function AthleteStageCard({
   );
   // Arrows / keys: next = +90 (toward Kanan), previous = -90.
   const step = useCallback((delta: 1 | -1) => turnTo(targetRef.current + delta * 90), [turnTo]);
-  // Swipe: the angle follows the finger (drag right = toward Kanan), then snaps.
+  // Swipe: the view angle follows the finger (drag right = toward Kanan), then
+  // snaps; the auto-rotate pauses meanwhile and eases back in a bit later.
   const onDragStart = useCallback(() => {
-    if (tweenRef.current != null) cancelAnimationFrame(tweenRef.current);
     tweenRef.current = null;
-    dragBaseRef.current = angleRef.current;
-  }, []);
+    dragRef.current = { base: viewAngleRef.current, angle: viewAngleRef.current };
+    if (resumeTimerRef.current) clearTimeout(resumeTimerRef.current);
+    pause("drag");
+  }, [pause]);
   const onDragMove = useCallback(
     (dx: number) => {
-      if (dragBaseRef.current == null) return;
-      renderAt(dragBaseRef.current + (dx / VIEWER_VIEWS.dragPxPer90) * 90, true);
+      const d = dragRef.current;
+      if (!d) return;
+      d.angle = d.base + (dx / VIEWER_VIEWS.dragPxPer90) * 90;
+      ensureLoop();
     },
-    [renderAt],
+    [ensureLoop],
   );
   const onDragEnd = useCallback(
     (vx: number) => {
-      const base = dragBaseRef.current ?? angleRef.current;
-      dragBaseRef.current = null;
-      const cur = angleRef.current;
+      const d = dragRef.current;
+      dragRef.current = null;
+      const base = d?.base ?? viewAngleRef.current;
+      const cur = d?.angle ?? viewAngleRef.current;
+      viewAngleRef.current = cur;
       const startView = Math.round(base / 90) * 90;
       let to = Math.round(cur / 90) * 90;
       if (to === startView && Math.abs(vx) >= VIEWER_VIEWS.flickVelocity) to = startView + Math.sign(vx) * 90;
       turnTo(to);
+      if (resumeTimerRef.current) clearTimeout(resumeTimerRef.current);
+      resumeTimerRef.current = setTimeout(() => resume("drag"), STAGE_ARENA.autoRotateResumeMs);
     },
-    [turnTo],
+    [turnTo, resume],
   );
   const tickAngles = useMemo(
     () => Array.from({ length: VIEWER_360.ringTicks }, (_, i) => (i * 360) / VIEWER_360.ringTicks),
@@ -212,6 +349,7 @@ export function AthleteStageCard({
 
   return (
     <section
+      ref={sectionRef}
       className={`relative overflow-hidden rounded-3xl border border-white/10 bg-[#100a0c] shadow-[0_30px_80px_-20px_rgba(0,0,0,0.8)] ${
         arenaOn ? "stagecard-arena-on" : ""
       }`}
@@ -393,6 +531,7 @@ export function AthleteStageCard({
                 onDragStart={onDragStart}
                 onDragMove={onDragMove}
                 onDragEnd={onDragEnd}
+                onReady={() => setPhotosReady(true)}
                 m={m}
                 label={`${athlete.nama} — ${viewNames[view]}`}
               />
