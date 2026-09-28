@@ -216,6 +216,19 @@ body {
   filter: blur(6px);
   opacity: 0.9;
 }
+/* Desktop (stats + stage side by side): the stage column starts below the
+   card padding, so pull the beam up past the card's top edge (by the padding
+   plus the blur fall-off) and grow it by the same amount. The card's
+   overflow-hidden clips it, so the light reads as coming from above while the
+   cone's bottom stays exactly where it was. On mobile the stage sits below the
+   stats, so the beam stays anchored to the stage column. */
+@media (min-width: 1024px) {
+  .stagecard-spot {
+    --stagecard-spot-lift: calc(var(--stagecard-pad, 0px) + 12px);
+    top: calc(-1 * var(--stagecard-spot-lift));
+    height: calc(82% + var(--stagecard-spot-lift));
+  }
+}
 .stagecard-ring-outer {
   position: absolute;
   left: 50%;

@@ -72,7 +72,7 @@ export function AthleteStageCard({
         }}
       />
 
-      <div className="relative z-10 grid gap-4 p-5 sm:p-7 lg:grid-cols-[minmax(0,340px)_1fr] lg:gap-6">
+      <div className="relative z-10 grid gap-4 p-[var(--stagecard-pad)] [--stagecard-pad:1.25rem] sm:[--stagecard-pad:1.75rem] lg:grid-cols-[minmax(0,340px)_1fr] lg:gap-6">
         {/* ------------------------------------------------- LEFT: identity + stats */}
         <div className="flex flex-col">
           <div className="flex items-baseline gap-3">
