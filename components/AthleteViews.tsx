@@ -29,7 +29,7 @@ type DragCallbacks = {
 const norm360 = (a: number) => ((a % 360) + 360) % 360;
 
 /** Where the feet touch the ground in a frame, as fractions of the image (see scripts/foot-baseline.py). */
-type Foot = { toe: number; back: number; left: number; right: number };
+type Foot = { toe: number; back: number; left: number; right: number; soles?: number[][] };
 const mixFoot = (p: Foot, q: Foot, t: number): Foot => ({
   toe: p.toe + (q.toe - p.toe) * t,
   back: p.back + (q.back - p.back) * t,
@@ -69,7 +69,39 @@ function measureFoot(img: HTMLImageElement): Foot | null {
       return toe;
     };
     const back = Math.min(low(left, cx), low(cx, right + 1));
-    return { toe: (toe + 1) / H, back: (back + 1) / H, left: left / W, right: (right + 1) / W };
+    // Per-shoe soles, as in the script: column runs in the feet band (small
+    // gaps bridged), the two widest, each trimmed to the columns near its bottom.
+    const colBot: number[] = [];
+    for (let x = left; x <= right; x++) {
+      colBot[x] = -1;
+      for (let y = toe; y >= top; y--) if (op(x, y)) { colBot[x] = y; break; }
+    }
+    const runs: [number, number][] = [];
+    const bridge = Math.max(2, Math.round(0.02 * W));
+    let start = -1, end = -1, gap = 0;
+    for (let x = left; x <= right + 1; x++) {
+      if (x <= right && colBot[x] >= 0) {
+        if (start < 0) start = x;
+        end = x;
+        gap = 0;
+      } else if (start >= 0 && (++gap > bridge || x > right)) {
+        runs.push([start, end]);
+        start = -1;
+        gap = 0;
+      }
+    }
+    const soles = runs
+      .sort((p, q) => q[1] - q[0] - (p[1] - p[0]))
+      .slice(0, 2)
+      .sort((p, q) => p[0] - q[0])
+      .map(([x0, x1]) => {
+        let b = -1;
+        for (let x = x0; x <= x1; x++) b = Math.max(b, colBot[x]);
+        let n0 = x1, n1 = x0;
+        for (let x = x0; x <= x1; x++) if (colBot[x] >= b - 0.012 * H) { n0 = Math.min(n0, x); n1 = Math.max(n1, x); }
+        return [n0 / W, (n1 + 1) / W, (b + 1) / H];
+      });
+    return { toe: (toe + 1) / H, back: (back + 1) / H, left: left / W, right: (right + 1) / W, soles };
   } catch {
     return null;
   }
@@ -117,8 +149,9 @@ export const AthleteViews = forwardRef<
   const imgRefs = useRef<(HTMLImageElement | null)[]>([]);
   const stackRef = useRef<HTMLDivElement>(null);
   const markersRef = useRef<HTMLDivElement>(null);
-  const shadowCoreRef = useRef<HTMLDivElement>(null);
-  const shadowSoftRef = useRef<HTMLDivElement>(null);
+  const shadowsRef = useRef<HTMLDivElement>(null);
+  const poolRef = useRef<HTMLDivElement>(null);
+  const soleRefs = useRef<(HTMLDivElement | null)[]>([]);
   const feetRef = useRef<(Foot | null)[]>([]); // per frame index
   const loadedRef = useRef<Set<number>>(new Set());
   const fullRef = useRef(false); // all frames decoded and angle-mapped -> real turn
@@ -222,26 +255,47 @@ export const AthleteViews = forwardRef<
         }
       }
       if (markersRef.current) markersRef.current.style.transform = shift;
-      // Contact shadow: a tight dark core right under the soles plus a wider
-      // soft one, sized from this frame's feet (side views: feet one behind the
-      // other -> narrower, taller ellipse). The raised-foot spread is capped:
-      // only a planted foot casts the tight shadow.
-      const spread = Math.min(foot.toe - foot.back, STAGE_ARENA.shadowMaxSpread);
-      const cx = ((foot.left + foot.right) / 2) * 100;
-      const fw = (foot.right - foot.left) * 100;
-      const core = shadowCoreRef.current;
-      if (core) {
-        core.style.left = `${cx.toFixed(2)}%`;
-        core.style.top = `${((line - spread * 0.4) * 100).toFixed(2)}%`;
-        core.style.width = `${(fw * 0.92).toFixed(2)}%`;
-        core.style.height = `${((spread * 0.9 + 0.014) * 100).toFixed(2)}%`;
-      }
-      const soft = shadowSoftRef.current;
-      if (soft) {
-        soft.style.left = `${cx.toFixed(2)}%`;
-        soft.style.top = `${((line - spread * 0.3) * 100).toFixed(2)}%`;
-        soft.style.width = `${(fw * 1.5).toFixed(2)}%`;
-        soft.style.height = `${((spread * 1.6 + 0.04) * 100).toFixed(2)}%`;
+      // Contact shadows (drawn in the photo's own coordinates, shifted with it):
+      // a tight dark ellipse right under EACH sole, so every shoe that touches
+      // the floor reads as planted, plus a soft pool around both feet. Taken
+      // from whichever frame dominates the blend.
+      const shadows = shadowsRef.current;
+      if (shadows) {
+        shadows.style.transform = shift;
+        const lead = base === lo.i && a >= 0.5 && hi.i !== lo.i ? feet[hi.i] ?? foot : foot;
+        const soles = lead.soles?.length ? lead.soles : [[lead.left, lead.right, lead.toe]];
+        const S = STAGE_ARENA;
+        soleRefs.current.forEach((el, k) => {
+          if (!el) return;
+          const sole = soles[k];
+          if (!sole) {
+            el.style.opacity = "0";
+            return;
+          }
+          const [x0, x1, b] = sole;
+          // A shoe a little higher on screen is planted further back: shadow at
+          // its sole. Clearly higher = lifted mid-step: its (fainter, wider)
+          // shadow falls on the floor near the planted foot's line instead.
+          const lift = Math.max(0, lead.toe - b);
+          const raised = lift > S.raisedFootLift;
+          const floor = raised ? lead.toe - S.raisedFootLift : b;
+          el.style.opacity = raised ? "0.4" : (1 - (0.35 * lift) / S.raisedFootLift).toFixed(3);
+          el.style.left = `${(((x0 + x1) / 2) * 100).toFixed(2)}%`;
+          el.style.top = `${((floor - S.soleShadowRise) * 100).toFixed(2)}%`;
+          el.style.width = `${((x1 - x0) * S.soleShadowWidth * (raised ? 1.2 : 1) * 100).toFixed(2)}%`;
+          el.style.height = `${(S.soleShadowHeight * (raised ? 1.3 : 1) * 100).toFixed(2)}%`;
+        });
+        const pool = poolRef.current;
+        if (pool) {
+          const x0 = Math.min(...soles.map((q) => q[0]));
+          const x1 = Math.max(...soles.map((q) => q[1]));
+          const b1 = Math.max(...soles.map((q) => q[2]));
+          const b0 = Math.max(Math.min(...soles.map((q) => q[2])), b1 - S.raisedFootLift);
+          pool.style.left = `${(((x0 + x1) / 2) * 100).toFixed(2)}%`;
+          pool.style.top = `${(((b0 + b1) / 2 - S.soleShadowRise) * 100).toFixed(2)}%`;
+          pool.style.width = `${((x1 - x0) * 1.35 * 100).toFixed(2)}%`;
+          pool.style.height = `${((b1 - b0 + S.poolShadowHeight) * 100).toFixed(2)}%`;
+        }
       }
       // Zone markers: hidden while turning, back on the settled view.
       const mk = markersRef.current;
@@ -264,7 +318,7 @@ export const AthleteViews = forwardRef<
       if (feetJsonRef.current === undefined) {
         feetJsonRef.current = null;
         try {
-          const r = await fetch(`${base}/feet.json`, { cache: "force-cache" });
+          const r = await fetch(`${base}/feet.json?v=2`, { cache: "force-cache" });
           if (r.ok) {
             const j = (await r.json()) as { frames?: Record<string, Foot> };
             feetJsonRef.current = j.frames ?? null;
@@ -438,10 +492,20 @@ export const AthleteViews = forwardRef<
         }
       }}
     >
-      {/* Ground-contact shadow (behind the photo) so the athlete stands, not floats */}
-      {/* Contact shadow (behind the photo, on the platform): soft + tight core */}
-      <div ref={shadowSoftRef} className="stage-shadow stage-shadow-soft" aria-hidden />
-      <div ref={shadowCoreRef} className="stage-shadow stage-shadow-core" aria-hidden />
+      {/* Contact shadows (behind the photo, on the platform): a soft pool plus
+          one tight shadow under each sole, so the athlete stands, not floats */}
+      <div ref={shadowsRef} className="pointer-events-none absolute inset-0 z-0" aria-hidden>
+        <div ref={poolRef} className="stage-shadow stage-shadow-soft" />
+        {[0, 1].map((k) => (
+          <div
+            key={k}
+            ref={(el) => {
+              soleRefs.current[k] = el;
+            }}
+            className="stage-shadow stage-shadow-core"
+          />
+        ))}
+      </div>
 
       <div ref={stackRef} className="absolute inset-0" style={{ transformOrigin: "50% 100%" }}>
         {frames.map((f, i) => {

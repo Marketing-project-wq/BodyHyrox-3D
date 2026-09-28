@@ -228,10 +228,20 @@ export const STAGE_ARENA = {
   /** The feet sink this many px into the platform surface (no antialiasing hairline). */
   footOverlapPx: 2,
   /**
-   * Contact shadow: the tight core follows the planted sole; a raised back foot
-   * (turning step) widens it vertically by at most this share of the frame height.
+   * Contact shadows, one tight ellipse under each sole (from feet.json soles),
+   * as fractions of the photo: width = sole span x soleShadowWidth, height =
+   * soleShadowHeight of the frame height, centre raised soleShadowRise above
+   * the sole bottom (negative = below, so it shows past the shoe). A shoe up to
+   * raisedFootLift higher on screen than the front one is a planted back foot
+   * (shadow at its sole); higher than that it is lifted mid-step (fainter,
+   * wider shadow on the floor). The soft pool spans both soles,
+   * poolShadowHeight tall.
    */
-  shadowMaxSpread: 0.035,
+  soleShadowWidth: 1.35,
+  soleShadowHeight: 0.014,
+  soleShadowRise: 0.002,
+  raisedFootLift: 0.025,
+  poolShadowHeight: 0.03,
   /**
    * Ignore frame-rate samples for this long after the stage starts (images and
    * fonts are still decoding then), and only switch the arena off after this
