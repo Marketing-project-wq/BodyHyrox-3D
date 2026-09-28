@@ -10,8 +10,12 @@ import { formatIDR } from "@/lib/format";
 
 /** Imperative API: the stage card's single orbit loop paints the athlete here. */
 export type AthleteViewsHandle = {
-  /** Paint the athlete at this orbit angle (deg, any real number). `moving` hides zone markers. */
-  render: (angleDeg: number, moving: boolean) => void;
+  /**
+   * Paint the athlete at this orbit angle (deg, any real number). `moving` hides
+   * the zone markers; `turning` (a view change, not the idle spin) enables the
+   * fallback squeeze cue.
+   */
+  render: (angleDeg: number, moving: boolean, turning?: boolean) => void;
 };
 
 type DragCallbacks = {
@@ -45,8 +49,17 @@ export const AthleteViews = forwardRef<
     onStep: (delta: 1 | -1) => void;
     /** The four view photos are decoded and painted. */
     onReady?: () => void;
+    /** Mouse over / off the athlete. */
+    onHoverChange?: (over: boolean) => void;
+    /** A press on the athlete that did not become a drag (phones: tap). */
+    onTap?: () => void;
+    /** Keyboard focus on / off the athlete. */
+    onFocusChange?: (focused: boolean) => void;
   } & DragCallbacks
->(function AthleteViews({ athleteId, media, view, m, label, onStep, onReady, onDragStart, onDragMove, onDragEnd }, ref) {
+>(function AthleteViews(
+  { athleteId, media, view, m, label, onStep, onReady, onHoverChange, onTap, onFocusChange, onDragStart, onDragMove, onDragEnd },
+  ref,
+) {
   const router = useRouter();
   const base = media.baseUrl.replace(/\/$/, "");
   const frames = media.frames;
@@ -59,7 +72,7 @@ export const AthleteViews = forwardRef<
   const markersRef = useRef<HTMLDivElement>(null);
   const loadedRef = useRef<Set<number>>(new Set());
   const fullRef = useRef(false); // all frames decoded and angle-mapped -> real turn
-  const lastRef = useRef<{ a: number; moving: boolean }>({ a: 0, moving: false });
+  const lastRef = useRef<{ a: number; moving: boolean; turning: boolean }>({ a: 0, moving: false, turning: false });
   const [ready, setReady] = useState(false);
   const [phase2, setPhase2] = useState(false); // in-between frames requested
 
@@ -84,8 +97,8 @@ export const AthleteViews = forwardRef<
   }, [angles, viewIdx.join(",")]);
 
   const paint = useCallback(
-    (angleDeg: number, moving: boolean) => {
-      lastRef.current = { a: angleDeg, moving };
+    (angleDeg: number, moving: boolean, turning = false) => {
+      lastRef.current = { a: angleDeg, moving, turning };
       const imgs = imgRefs.current;
       const A = norm360(angleDeg);
       const kf = keyframes();
@@ -117,7 +130,7 @@ export const AthleteViews = forwardRef<
       // Fallback "turn" cue (only when stepping between the 4 view photos).
       const stack = stackRef.current;
       if (stack) {
-        if (!fullRef.current && moving) {
+        if (!fullRef.current && turning) {
           const s = Math.sin(Math.PI * t);
           stack.style.transform = `translateX(${(VIEWER_VIEWS.fallbackShiftPct * s).toFixed(2)}%) scaleX(${(
             1 -
@@ -169,12 +182,14 @@ export const AthleteViews = forwardRef<
       if (!alive || loadedRef.current.size < frames.length) return;
       const arm = () => {
         if (!alive) return;
-        if (lastRef.current.moving) {
+        // Switch to the real turn between view changes (the slow idle spin is
+        // fine to switch during; a fast view turn is not).
+        if (lastRef.current.turning) {
           setTimeout(arm, 120);
           return;
         }
         fullRef.current = true;
-        paint(lastRef.current.a, false);
+        paint(lastRef.current.a, lastRef.current.moving, false);
       };
       arm();
     })();
@@ -186,7 +201,7 @@ export const AthleteViews = forwardRef<
 
   // Repaint once the view photos are ready (and whenever the image set changes).
   useEffect(() => {
-    if (ready) paint(lastRef.current.a, lastRef.current.moving);
+    if (ready) paint(lastRef.current.a, lastRef.current.moving, lastRef.current.turning);
   }, [ready, paint]);
   const onReadyRef = useRef(onReady);
   onReadyRef.current = onReady;
@@ -234,6 +249,10 @@ export const AthleteViews = forwardRef<
   const endDrag = (e: React.PointerEvent) => {
     const d = dragRef.current;
     dragRef.current = null;
+    if (d && d.id === e.pointerId && !d.active && e.type === "pointerup") {
+      onTap?.();
+      return;
+    }
     if (!d || d.id !== e.pointerId || !d.active) return;
     const s = d.samples;
     const first = s[0];
@@ -256,6 +275,14 @@ export const AthleteViews = forwardRef<
       onPointerMove={onPointerMove}
       onPointerUp={endDrag}
       onPointerCancel={endDrag}
+      onPointerEnter={(e) => {
+        if (e.pointerType === "mouse") onHoverChange?.(true);
+      }}
+      onPointerLeave={(e) => {
+        if (e.pointerType === "mouse") onHoverChange?.(false);
+      }}
+      onFocus={() => onFocusChange?.(true)}
+      onBlur={() => onFocusChange?.(false)}
       onKeyDown={(e) => {
         if (e.key === "ArrowRight") {
           e.preventDefault();
