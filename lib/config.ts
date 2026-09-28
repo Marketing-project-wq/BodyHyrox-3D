@@ -167,6 +167,25 @@ export const VIEWER_360 = {
    * stands on it instead of floating above or sinking through it.
    */
   feetLinePct: 3.5,
+  /**
+   * Turntable auto-rotate (only when the athlete's media has autospin on and the
+   * visitor hasn't asked for reduced motion). Seconds for one full 360° turn.
+   */
+  autoRotateSecPerTurn: 12,
+  /** Idle time (ms) after the last drag/hover/focus before auto-rotate resumes. */
+  autoRotateResumeMs: 3000,
+  /**
+   * Blend neighbouring frames while auto-rotating so a sparse sequence turns
+   * continuously instead of stepping; drag keeps the `crossfade` setting above,
+   * and the figure still comes to rest on one crisp frame when it stops.
+   */
+  autoRotateCrossfade: true,
+  /**
+   * Share (0..1] of each frame-to-frame step spent blending while auto-rotating;
+   * the rest holds the current frame crisp. Smaller = less ghosting, more
+   * "stepped"; 1 = blend the whole way.
+   */
+  autoRotateBlendWindow: 0.5,
 } as const;
 
 /**
