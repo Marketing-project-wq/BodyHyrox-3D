@@ -135,11 +135,12 @@ export const VIEWER_360 = {
   /** Rendered position snaps to target once within this many frames (ends the loop). */
   settleEpsilon: 0.002,
   /**
-   * Blend the two nearest frames by the fractional position. With only 12 frames
-   * (30° apart) this ghosts/doubles, so the default is a crisp HARD-SWAP; turn
-   * on only once frames are dense/clean enough that blending helps.
+   * Share (0..1] of each frame-to-frame step spent blending while dragging, when
+   * the athlete's "smooth transition" (crossfade) toggle is on. The current frame
+   * stays opaque and the next fades in over it; at rest the figure always lands
+   * on one crisp frame. Toggle off = crisp hard swap per frame.
    */
-  crossfade: false,
+  dragBlendWindow: 0.8,
   /**
    * When motion stops, ease onto the nearest frame (a soft detent) so the figure
    * rests on one crisp frame instead of a blended half-frame.
@@ -176,7 +177,7 @@ export const VIEWER_360 = {
   autoRotateResumeMs: 3000,
   /**
    * Blend neighbouring frames while auto-rotating so a sparse sequence turns
-   * continuously instead of stepping; drag keeps the `crossfade` setting above,
+   * continuously instead of stepping; drag follows the athlete's crossfade toggle,
    * and the figure still comes to rest on one crisp frame when it stops.
    */
   autoRotateCrossfade: true,
@@ -185,7 +186,14 @@ export const VIEWER_360 = {
    * the rest holds the current frame crisp. Smaller = less ghosting, more
    * "stepped"; 1 = blend the whole way.
    */
-  autoRotateBlendWindow: 0.5,
+  autoRotateBlendWindow: 0.85,
+  /**
+   * Stage-card platform markers: tick marks on the neon ring that turn with the
+   * figure at the exact (fractional) angle, so motion reads continuous between
+   * photo frames. `ringTurnDirection` matches the frame order's spin direction.
+   */
+  ringTicks: 36,
+  ringTurnDirection: -1,
 } as const;
 
 /**
