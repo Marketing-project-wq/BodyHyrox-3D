@@ -288,6 +288,23 @@ body {
   stroke-width: 2.5px;
   filter: drop-shadow(0 0 3px rgba(255, 45, 85, 0.9));
 }
+/* With the 3D arena running, its hexagon platform replaces the flat CSS ring
+   (which stays as the no-WebGL fallback). */
+.stagecard-arena-on .stagecard-ring-outer,
+.stagecard-arena-on .stagecard-ring,
+.stagecard-arena-on .stagecard-floorglow,
+.stagecard-arena-on .stagecard-ring-ticks {
+  display: none;
+}
+/* Darkens the arena behind the stats column (left on desktop, top on phones). */
+.stagecard-arena-shade {
+  background: linear-gradient(180deg, rgba(13, 8, 9, 0.9) 0%, rgba(13, 8, 9, 0.55) 22%, transparent 42%);
+}
+@media (min-width: 1024px) {
+  .stagecard-arena-shade {
+    background: linear-gradient(90deg, rgba(13, 8, 9, 0.92) 0%, rgba(13, 8, 9, 0.6) 26%, transparent 46%);
+  }
+}
 .stagecard-floorglow {
   width: min(28vw, 360px);
   width: min(38cqw, 360px);

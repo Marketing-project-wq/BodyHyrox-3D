@@ -206,6 +206,36 @@ export const VIEWER_360 = {
 } as const;
 
 /**
+ * 3D neon arena behind the stage-card athlete (react-three-fiber). The camera
+ * orbits the athlete on the same angle as the photo frames, so the floor,
+ * platform and pillars turn in real perspective/parallax with the figure.
+ * World units are metres; the athlete is ~`athleteHeightM` tall. Tall scenery
+ * sits beyond `minSceneryRadiusM` (> camera distance) so it can never pass in
+ * front of the (DOM) athlete.
+ */
+export const STAGE_ARENA = {
+  color: "#ff2d55",
+  background: "#0d0809",
+  /** Fog start/end (m from camera): far scenery fades into the background. */
+  fogNear: 6,
+  fogFar: 17,
+  /** Horizontal camera distance from the athlete (m). */
+  cameraDistanceM: 4.5,
+  /** How far above the floor the camera looks down on the platform (deg). */
+  cameraElevationDeg: 13,
+  athleteHeightM: 1.7,
+  /** Share of the photo frame height the athlete's body fills (normalized frames). */
+  athleteFrameFill: 0.9,
+  /** Camera turns opposite to the figure's frame order (matches the ticks). */
+  orbitDirection: -1,
+  platformRadiusM: 0.62,
+  minSceneryRadiusM: 6,
+  pillars: 10,
+  /** Max device pixel ratio for the WebGL canvas (keeps phones smooth). */
+  maxDpr: 1.75,
+} as const;
+
+/**
  * Admin 360° frame-upload rules (Build B). Frame count is flexible: the viewer
  * reads however many frames are in the DB. These bounds only validate an upload
  * so a set is neither too sparse to rotate nor absurdly large. Never hardcode in
