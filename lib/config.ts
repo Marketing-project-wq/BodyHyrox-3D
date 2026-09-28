@@ -219,6 +219,13 @@ export const STAGE_ARENA = {
   /** A tap on the athlete (phones) holds the spin on the nearest side this long (ms). */
   tapHoldMs: 5000,
   /**
+   * During the slow idle spin the athlete holds one crisp photo and switches to
+   * the next at mid-step with a blend this short (ms), instead of overlaying two
+   * poses for the whole step (which reads as a ghost/double image). View turns
+   * and swipes still blend across the step. Raise for softer switches.
+   */
+  idleBlendMs: 160,
+  /**
    * Adaptive quality while the arena turns: average FPS over `qualityWindowMs`.
    * Below `dprDropFps` the canvas drops to dpr 1; below `halfRateFps` the
    * auto-rotate draws every other frame; below `minTurnFps` (see below) the 3D
