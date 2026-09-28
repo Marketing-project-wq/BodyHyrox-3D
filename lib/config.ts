@@ -203,7 +203,7 @@ export const STAGE_ARENA = {
   farPanels: 16,
   farRadiusM: 13,
   /**
-   * Idle auto-rotate of the arena (the athlete photo stays on its view). One full
+   * Idle turntable: the arena AND the athlete turn together. One full
    * turn per `autoRotateSecPerTurn`; direction 1 = the floor in front of the
    * athlete drifts to the right (camera orbits toward the athlete's right side),
    * -1 = the other way. Starts once the athlete photos and the arena are ready,
@@ -214,6 +214,10 @@ export const STAGE_ARENA = {
   autoRotateDirection: 1,
   autoRotateEaseMs: 1200,
   autoRotateResumeMs: 2500,
+  /** Mouse leaves the athlete -> spin resumes after this (ms). */
+  hoverResumeMs: 1200,
+  /** A tap on the athlete (phones) holds the spin on the nearest side this long (ms). */
+  tapHoldMs: 5000,
   /**
    * Adaptive quality while the arena turns: average FPS over `qualityWindowMs`.
    * Below `dprDropFps` the canvas drops to dpr 1; below `halfRateFps` the
