@@ -1,5 +1,5 @@
 import { db } from "./supabase";
-import { resolveViews, type Media360Views } from "./views";
+import { resolveViews, type Media360Views, type HotspotInput } from "./views";
 export { VIEW_KEYS, resolveViews, type ViewKey, type Media360Views } from "./views";
 import type { TxStatus, ActiveStatus, Visibility } from "./config";
 
@@ -672,13 +672,14 @@ export async function getAthleteMedia360Meta(
   baseUrl: string;
   views: Media360Views | null;
   viewsSaved: boolean;
+  hotspots: HotspotInput[];
   autospin: boolean;
   crossfade: boolean;
   isPlaceholder: boolean;
 }> {
   const { data } = await db()
     .from("smb_athlete_media_360")
-    .select("base_url,frames,views,autospin,crossfade,is_placeholder")
+    .select("base_url,frames,views,hotspots,autospin,crossfade,is_placeholder")
     .eq("athlete_id", athleteId)
     .maybeSingle();
   const framesArr = Array.isArray(data?.frames) ? (data!.frames as unknown[]).map((f) => String(f)) : [];
@@ -688,6 +689,13 @@ export async function getAthleteMedia360Meta(
     baseUrl: String(data?.base_url ?? ""),
     views: resolveViews(framesArr, data?.views),
     viewsSaved: data?.views != null,
+    hotspots: (Array.isArray(data?.hotspots) ? (data!.hotspots as Record<string, unknown>[]) : [])
+      .filter((h) => h && h.athlete_zone_id)
+      .map((h) => ({
+        athleteZoneId: String(h.athlete_zone_id),
+        label: String(h.label ?? ""),
+        points: (h.points ?? {}) as Record<string, { x: number; y: number }>,
+      })),
     autospin: data?.autospin ?? true,
     crossfade: data?.crossfade ?? false,
     isPlaceholder: data?.is_placeholder ?? false,

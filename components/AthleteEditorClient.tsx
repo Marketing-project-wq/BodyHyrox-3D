@@ -12,7 +12,8 @@ import { Badge } from "@/components/ui";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { Athlete360Admin } from "@/components/Athlete360Admin";
 import { AthleteViewsPicker } from "@/components/AthleteViewsPicker";
-import type { Media360Views } from "@/lib/views";
+import { AthleteZonesPlacer } from "@/components/AthleteZonesPlacer";
+import type { HotspotInput, Media360Views } from "@/lib/views";
 import {
   updateAthlete,
   upsertAthleteZone,
@@ -57,6 +58,7 @@ export function AthleteEditorClient({
     baseUrl: string;
     views: Media360Views | null;
     viewsSaved: boolean;
+    hotspots: HotspotInput[];
     autospin: boolean;
     crossfade: boolean;
     isPlaceholder: boolean;
@@ -304,6 +306,19 @@ export function AthleteEditorClient({
             frames={media360.frameNames}
             views={media360.views}
             saved={media360.viewsSaved}
+            m={m}
+          />
+        )}
+        {canEdit && media360.frames > 0 && media360.views && (
+          <AthleteZonesPlacer
+            key={`${media360.frameNames.join("|")}#${JSON.stringify(media360.views)}`}
+            athleteId={athlete.id}
+            baseUrl={media360.baseUrl}
+            frames={media360.frameNames}
+            views={media360.views}
+            viewsSaved={media360.viewsSaved}
+            zones={athlete.zones}
+            initial={media360.hotspots}
             m={m}
           />
         )}
