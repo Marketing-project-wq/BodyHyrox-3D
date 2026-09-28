@@ -53,8 +53,9 @@ export function Athlete360Admin({
   const router = useRouter();
   const { minFrames, maxFrames, maxFileMB, acceptMime } = SPONSOR_360_UPLOAD;
   const [files, setFiles] = useState<File[]>([]);
-  const [autospin, setAutospin] = useState(initialAutospin);
-  const [crossfade, setCrossfade] = useState(initialCrossfade);
+  // The fixed 4-view viewer no longer rotates; keep the stored flags unchanged.
+  const autospin = initialAutospin;
+  const crossfade = initialCrossfade;
   const [cutout, setCutout] = useState(true);
   const [phase, setPhase] = useState<Phase>("idle");
   const [done, setDone] = useState(0);
@@ -260,14 +261,6 @@ export function Athlete360Admin({
         <label className="flex items-center gap-2 text-sm text-text">
           <input type="checkbox" checked={cutout} onChange={(e) => setCutout(e.target.checked)} className="accent-red-600" />
           {m.m360_cutout}
-        </label>
-        <label className="flex items-center gap-2 text-sm text-text">
-          <input type="checkbox" checked={autospin} onChange={(e) => setAutospin(e.target.checked)} className="accent-red-600" />
-          {m.m360_autospin}
-        </label>
-        <label className="flex items-center gap-2 text-sm text-text">
-          <input type="checkbox" checked={crossfade} onChange={(e) => setCrossfade(e.target.checked)} className="accent-red-600" />
-          {m.m360_crossfade}
         </label>
       </div>
       {cutout && <p className="mt-2 text-xs text-faint">{m.m360_cutout_note}</p>}
