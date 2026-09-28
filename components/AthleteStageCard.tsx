@@ -5,11 +5,12 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { ChevronLeft, ChevronRight, RotateCcw } from "lucide-react";
 import type { PublicAthleteDetail } from "@/lib/data";
-import { VIEWER_360, viewer360FrameStyle } from "@/lib/config";
+import { VIEWER_360, VIEWER_VIEWS, viewer360FrameStyle } from "@/lib/config";
+import { VIEW_KEYS } from "@/lib/views";
 import { type Dict } from "@/lib/i18n";
 import { tGender } from "@/lib/i18n";
 import { initials } from "@/lib/format";
-import { Viewer360 } from "@/components/Viewer360";
+import { AthleteViews } from "@/components/AthleteViews";
 import type { ArenaHandle } from "@/components/StageArena3D";
 
 // three.js + r3f load only on the client, after first paint, and only when WebGL
@@ -47,14 +48,15 @@ export function AthleteStageCard({
   const intl = locale === "id" ? "id-ID" : "en-US";
   const has360 = !!athlete.media360 && athlete.media360.frames.length > 0;
 
-  // Live rotation angle (0° at the first frame) drives the top-right readout and
-  // the platform tick marks. Updated straight on the DOM every animation frame
-  // from the viewer's fractional position, so it moves smoothly with no React
-  // re-renders.
-  const angleRef = useRef<HTMLSpanElement>(null);
+  // Fixed 4-view viewer. `view` = index into VIEW_KEYS (0 Depan, 1 Kanan,
+  // 2 Belakang, 3 Kiri). The camera angle (3D arena + fallback ring ticks) is
+  // continuous: each step turns it ±90° so the stage turns the matching way,
+  // eased over the photo crossfade and written straight to the DOM/arena
+  // (no React re-render per animation frame).
+  const viewNames = [m.view_front, m.view_right, m.view_back, m.view_left];
+  const [view, setView] = useState(0);
+  const viewRef = useRef(0);
   const ticksRef = useRef<SVGGElement>(null);
-  // 3D arena: the camera orbits on the same angle (written to a shared handle,
-  // redraw requested only when the angle changes).
   const arenaHandle = useRef<ArenaHandle>({ angleDeg: 0, invalidate: null });
   const platformRef = useRef<HTMLDivElement>(null);
   const figureRef = useRef<HTMLDivElement>(null);
@@ -63,13 +65,67 @@ export function AthleteStageCard({
   useEffect(() => {
     setArenaWanted(hasWebGL());
   }, []);
-  const onPosition = useCallback((pos: number, n: number) => {
-    const deg = n > 0 ? (pos / n) * 360 : 0;
-    if (angleRef.current) angleRef.current.textContent = `${Math.round(deg) % 360}°`;
+
+  const camRef = useRef(0); // current continuous camera angle (deg)
+  const camTargetRef = useRef(0);
+  const tweenRef = useRef<number | null>(null);
+  const applyCam = useCallback((deg: number) => {
+    camRef.current = deg;
     ticksRef.current?.setAttribute("transform", `rotate(${(VIEWER_360.ringTurnDirection * deg).toFixed(2)})`);
     arenaHandle.current.angleDeg = deg;
     arenaHandle.current.invalidate?.();
   }, []);
+  const turnCamera = useCallback(
+    (delta: number) => {
+      const from = camRef.current;
+      const to = camTargetRef.current + delta * VIEWER_VIEWS.stepDeg;
+      camTargetRef.current = to;
+      if (tweenRef.current != null) cancelAnimationFrame(tweenRef.current);
+      const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      if (reduced) {
+        applyCam(to);
+        return;
+      }
+      const t0 = performance.now();
+      const dur = VIEWER_VIEWS.transitionMs;
+      const tick = (now: number) => {
+        const t = Math.min(1, (now - t0) / dur);
+        const e = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2; // easeInOutCubic
+        applyCam(from + (to - from) * e);
+        tweenRef.current = t < 1 ? requestAnimationFrame(tick) : null;
+      };
+      tweenRef.current = requestAnimationFrame(tick);
+    },
+    [applyCam],
+  );
+  useEffect(
+    () => () => {
+      if (tweenRef.current != null) cancelAnimationFrame(tweenRef.current);
+    },
+    [],
+  );
+  // Go to a view by the shortest way round (so the stage turns the right way).
+  const goTo = useCallback(
+    (target: number) => {
+      const cur = viewRef.current;
+      if (target === cur) return;
+      let d = (((target - cur) % 4) + 4) % 4; // 1..3
+      if (d === 3) d = -1;
+      viewRef.current = target;
+      turnCamera(d);
+      setView(target);
+    },
+    [turnCamera],
+  );
+  const step = useCallback(
+    (delta: 1 | -1) => {
+      const target = (viewRef.current + delta + 4) % 4;
+      viewRef.current = target;
+      turnCamera(delta);
+      setView(target);
+    },
+    [turnCamera],
+  );
   const tickAngles = useMemo(
     () => Array.from({ length: VIEWER_360.ringTicks }, (_, i) => (i * 360) / VIEWER_360.ringTicks),
     [],
@@ -221,14 +277,17 @@ export function AthleteStageCard({
         {/* ------------------------------------------------- RIGHT: 360 stage */}
         {/* container-type lets the platform (anchored inside the figure) size itself
             against this column's width; pb reserves room for the CTA below the ring. */}
-        <div className="relative flex min-h-[56vh] items-center justify-center pb-20 pt-10 [container-type:inline-size] lg:min-h-[72vh] lg:pt-0">
+        <div className="relative flex min-h-[56vh] items-center justify-center pb-32 pt-10 [container-type:inline-size] lg:min-h-[72vh] lg:pt-0">
           {/* Spotlight cone behind everything, from the card's top edge */}
           <div className="stagecard-spot" aria-hidden />
 
-          {/* Angle readout + hint (top-right of the stage) */}
+          {/* Active view readout + hint (top-right of the stage) */}
           {has360 && (
-            <div className="pointer-events-none absolute right-1 top-0 z-20 text-right">
-              <div className="font-condensed text-4xl font-bold leading-none tabular-nums sm:text-5xl"><span ref={angleRef}>0°</span></div>
+            <div className="pointer-events-none absolute right-1 top-0 z-20 text-right" aria-live="polite">
+              <div className="font-condensed text-4xl font-bold uppercase leading-none sm:text-5xl">{viewNames[view]}</div>
+              <div className="mt-1 font-mono text-xs text-[#ff2d55] tabular-nums">
+                {`${view * VIEWER_VIEWS.stepDeg}°`}
+              </div>
               <p className="mt-1 hidden max-w-[15rem] font-mono text-[11px] leading-snug text-white/45 sm:block">
                 {m.sc_hint}
               </p>
@@ -273,12 +332,13 @@ export function AthleteStageCard({
               </svg>
             </div>
             {has360 ? (
-              <Viewer360
+              <AthleteViews
                 athleteId={athlete.id}
                 media={athlete.media360!}
+                view={view}
+                onStep={step}
                 m={m}
-                onPositionChange={onPosition}
-                chrome={false}
+                label={`${athlete.nama} — ${viewNames[view]}`}
               />
             ) : (
               <div className="relative mx-auto" style={figureStyle}>
@@ -298,6 +358,46 @@ export function AthleteStageCard({
               </div>
             )}
           </div>
+
+          {/* View switcher: ‹ Depan · Kanan · Belakang · Kiri › (above the CTA) */}
+          {has360 && (
+            <div className="absolute inset-x-0 bottom-[3.75rem] z-20 flex items-center justify-center gap-1.5 px-2">
+              <button
+                type="button"
+                onClick={() => step(-1)}
+                aria-label={m.view_prev}
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-white/15 bg-black/50 text-white/80 backdrop-blur transition-colors hover:border-white/40 hover:text-white"
+              >
+                <ChevronLeft size={16} />
+              </button>
+              <div role="tablist" aria-label={m.view_tabs} className="flex rounded-full border border-white/10 bg-black/50 p-0.5 backdrop-blur">
+                {VIEW_KEYS.map((k, i) => (
+                  <button
+                    key={k}
+                    type="button"
+                    role="tab"
+                    aria-selected={view === i}
+                    onClick={() => goTo(i)}
+                    className={`rounded-full px-2.5 py-1 text-[11px] font-semibold transition-colors sm:px-3.5 sm:text-xs ${
+                      view === i
+                        ? "bg-[#ff2d55] text-white shadow-[0_0_14px_rgba(255,45,85,0.55)]"
+                        : "text-white/60 hover:text-white"
+                    }`}
+                  >
+                    {viewNames[i]}
+                  </button>
+                ))}
+              </div>
+              <button
+                type="button"
+                onClick={() => step(1)}
+                aria-label={m.view_next}
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-white/15 bg-black/50 text-white/80 backdrop-blur transition-colors hover:border-white/40 hover:text-white"
+              >
+                <ChevronRight size={16} />
+              </button>
+            </div>
+          )}
 
           {/* View sponsors CTA (bottom-center) */}
           <div className="absolute inset-x-0 bottom-0 z-20 flex justify-center">

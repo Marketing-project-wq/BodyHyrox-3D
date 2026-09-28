@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { db, supabaseUrl } from "@/lib/supabase";
 import { requireSession, requirePermission } from "@/lib/auth";
 import { SPONSOR_360_UPLOAD } from "@/lib/config";
+import { VIEW_KEYS, type ViewKey } from "@/lib/views";
 
 type UploadSlot = { frame: string; path: string; uploadUrl: string };
 
@@ -69,6 +70,41 @@ export async function finalizeMedia(
     p_crossfade: crossfade,
     p_hotspots: [],
     p_is_placeholder: false,
+    p_actor_id: s.sub,
+    p_actor_name: s.nama,
+  });
+  if (error) throw new Error(error.message);
+  // A new photo set invalidates the saved Depan/Kanan/Belakang/Kiri picks; the
+  // viewer falls back to evenly spaced frames until the admin picks again.
+  const { error: vErr } = await db().rpc("smb_set_athlete_media_views", {
+    p_athlete_id: athleteId,
+    p_views: null,
+    p_actor_id: s.sub,
+    p_actor_name: s.nama,
+  });
+  if (vErr) throw new Error(vErr.message);
+  revalidatePath(`/atlet/${athleteId}`);
+  revalidatePath(`/admin/atlet/${athleteId}`);
+  return { ok: true };
+}
+
+/** Admin only. Saves which frame shows Depan / Kanan / Belakang / Kiri. */
+export async function setMediaViews(
+  athleteId: string,
+  views: Record<ViewKey, string>,
+): Promise<{ ok: true }> {
+  const s = requireSession();
+  requirePermission(s, "athlete.edit");
+  if (!athleteId) throw new Error("athlete_required");
+  const clean: Record<string, string> = {};
+  for (const k of VIEW_KEYS) {
+    const f = views?.[k];
+    if (typeof f !== "string" || !f) throw new Error("view_missing");
+    clean[k] = f;
+  }
+  const { error } = await db().rpc("smb_set_athlete_media_views", {
+    p_athlete_id: athleteId,
+    p_views: clean,
     p_actor_id: s.sub,
     p_actor_name: s.nama,
   });

@@ -11,6 +11,8 @@ import { formatIDR, formatIDRCompact, formatDayMonth, initials } from "@/lib/for
 import { Badge } from "@/components/ui";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { Athlete360Admin } from "@/components/Athlete360Admin";
+import { AthleteViewsPicker } from "@/components/AthleteViewsPicker";
+import type { Media360Views } from "@/lib/views";
 import {
   updateAthlete,
   upsertAthleteZone,
@@ -49,7 +51,16 @@ export function AthleteEditorClient({
   canEdit: boolean;
   canPricing: boolean;
   saved?: boolean;
-  media360: { frames: number; autospin: boolean; crossfade: boolean; isPlaceholder: boolean };
+  media360: {
+    frames: number;
+    frameNames: string[];
+    baseUrl: string;
+    views: Media360Views | null;
+    viewsSaved: boolean;
+    autospin: boolean;
+    crossfade: boolean;
+    isPlaceholder: boolean;
+  };
   m: Dict;
 }) {
   const [photo, setPhoto] = useState(athlete.photoUrl ?? "");
@@ -282,6 +293,17 @@ export function AthleteEditorClient({
             isPlaceholder={media360.isPlaceholder}
             initialAutospin={media360.autospin}
             initialCrossfade={media360.crossfade}
+            m={m}
+          />
+        )}
+        {canEdit && media360.frames > 0 && media360.views && (
+          <AthleteViewsPicker
+            key={media360.frameNames.join("|")}
+            athleteId={athlete.id}
+            baseUrl={media360.baseUrl}
+            frames={media360.frameNames}
+            views={media360.views}
+            saved={media360.viewsSaved}
             m={m}
           />
         )}

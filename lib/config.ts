@@ -117,41 +117,6 @@ export function can(role: Role | undefined, perm: Permission): boolean {
  * feel of the interaction is configured here so it is easy to adjust.
  */
 export const VIEWER_360 = {
-  /** Horizontal drag distance (px) for one full rotation. Lower = more sensitive. */
-  dragFullTurnPx: 340,
-  /** Velocity multiplier applied each animation frame after release (0..1). Higher = longer glide. */
-  momentumFriction: 0.94,
-  /** Momentum stops when |velocity| drops below this (frames per ms). */
-  momentumStopThreshold: 0.0006,
-  /** Window (ms) used to estimate release velocity from recent pointer samples. */
-  velocitySampleMs: 90,
-  /**
-   * How quickly the rendered position eases toward the target each ~16.7ms
-   * frame (0..1). Higher = tighter to the finger; lower = silkier glide.
-   * Runs every frame via requestAnimationFrame so motion stays fluid
-   * regardless of how often pointer events fire.
-   */
-  followPerFrame: 0.4,
-  /** Rendered position snaps to target once within this many frames (ends the loop). */
-  settleEpsilon: 0.002,
-  /**
-   * Share (0..1] of each frame-to-frame step spent blending while dragging, when
-   * the athlete's "smooth transition" (crossfade) toggle is on. The current frame
-   * stays opaque and the next fades in over it; at rest the figure always lands
-   * on one crisp frame. Toggle off = crisp hard swap per frame.
-   */
-  dragBlendWindow: 0.8,
-  /**
-   * When motion stops, ease onto the nearest frame (a soft detent) so the figure
-   * rests on one crisp frame instead of a blended half-frame.
-   */
-  snapOnSettle: true,
-  /**
-   * Settle onto every Nth frame. For an interpolated sequence set this to the
-   * interpolation factor so rest lands on a real source frame; for a plain
-   * sequence of real frames (the current 12) keep 1 (every frame is real).
-   */
-  settleStep: 1,
   /**
    * On-screen size of the athlete figure inside the full-screen stage. Height
    * is capped to a share of the viewport so the whole body (head to feet) fits;
@@ -164,45 +129,29 @@ export const VIEWER_360 = {
   /**
    * Where the athlete's feet sit, as % of the frame height measured from the
    * bottom (normalized frames stand on a common baseline at ~96.5% down). The
-   * stage card centers its neon platform ring on this line so the athlete
-   * stands on it instead of floating above or sinking through it.
+   * stage card centers its neon platform on this line so the athlete stands on
+   * it instead of floating above or sinking through it.
    */
   feetLinePct: 3.5,
   /**
-   * Idle "camera sway" (only when the athlete's media has autospin on and the
-   * visitor hasn't asked for reduced motion): the view ping-pongs around the
-   * front (frame 0) by ±idleSwayDeg, one full back-and-forth per
-   * idleSwayPeriodSec, on a sine so it eases at both ends.
-   */
-  idleSwayDeg: 20,
-  idleSwayPeriodSec: 7,
-  /**
-   * After a drag leaves the figure outside the sway range, how quickly (0..1 per
-   * ~16.7ms frame) it glides back to the front before the sway takes over.
-   * Lower = slower, softer return.
-   */
-  idleReturnPerFrame: 0.035,
-  /** Idle time (ms) after the last drag/hover/focus before the idle sway resumes. */
-  autoRotateResumeMs: 3000,
-  /**
-   * Blend neighbouring frames during the idle sway/return so a sparse sequence turns
-   * continuously instead of stepping; drag follows the athlete's crossfade toggle,
-   * and the figure still comes to rest on one crisp frame when it stops.
-   */
-  autoRotateCrossfade: true,
-  /**
-   * Share (0..1] of each frame-to-frame step spent blending during the idle sway;
-   * the rest holds the current frame crisp. Smaller = less ghosting, more
-   * "stepped"; 1 = blend the whole way.
-   */
-  autoRotateBlendWindow: 0.85,
-  /**
-   * Stage-card platform markers: tick marks on the neon ring that turn with the
-   * figure at the exact (fractional) angle, so motion reads continuous between
-   * photo frames. `ringTurnDirection` matches the frame order's spin direction.
+   * No-WebGL fallback platform: tick marks on the flat CSS ring that turn with
+   * the view change. `ringTurnDirection` matches the 3D arena's turn.
    */
   ringTicks: 36,
   ringTurnDirection: -1,
+} as const;
+
+/**
+ * Fixed 4-view athlete viewer (Depan / Kanan / Belakang / Kiri). Which photo is
+ * used for each view is data (smb_athlete_media_360.views, picked in admin).
+ */
+export const VIEWER_VIEWS = {
+  /** Photo crossfade + platform/camera 90° turn duration (ms). */
+  transitionMs: 520,
+  /** Minimum horizontal swipe (px) on the photo to switch view. */
+  swipeThresholdPx: 40,
+  /** Degrees between neighbouring views (camera turn per step). */
+  stepDeg: 90,
 } as const;
 
 /**

@@ -1,4 +1,6 @@
 import { db } from "./supabase";
+import { resolveViews, type Media360Views } from "./views";
+export { VIEW_KEYS, resolveViews, type ViewKey, type Media360Views } from "./views";
 import type { TxStatus, ActiveStatus, Visibility } from "./config";
 
 /** PostgREST returns bigint as string; coerce to number safely. */
@@ -333,6 +335,8 @@ export type Media360Hotspot = {
 export type Media360 = {
   baseUrl: string;
   frames: string[];
+  /** Frame file for Depan/Kanan/Belakang/Kiri (always set when frames exist). */
+  views: Media360Views | null;
   autospin: boolean;
   crossfade: boolean;
   isPlaceholder: boolean;
@@ -361,6 +365,7 @@ function mapMedia360(raw: unknown): Media360 | null {
   return {
     baseUrl: String(m.base_url ?? ""),
     frames,
+    views: resolveViews(frames, m.views),
     autospin: Boolean(m.autospin),
     crossfade: Boolean(m.crossfade),
     isPlaceholder: Boolean(m.is_placeholder),
@@ -661,15 +666,28 @@ export type BrandUserRow = {
 /** 360 media meta for the admin editor's upload panel (any status; service role). */
 export async function getAthleteMedia360Meta(
   athleteId: string,
-): Promise<{ frames: number; autospin: boolean; crossfade: boolean; isPlaceholder: boolean }> {
+): Promise<{
+  frames: number;
+  frameNames: string[];
+  baseUrl: string;
+  views: Media360Views | null;
+  viewsSaved: boolean;
+  autospin: boolean;
+  crossfade: boolean;
+  isPlaceholder: boolean;
+}> {
   const { data } = await db()
     .from("smb_athlete_media_360")
-    .select("frames,autospin,crossfade,is_placeholder")
+    .select("base_url,frames,views,autospin,crossfade,is_placeholder")
     .eq("athlete_id", athleteId)
     .maybeSingle();
-  const framesArr = Array.isArray(data?.frames) ? (data!.frames as unknown[]) : [];
+  const framesArr = Array.isArray(data?.frames) ? (data!.frames as unknown[]).map((f) => String(f)) : [];
   return {
     frames: framesArr.length,
+    frameNames: framesArr,
+    baseUrl: String(data?.base_url ?? ""),
+    views: resolveViews(framesArr, data?.views),
+    viewsSaved: data?.views != null,
     autospin: data?.autospin ?? true,
     crossfade: data?.crossfade ?? false,
     isPlaceholder: data?.is_placeholder ?? false,
