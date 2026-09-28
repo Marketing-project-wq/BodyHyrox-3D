@@ -4,7 +4,7 @@ import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRe
 import { useRouter } from "next/navigation";
 import type { Media360 } from "@/lib/data";
 import { VIEW_ANGLES, VIEW_KEYS, frameAngles } from "@/lib/views";
-import { VIEWER_VIEWS, viewer360FrameStyle } from "@/lib/config";
+import { STAGE_ARENA, VIEWER_VIEWS, viewer360FrameStyle } from "@/lib/config";
 import { type Dict } from "@/lib/i18n";
 import { formatIDR } from "@/lib/format";
 
@@ -117,13 +117,33 @@ export const AthleteViews = forwardRef<
       }
       const span = hi.a - loA || 1;
       const t = Math.min(1, Math.max(0, (A - loA) / span));
+      // How much of the upper frame shows (over the opaque lower one).
+      //  - view turn / swipe: blend across the whole step (fast, reads as motion)
+      //  - slow idle spin: hold one crisp photo and switch at mid-step with a
+      //    very short blend, so two different poses are never overlaid for long
+      //    (that long overlay is what reads as a "ghost" at 10°/s).
+      let a = t;
+      let base = lo.i;
+      if (moving && !turning) {
+        const blendDeg = Math.min(
+          span,
+          (360 / STAGE_ARENA.autoRotateSecPerTurn) * (STAGE_ARENA.idleBlendMs / 1000),
+        );
+        const mid = loA + span / 2;
+        const u = Math.min(1, Math.max(0, (A - (mid - blendDeg / 2)) / blendDeg));
+        a = u * u * (3 - 2 * u);
+        if (a >= 1) {
+          base = hi.i; // past the switch: the next photo alone
+          a = 0;
+        }
+      }
       const EPS = 0.002;
       for (let i = 0; i < imgs.length; i++) {
         const el = imgs[i];
         if (!el) continue;
-        const isLo = i === lo.i;
-        const isHi = i === hi.i && t > EPS && hi.i !== lo.i;
-        el.style.opacity = isLo ? "1" : isHi ? String(t) : "0";
+        const isLo = i === base;
+        const isHi = base === lo.i && i === hi.i && a > EPS && hi.i !== lo.i;
+        el.style.opacity = isLo ? "1" : isHi ? String(a) : "0";
         el.style.zIndex = isHi ? "2" : isLo ? "1" : "0";
         el.style.visibility = isLo || isHi ? "visible" : "hidden";
       }
