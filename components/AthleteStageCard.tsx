@@ -19,6 +19,9 @@ const StageArena3D = dynamic(() => import("@/components/StageArena3D").then((mod
   ssr: false,
 });
 
+// The CSS ring fallback is squashed by the same camera tilt the 3D arena uses.
+const STAGE_TILT = Math.sin((STAGE_ARENA.cameraElevationDeg * Math.PI) / 180).toFixed(3);
+
 function hasWebGL(): boolean {
   try {
     const c = document.createElement("canvas");
@@ -83,7 +86,8 @@ export function AthleteStageCard({
   const rafRef = useRef<number | null>(null);
   const lastTRef = useRef(0);
   const lastViewPaintRef = useRef<{ a: number; moving: boolean } | null>(null);
-  const qualityRef = useRef({ t0: 0, frames: 0, level: 0 }); // 0 full, 1 dpr 1, 2 half rate
+  const qualityRef = useRef({ t0: 0, frames: 0, level: 0, slow: 0 }); // level 0 full, 1 dpr 1, 2 half rate
+  const clockStartRef = useRef(0); // when the stage started (quality warm-up)
   const frameParityRef = useRef(0);
 
   const settleView = useCallback((deg: number) => {
@@ -102,6 +106,7 @@ export function AthleteStageCard({
   const checkTurnFps = useCallback(
     (frames: number, ms: number) => {
       if (!arenaHandle.current.invalidate || ms < 200) return;
+      if (!clockStartRef.current || performance.now() - clockStartRef.current < STAGE_ARENA.qualityWarmupMs) return;
       const fps = (frames * 1000) / ms;
       if (fps >= STAGE_ARENA.minTurnFps) {
         slowTurnsRef.current = 0;
@@ -169,18 +174,28 @@ export function AthleteStageCard({
         lastViewPaintRef.current = { a: env, moving };
       }
 
-      // Adaptive quality while the arena runs continuously.
-      if (h.invalidate && f > 0.5) {
+      // Adaptive quality while the arena runs continuously (after a warm-up,
+      // since images/fonts still decode right after load).
+      if (!clockStartRef.current && f > 0.5) clockStartRef.current = now;
+      const warm = clockStartRef.current > 0 && now - clockStartRef.current > STAGE_ARENA.qualityWarmupMs;
+      if (h.invalidate && f > 0.5 && warm) {
         const q = qualityRef.current;
         if (!q.t0) q.t0 = now;
         q.frames += 1;
         if (now - q.t0 >= STAGE_ARENA.qualityWindowMs) {
           const fps = (q.frames * 1000) / (now - q.t0);
-          if (fps < STAGE_ARENA.minTurnFps) disableArena();
-          else if (fps < STAGE_ARENA.halfRateFps && q.level < 2) q.level = 2;
-          else if (fps < STAGE_ARENA.dprDropFps && q.level < 1) {
+          // Step down gently; only give up on the arena after repeated slow
+          // windows at the lowest quality.
+          if (fps < STAGE_ARENA.dprDropFps && q.level < 1) {
             q.level = 1;
             h.setDpr?.(1);
+          } else if (fps < STAGE_ARENA.halfRateFps && q.level < 2) {
+            q.level = 2;
+          } else if (fps < STAGE_ARENA.minTurnFps && q.level >= 2) {
+            q.slow += 1;
+            if (q.slow >= STAGE_ARENA.slowWindowsToDisable) disableArena();
+          } else {
+            q.slow = 0;
           }
           q.t0 = now;
           q.frames = 0;
@@ -436,6 +451,7 @@ export function AthleteStageCard({
       className={`relative overflow-hidden rounded-3xl border border-white/10 bg-[#100a0c] shadow-[0_30px_80px_-20px_rgba(0,0,0,0.8)] ${
         arenaOn ? "stagecard-arena-on" : ""
       }`}
+      style={{ ["--stage-tilt" as string]: STAGE_TILT }}
     >
       {/* 3D neon arena (behind everything; fades in once WebGL is up) */}
       {arenaWanted && (

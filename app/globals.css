@@ -253,13 +253,15 @@ body {
 .stagecard-ring-outer {
   width: min(56vw, 760px);
   width: min(74cqw, 760px);
-  height: 150px;
+  aspect-ratio: 1 / var(--stage-tilt, 0.14);
+  height: auto;
   border: 1px solid rgba(255, 45, 85, 0.16);
 }
 .stagecard-ring {
   width: min(34vw, 430px);
   width: min(46cqw, 430px);
-  height: 92px;
+  aspect-ratio: 1 / var(--stage-tilt, 0.14);
+  height: auto;
   border: 2px solid rgba(255, 45, 85, 0.92);
   box-shadow:
     0 0 26px 2px rgba(255, 45, 85, 0.5),
@@ -271,7 +273,8 @@ body {
   top: 0;
   width: min(34vw, 430px);
   width: min(46cqw, 430px);
-  height: 92px;
+  aspect-ratio: 1 / var(--stage-tilt, 0.14);
+  height: auto;
   overflow: visible;
   pointer-events: none;
   transform: translate(-50%, -50%);
@@ -288,6 +291,26 @@ body {
   stroke-width: 2.5px;
   filter: drop-shadow(0 0 3px rgba(255, 45, 85, 0.9));
 }
+/* Contact shadow under the athlete's soles (position/size set per frame in
+   JS from the measured feet). Sits on the platform, under the photo. */
+.stage-shadow {
+  position: absolute;
+  z-index: 0;
+  left: 50%;
+  top: 96.5%;
+  width: 40%;
+  height: 2%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  border-radius: 50%;
+}
+.stage-shadow-core {
+  background: radial-gradient(50% 50% at 50% 50%, rgba(0, 0, 0, 0.82), rgba(0, 0, 0, 0.55) 45%, transparent 75%);
+}
+.stage-shadow-soft {
+  background: radial-gradient(50% 50% at 50% 50%, rgba(0, 0, 0, 0.42), rgba(0, 0, 0, 0.16) 55%, transparent 80%);
+}
+
 /* Stage view readout (name + angle + hint). Font scales with the stage column
    (container query units) so long names ("BELAKANG") always fit. */
 .stagecard-readout {
@@ -351,7 +374,8 @@ body {
 .stagecard-floorglow {
   width: min(28vw, 360px);
   width: min(38cqw, 360px);
-  height: 72px;
+  aspect-ratio: 1 / 0.22;
+  height: auto;
   background: radial-gradient(
     50% 62% at 50% 50%,
     rgba(255, 45, 85, 0.6),

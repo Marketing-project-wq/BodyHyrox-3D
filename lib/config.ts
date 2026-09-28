@@ -188,7 +188,7 @@ export const STAGE_ARENA = {
   /** Horizontal camera distance from the athlete (m). */
   cameraDistanceM: 4.5,
   /** How far above the floor the camera looks down on the platform (deg). */
-  cameraElevationDeg: 13,
+  cameraElevationDeg: 8,
   athleteHeightM: 1.7,
   /** Share of the photo frame height the athlete's body fills (normalized frames). */
   athleteFrameFill: 0.9,
@@ -225,6 +225,20 @@ export const STAGE_ARENA = {
    * and swipes still blend across the step. Raise for softer switches.
    */
   idleBlendMs: 160,
+  /** The feet sink this many px into the platform surface (no antialiasing hairline). */
+  footOverlapPx: 2,
+  /**
+   * Contact shadow: the tight core follows the planted sole; a raised back foot
+   * (turning step) widens it vertically by at most this share of the frame height.
+   */
+  shadowMaxSpread: 0.035,
+  /**
+   * Ignore frame-rate samples for this long after the stage starts (images and
+   * fonts are still decoding then), and only switch the arena off after this
+   * many slow measurement windows in a row.
+   */
+  qualityWarmupMs: 3000,
+  slowWindowsToDisable: 2,
   /**
    * Adaptive quality while the arena turns: average FPS over `qualityWindowMs`.
    * Below `dprDropFps` the canvas drops to dpr 1; below `halfRateFps` the

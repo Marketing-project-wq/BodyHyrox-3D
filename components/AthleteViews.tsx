@@ -4,7 +4,7 @@ import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRe
 import { useRouter } from "next/navigation";
 import type { Media360 } from "@/lib/data";
 import { VIEW_ANGLES, VIEW_KEYS, frameAngles } from "@/lib/views";
-import { STAGE_ARENA, VIEWER_VIEWS, viewer360FrameStyle } from "@/lib/config";
+import { STAGE_ARENA, VIEWER_360, VIEWER_VIEWS, viewer360FrameStyle } from "@/lib/config";
 import { type Dict } from "@/lib/i18n";
 import { formatIDR } from "@/lib/format";
 
@@ -27,6 +27,53 @@ type DragCallbacks = {
 };
 
 const norm360 = (a: number) => ((a % 360) + 360) % 360;
+
+/** Where the feet touch the ground in a frame, as fractions of the image (see scripts/foot-baseline.py). */
+type Foot = { toe: number; back: number; left: number; right: number };
+const mixFoot = (p: Foot, q: Foot, t: number): Foot => ({
+  toe: p.toe + (q.toe - p.toe) * t,
+  back: p.back + (q.back - p.back) * t,
+  left: p.left + (q.left - p.left) * t,
+  right: p.right + (q.right - p.right) * t,
+});
+
+/** Same measurement as the script, in the browser (for sets without feet.json). */
+function measureFoot(img: HTMLImageElement): Foot | null {
+  try {
+    const W = 120;
+    const H = Math.round((W * img.naturalHeight) / img.naturalWidth) || 280;
+    const c = document.createElement("canvas");
+    c.width = W;
+    c.height = H;
+    const g = c.getContext("2d", { willReadFrequently: true });
+    if (!g) return null;
+    g.drawImage(img, 0, 0, W, H);
+    const d = g.getImageData(0, 0, W, H).data; // throws if the image is cross-origin tainted
+    const op = (x: number, y: number) => d[(y * W + x) * 4 + 3] > 127;
+    const rowCount = (y: number, x0 = 0, x1 = W) => {
+      let n = 0;
+      for (let x = x0; x < x1; x++) if (op(x, y)) n++;
+      return n;
+    };
+    let toe = -1;
+    for (let y = H - 1; y >= 0; y--) if (rowCount(y) >= 2) { toe = y; break; } // ignore 1px specks
+    if (toe < 0) return null;
+    const top = Math.max(0, Math.round(toe - 0.1 * H));
+    let left = W, right = -1, sum = 0, cnt = 0;
+    for (let y = top; y <= toe; y++)
+      for (let x = 0; x < W; x++)
+        if (op(x, y)) { left = Math.min(left, x); right = Math.max(right, x); sum += x; cnt++; }
+    const cx = cnt ? Math.round(sum / cnt) : W / 2;
+    const low = (x0: number, x1: number) => {
+      for (let y = toe; y >= top; y--) if (rowCount(y, x0, x1) >= 1) return y;
+      return toe;
+    };
+    const back = Math.min(low(left, cx), low(cx, right + 1));
+    return { toe: (toe + 1) / H, back: (back + 1) / H, left: left / W, right: (right + 1) / W };
+  } catch {
+    return null;
+  }
+}
 
 /**
  * Athlete photo, painted from one orbit angle. With the in-between frames loaded
@@ -70,6 +117,9 @@ export const AthleteViews = forwardRef<
   const imgRefs = useRef<(HTMLImageElement | null)[]>([]);
   const stackRef = useRef<HTMLDivElement>(null);
   const markersRef = useRef<HTMLDivElement>(null);
+  const shadowCoreRef = useRef<HTMLDivElement>(null);
+  const shadowSoftRef = useRef<HTMLDivElement>(null);
+  const feetRef = useRef<(Foot | null)[]>([]); // per frame index
   const loadedRef = useRef<Set<number>>(new Set());
   const fullRef = useRef(false); // all frames decoded and angle-mapped -> real turn
   const lastRef = useRef<{ a: number; moving: boolean; turning: boolean }>({ a: 0, moving: false, turning: false });
@@ -147,18 +197,51 @@ export const AthleteViews = forwardRef<
         el.style.zIndex = isHi ? "2" : isLo ? "1" : "0";
         el.style.visibility = isLo || isHi ? "visible" : "hidden";
       }
+      // Feet on the platform: shift the photo (and its zone markers) so the
+      // shown frame's sole line lands exactly on the platform surface line
+      // (the feet line), sinking FOOT_OVERLAP px into it so antialiasing never
+      // leaves a hairline gap. Values are fractions of the box, so it holds at
+      // any size. Blends mix the two frames' feet the same way as the photos.
+      const feet = feetRef.current;
+      const fallback: Foot = { toe: 1 - VIEWER_360.feetLinePct / 100, back: 1 - VIEWER_360.feetLinePct / 100, left: 0.3, right: 0.7 };
+      const fBase = feet[base] ?? fallback;
+      const foot = base === lo.i && a > EPS && hi.i !== lo.i ? mixFoot(fBase, feet[hi.i] ?? fallback, a) : fBase;
+      const line = 1 - VIEWER_360.feetLinePct / 100; // platform surface, fraction of the box from the top
+      const shift = `translateY(calc(${((line - foot.toe) * 100).toFixed(3)}% + ${STAGE_ARENA.footOverlapPx}px))`;
       // Fallback "turn" cue (only when stepping between the 4 view photos).
       const stack = stackRef.current;
       if (stack) {
         if (!fullRef.current && turning) {
           const s = Math.sin(Math.PI * t);
-          stack.style.transform = `translateX(${(VIEWER_VIEWS.fallbackShiftPct * s).toFixed(2)}%) scaleX(${(
+          stack.style.transform = `${shift} translateX(${(VIEWER_VIEWS.fallbackShiftPct * s).toFixed(2)}%) scaleX(${(
             1 -
             VIEWER_VIEWS.fallbackSqueeze * s
           ).toFixed(4)})`;
         } else {
-          stack.style.transform = "";
+          stack.style.transform = shift;
         }
+      }
+      if (markersRef.current) markersRef.current.style.transform = shift;
+      // Contact shadow: a tight dark core right under the soles plus a wider
+      // soft one, sized from this frame's feet (side views: feet one behind the
+      // other -> narrower, taller ellipse). The raised-foot spread is capped:
+      // only a planted foot casts the tight shadow.
+      const spread = Math.min(foot.toe - foot.back, STAGE_ARENA.shadowMaxSpread);
+      const cx = ((foot.left + foot.right) / 2) * 100;
+      const fw = (foot.right - foot.left) * 100;
+      const core = shadowCoreRef.current;
+      if (core) {
+        core.style.left = `${cx.toFixed(2)}%`;
+        core.style.top = `${((line - spread * 0.4) * 100).toFixed(2)}%`;
+        core.style.width = `${(fw * 0.92).toFixed(2)}%`;
+        core.style.height = `${((spread * 0.9 + 0.014) * 100).toFixed(2)}%`;
+      }
+      const soft = shadowSoftRef.current;
+      if (soft) {
+        soft.style.left = `${cx.toFixed(2)}%`;
+        soft.style.top = `${((line - spread * 0.3) * 100).toFixed(2)}%`;
+        soft.style.width = `${(fw * 1.5).toFixed(2)}%`;
+        soft.style.height = `${((spread * 1.6 + 0.04) * 100).toFixed(2)}%`;
       }
       // Zone markers: hidden while turning, back on the settled view.
       const mk = markersRef.current;
@@ -172,11 +255,52 @@ export const AthleteViews = forwardRef<
 
   useImperativeHandle(ref, () => ({ render: paint }), [paint]);
 
+  // Feet metrics: the precomputed feet.json next to the frames, else measure
+  // each decoded frame in the browser, else the config feet line.
+  const feetJsonRef = useRef<Record<string, Foot> | null | undefined>(undefined);
+  const ensureFoot = useCallback(
+    async (i: number) => {
+      if (feetRef.current[i]) return;
+      if (feetJsonRef.current === undefined) {
+        feetJsonRef.current = null;
+        try {
+          const r = await fetch(`${base}/feet.json`, { cache: "force-cache" });
+          if (r.ok) {
+            const j = (await r.json()) as { frames?: Record<string, Foot> };
+            feetJsonRef.current = j.frames ?? null;
+          }
+        } catch {
+          /* no metadata: measure below */
+        }
+      }
+      const fromJson = feetJsonRef.current?.[frames[i]];
+      if (fromJson) {
+        feetRef.current[i] = fromJson;
+        return;
+      }
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      await new Promise<void>((res) => {
+        img.onload = () => res();
+        img.onerror = () => res();
+        img.src = url(i);
+      });
+      if (img.naturalWidth) feetRef.current[i] = measureFoot(img);
+    },
+    [base, frames, url],
+  );
+
   // Phase 1: the four view photos (so the page is usable fast).
   useEffect(() => {
     let alive = true;
     const uniq = Array.from(new Set(viewIdx));
-    Promise.all(uniq.map((i) => decode(url(i)).then((ok) => ok && loadedRef.current.add(i)))).then(() => {
+    Promise.all(
+      uniq.map((i) =>
+        decode(url(i))
+          .then((ok) => ok && loadedRef.current.add(i))
+          .then(() => ensureFoot(i)),
+      ),
+    ).then(() => {
       if (!alive) return;
       setReady(true);
       setPhase2(true);
@@ -198,6 +322,7 @@ export const AthleteViews = forwardRef<
         if (!alive) return;
         if (loadedRef.current.has(i)) continue;
         if (await decode(url(i))) loadedRef.current.add(i);
+        await ensureFoot(i);
       }
       if (!alive || loadedRef.current.size < frames.length) return;
       const arm = () => {
@@ -314,7 +439,9 @@ export const AthleteViews = forwardRef<
       }}
     >
       {/* Ground-contact shadow (behind the photo) so the athlete stands, not floats */}
-      <div className="stage-contact" aria-hidden />
+      {/* Contact shadow (behind the photo, on the platform): soft + tight core */}
+      <div ref={shadowSoftRef} className="stage-shadow stage-shadow-soft" aria-hidden />
+      <div ref={shadowCoreRef} className="stage-shadow stage-shadow-core" aria-hidden />
 
       <div ref={stackRef} className="absolute inset-0" style={{ transformOrigin: "50% 100%" }}>
         {frames.map((f, i) => {
