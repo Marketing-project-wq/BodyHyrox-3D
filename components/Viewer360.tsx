@@ -49,6 +49,20 @@ export function Viewer360({
   const lastXRef = useRef(0);
   const samplesRef = useRef<{ t: number; pos: number }[]>([]);
   const displayFrameRef = useRef(1);
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  // Auto-rotate (turntable). Spins only while nothing is holding it: each
+  // reason (drag, hover, focus, hidden tab, off-screen) pauses it until
+  // released. `blendRef` crossfades frames while spinning and while easing
+  // back onto a crisp frame after a pause.
+  const [allLoaded, setAllLoaded] = useState(false);
+  const [reducedMotion, setReducedMotion] = useState(false);
+  const canAutoRef = useRef(false);
+  const autoActiveRef = useRef(false);
+  const blendRef = useRef(false);
+  const pauseReasonsRef = useRef(new Set<string>());
+  const resumeTimersRef = useRef(new Map<string, ReturnType<typeof setTimeout>>());
+  const autoSpeed = total > 0 ? total / (VIEWER_360.autoRotateSecPerTurn * 1000) : 0; // frames per ms
 
   const urls = media.frames.map((f) => `${media.baseUrl.replace(/\/$/, "")}/${f}`);
 
@@ -71,17 +85,33 @@ export function Viewer360({
     const frac = pos - Math.floor(pos);
     const next = (base + 1) % total;
     const imgs = imgRefs.current;
-    if (VIEWER_360.crossfade) {
+    if (blendRef.current) {
+      // Turntable blend: keep the current frame fully opaque and fade the next
+      // one in on top of it (no see-through dip), only over the last part of
+      // each step and with an eased curve, so the double image is brief.
+      const w = Math.min(1, Math.max(0.05, VIEWER_360.autoRotateBlendWindow));
+      const t = Math.min(1, Math.max(0, (frac - (1 - w)) / w));
+      const a = t * t * (3 - 2 * t);
+      for (let i = 0; i < imgs.length; i++) {
+        const el = imgs[i];
+        if (!el) continue;
+        el.style.opacity = i === base ? "1" : i === next ? String(a) : "0";
+        el.style.zIndex = i === next ? "1" : "";
+      }
+    } else if (VIEWER_360.crossfade) {
       for (let i = 0; i < imgs.length; i++) {
         const el = imgs[i];
         if (!el) continue;
         el.style.opacity = i === base ? String(1 - frac) : i === next ? String(frac) : "0";
+        el.style.zIndex = "";
       }
     } else {
       const nearest = Math.round(pos) % total;
       for (let i = 0; i < imgs.length; i++) {
         const el = imgs[i];
-        if (el) el.style.opacity = i === nearest ? "1" : "0";
+        if (!el) continue;
+        el.style.opacity = i === nearest ? "1" : "0";
+        el.style.zIndex = "";
       }
     }
     const rounded = (Math.round(pos) % total) + 1; // 1-based
@@ -100,6 +130,17 @@ export function Viewer360({
     const tick = (now: number) => {
       const dt = Math.min(now - lastTRef.current, 64);
       lastTRef.current = now;
+
+      // Auto-rotate: advance at a constant speed and paint exactly there (no
+      // easing lag), continuing from wherever the figure currently is.
+      const spinning = autoActiveRef.current && !draggingRef.current && velRef.current === 0;
+      if (spinning) {
+        targetRef.current = norm(targetRef.current + autoSpeed * dt);
+        renderRef.current = targetRef.current;
+        paint();
+        rafRef.current = requestAnimationFrame(tick);
+        return;
+      }
 
       // Momentum (only when not actively dragging) nudges the target.
       if (!draggingRef.current && Math.abs(velRef.current) > 0) {
@@ -128,6 +169,7 @@ export function Viewer360({
         Math.abs(wrapDelta(targetRef.current - renderRef.current)) < VIEWER_360.settleEpsilon;
       if (settled) {
         renderRef.current = targetRef.current;
+        blendRef.current = false; // resting on a real frame: back to crisp swaps
         paint();
         runningRef.current = false;
         rafRef.current = null;
@@ -136,22 +178,115 @@ export function Viewer360({
       rafRef.current = requestAnimationFrame(tick);
     };
     rafRef.current = requestAnimationFrame(tick);
-  }, [norm, wrapDelta, paint]);
+  }, [norm, wrapDelta, paint, autoSpeed]);
+
+  // Start/stop spinning to match the current pause reasons.
+  const syncAuto = useCallback(() => {
+    const should = canAutoRef.current && pauseReasonsRef.current.size === 0;
+    if (should && !autoActiveRef.current) {
+      autoActiveRef.current = true;
+      if (VIEWER_360.autoRotateCrossfade) blendRef.current = true;
+      ensureLoop();
+    } else if (!should && autoActiveRef.current) {
+      autoActiveRef.current = false;
+      ensureLoop(); // ease onto the nearest real frame
+    }
+  }, [ensureLoop]);
+
+  const pauseAuto = useCallback(
+    (reason: string) => {
+      const t = resumeTimersRef.current.get(reason);
+      if (t) clearTimeout(t);
+      resumeTimersRef.current.delete(reason);
+      pauseReasonsRef.current.add(reason);
+      syncAuto();
+    },
+    [syncAuto],
+  );
+
+  const releaseAuto = useCallback(
+    (reason: string, delayMs = 0) => {
+      const prev = resumeTimersRef.current.get(reason);
+      if (prev) clearTimeout(prev);
+      resumeTimersRef.current.delete(reason);
+      if (delayMs <= 0) {
+        pauseReasonsRef.current.delete(reason);
+        syncAuto();
+        return;
+      }
+      resumeTimersRef.current.set(
+        reason,
+        setTimeout(() => {
+          resumeTimersRef.current.delete(reason);
+          pauseReasonsRef.current.delete(reason);
+          syncAuto();
+        }, delayMs),
+      );
+    },
+    [syncAuto],
+  );
+
+  // Respect the visitor's reduced-motion preference (live).
+  useEffect(() => {
+    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const update = () => setReducedMotion(mq.matches);
+    update();
+    mq.addEventListener("change", update);
+    return () => mq.removeEventListener("change", update);
+  }, []);
+
+  // Auto-rotate is allowed only once every frame is loaded and decoded.
+  useEffect(() => {
+    canAutoRef.current = media.autospin && !reducedMotion && ready && allLoaded && total > 1;
+    syncAuto();
+  }, [media.autospin, reducedMotion, ready, allLoaded, total, syncAuto]);
+
+  // Pause while the tab is hidden or the viewer is scrolled out of view.
+  useEffect(() => {
+    const onVis = () => (document.hidden ? pauseAuto("hidden") : releaseAuto("hidden"));
+    onVis();
+    document.addEventListener("visibilitychange", onVis);
+    let io: IntersectionObserver | null = null;
+    if (rootRef.current && "IntersectionObserver" in window) {
+      io = new IntersectionObserver(([entry]) =>
+        entry.isIntersecting ? releaseAuto("offscreen") : pauseAuto("offscreen"),
+      );
+      io.observe(rootRef.current);
+    }
+    const timers = resumeTimersRef.current;
+    return () => {
+      document.removeEventListener("visibilitychange", onVis);
+      io?.disconnect();
+      timers.forEach((t) => clearTimeout(t));
+      timers.clear();
+    };
+  }, [pauseAuto, releaseAuto]);
 
   // Preload all frames, then enable.
   useEffect(() => {
     let alive = true;
     let count = 0;
+    let failed = false;
     if (total === 0) return;
+    const done = () => {
+      if (!alive) return;
+      count += 1;
+      if (count >= total) {
+        setReady(true);
+        setAllLoaded(!failed);
+        requestAnimationFrame(paint);
+      }
+    };
     urls.forEach((u) => {
       const img = new Image();
-      img.onload = img.onerror = () => {
-        if (!alive) return;
-        count += 1;
-        if (count >= total) {
-          setReady(true);
-          requestAnimationFrame(paint);
-        }
+      img.onload = () => {
+        // Decode up front so the first spin never shows a blank/flashing frame.
+        if (typeof img.decode === "function") img.decode().catch(() => {}).finally(done);
+        else done();
+      };
+      img.onerror = () => {
+        failed = true;
+        done();
       };
       img.src = u;
     });
@@ -170,6 +305,8 @@ export function Viewer360({
 
   const onPointerDown = (e: React.PointerEvent) => {
     if (!ready) return;
+    pauseAuto("drag"); // user takes over immediately
+    blendRef.current = VIEWER_360.crossfade;
     velRef.current = 0; // cancel any momentum
     draggingRef.current = false;
     didDragRef.current = false;
@@ -215,6 +352,12 @@ export function Viewer360({
     ensureLoop();
   };
 
+  // Any press (drag or plain tap) holds auto-rotate; it resumes after a short idle.
+  const onPointerEnd = (e: React.PointerEvent) => {
+    releaseAuto("drag", VIEWER_360.autoRotateResumeMs);
+    endDrag(e);
+  };
+
   const frameNo = displayFrame; // 1-based, matches hotspot point keys
   const activeHotspots = media.hotspots.filter((h) => h.points[String(frameNo)]);
 
@@ -224,12 +367,21 @@ export function Viewer360({
 
   return (
     <div
+      ref={rootRef}
       className="relative mx-auto cursor-ew-resize touch-none select-none"
       style={frameStyle}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
-      onPointerUp={endDrag}
-      onPointerCancel={endDrag}
+      onPointerUp={onPointerEnd}
+      onPointerCancel={onPointerEnd}
+      onPointerEnter={(e) => {
+        if (e.pointerType === "mouse") pauseAuto("hover"); // hold still so zone dots can be aimed at
+      }}
+      onPointerLeave={(e) => {
+        if (e.pointerType === "mouse") releaseAuto("hover", VIEWER_360.autoRotateResumeMs);
+      }}
+      onFocus={() => pauseAuto("focus")}
+      onBlur={() => releaseAuto("focus", VIEWER_360.autoRotateResumeMs)}
     >
       {/* 360 label — overlay above the figure so the figure stays centered */}
       {chrome && (
@@ -288,7 +440,7 @@ export function Viewer360({
                   if (didDragRef.current) return; // ignore click that ended a drag
                   if (canApply) router.push(`/atlet/${athleteId}/ajukan?zone=${h.athleteZoneId}`);
                 }}
-                className="group absolute -translate-x-1/2 -translate-y-1/2"
+                className="group absolute z-10 -translate-x-1/2 -translate-y-1/2"
                 style={{ left: `${p.x * 100}%`, top: `${p.y * 100}%` }}
               >
                 <span
