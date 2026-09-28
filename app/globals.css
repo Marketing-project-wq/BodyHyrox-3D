@@ -265,6 +265,29 @@ body {
     0 0 26px 2px rgba(255, 45, 85, 0.5),
     inset 0 0 22px rgba(255, 45, 85, 0.35);
 }
+.stagecard-ring-ticks {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: min(34vw, 430px);
+  width: min(46cqw, 430px);
+  height: 92px;
+  overflow: visible;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  /* Far (top) side dimmer than the near side: reads as a tilted floor. */
+  -webkit-mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.35), #000 70%);
+  mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.35), #000 70%);
+}
+.stagecard-tick {
+  stroke: rgba(255, 120, 140, 0.55);
+  stroke-width: 1.5px;
+}
+.stagecard-tick-major {
+  stroke: rgba(255, 210, 220, 0.95);
+  stroke-width: 2.5px;
+  filter: drop-shadow(0 0 3px rgba(255, 45, 85, 0.9));
+}
 .stagecard-floorglow {
   width: min(28vw, 360px);
   width: min(38cqw, 360px);

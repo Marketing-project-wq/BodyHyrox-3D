@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useRef } from "react";
 import Link from "next/link";
 import { ChevronLeft, ChevronRight, RotateCcw } from "lucide-react";
 import type { PublicAthleteDetail } from "@/lib/data";
@@ -29,11 +29,22 @@ export function AthleteStageCard({
 }) {
   const intl = locale === "id" ? "id-ID" : "en-US";
   const has360 = !!athlete.media360 && athlete.media360.frames.length > 0;
-  const total = has360 ? athlete.media360!.frames.length : 0;
 
-  // Live rotation angle for the top-right readout (0° at the first frame).
-  const [frame, setFrame] = useState(1);
-  const angle = total > 0 ? Math.round(((frame - 1) / total) * 360) % 360 : 0;
+  // Live rotation angle (0° at the first frame) drives the top-right readout and
+  // the platform tick marks. Updated straight on the DOM every animation frame
+  // from the viewer's fractional position, so it moves smoothly with no React
+  // re-renders.
+  const angleRef = useRef<HTMLSpanElement>(null);
+  const ticksRef = useRef<SVGGElement>(null);
+  const onPosition = useCallback((pos: number, n: number) => {
+    const deg = n > 0 ? (pos / n) * 360 : 0;
+    if (angleRef.current) angleRef.current.textContent = `${Math.round(deg) % 360}°`;
+    ticksRef.current?.setAttribute("transform", `rotate(${(VIEWER_360.ringTurnDirection * deg).toFixed(2)})`);
+  }, []);
+  const tickAngles = useMemo(
+    () => Array.from({ length: VIEWER_360.ringTicks }, (_, i) => (i * 360) / VIEWER_360.ringTicks),
+    [],
+  );
 
   // Medal breakdown derived from real race placements (never fabricated).
   const medals = useMemo(() => {
@@ -163,7 +174,7 @@ export function AthleteStageCard({
           {/* Angle readout + hint (top-right of the stage) */}
           {has360 && (
             <div className="pointer-events-none absolute right-1 top-0 z-20 text-right">
-              <div className="font-condensed text-4xl font-bold leading-none sm:text-5xl">{`${angle}°`}</div>
+              <div className="font-condensed text-4xl font-bold leading-none tabular-nums sm:text-5xl"><span ref={angleRef}>0°</span></div>
               <p className="mt-1 hidden max-w-[15rem] font-mono text-[11px] leading-snug text-white/45 sm:block">
                 {m.sc_hint}
               </p>
@@ -178,13 +189,36 @@ export function AthleteStageCard({
               <div className="stagecard-ring-outer" />
               <div className="stagecard-floorglow" />
               <div className="stagecard-ring" />
+              {/* Tick marks on the ring, turning with the figure at the exact angle.
+                  preserveAspectRatio="none" squashes the circle into the ring's
+                  ellipse, so the rotation reads as a tilted turntable. */}
+              <svg className="stagecard-ring-ticks" viewBox="-50 -50 100 100" preserveAspectRatio="none">
+                <g ref={ticksRef}>
+                  {tickAngles.map((a, i) => {
+                    const major = i % (VIEWER_360.ringTicks / 4) === 0;
+                    const r = (a * Math.PI) / 180;
+                    const r1 = major ? 41 : 44;
+                    return (
+                      <line
+                        key={a}
+                        x1={Math.sin(r) * r1}
+                        y1={Math.cos(r) * r1}
+                        x2={Math.sin(r) * 48.5}
+                        y2={Math.cos(r) * 48.5}
+                        className={major ? "stagecard-tick-major" : "stagecard-tick"}
+                        vectorEffect="non-scaling-stroke"
+                      />
+                    );
+                  })}
+                </g>
+              </svg>
             </div>
             {has360 ? (
               <Viewer360
                 athleteId={athlete.id}
                 media={athlete.media360!}
                 m={m}
-                onFrameChange={(f) => setFrame(f)}
+                onPositionChange={onPosition}
                 chrome={false}
               />
             ) : (

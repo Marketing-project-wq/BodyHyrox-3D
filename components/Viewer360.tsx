@@ -15,22 +15,32 @@ export function Viewer360({
   media,
   m,
   onFrameChange,
+  onPositionChange,
   chrome = true,
 }: {
   athleteId: string;
   media: Media360;
   m: Dict;
-  /** Fires when the nearest displayed frame changes (1-based). Used for the angle readout. */
+  /** Fires when the nearest displayed frame changes (1-based). */
   onFrameChange?: (frame: number, total: number) => void;
+  /**
+   * Fires on every painted animation frame with the exact fractional position
+   * (0..total). For per-frame visuals (angle readout, platform markers): write to
+   * the DOM via refs, never React state, so nothing re-renders at 60fps.
+   */
+  onPositionChange?: (pos: number, total: number) => void;
   /** Show the built-in title/counter/hint. Off when the parent supplies its own (stage card). */
   chrome?: boolean;
 }) {
   const router = useRouter();
   const total = media.frames.length;
   const onFrameChangeRef = useRef(onFrameChange);
+  const onPositionChangeRef = useRef(onPositionChange);
   useEffect(() => {
     onFrameChangeRef.current = onFrameChange;
-  }, [onFrameChange]);
+    onPositionChangeRef.current = onPositionChange;
+  }, [onFrameChange, onPositionChange]);
+  const dragBlend = media.crossfade;
   const framesPerPx = total > 0 ? total / VIEWER_360.dragFullTurnPx : 0;
 
   const [ready, setReady] = useState(false);
@@ -77,7 +87,10 @@ export function Viewer360({
     [total],
   );
 
-  // Paint the two nearest frames with crossfade opacity from renderRef.
+  // Paint from renderRef. Blend mode keeps the current frame opaque and fades
+  // the next one in on top (no see-through dip), over the last `window` share
+  // of each step with an eased curve. Only the (up to) two frames in use stay
+  // visible/composited; the rest are hidden so the GPU doesn't hold 18+ layers.
   const paint = useCallback(() => {
     if (total === 0) return;
     const pos = renderRef.current;
@@ -85,42 +98,36 @@ export function Viewer360({
     const frac = pos - Math.floor(pos);
     const next = (base + 1) % total;
     const imgs = imgRefs.current;
-    if (blendRef.current) {
-      // Turntable blend: keep the current frame fully opaque and fade the next
-      // one in on top of it (no see-through dip), only over the last part of
-      // each step and with an eased curve, so the double image is brief.
-      const w = Math.min(1, Math.max(0.05, VIEWER_360.autoRotateBlendWindow));
+    const blending = blendRef.current || dragBlend;
+    let show = base;
+    let a = 0;
+    if (blending) {
+      const win = blendRef.current ? VIEWER_360.autoRotateBlendWindow : VIEWER_360.dragBlendWindow;
+      const w = Math.min(1, Math.max(0.05, win));
       const t = Math.min(1, Math.max(0, (frac - (1 - w)) / w));
-      const a = t * t * (3 - 2 * t);
-      for (let i = 0; i < imgs.length; i++) {
-        const el = imgs[i];
-        if (!el) continue;
-        el.style.opacity = i === base ? "1" : i === next ? String(a) : "0";
-        el.style.zIndex = i === next ? "1" : "";
-      }
-    } else if (VIEWER_360.crossfade) {
-      for (let i = 0; i < imgs.length; i++) {
-        const el = imgs[i];
-        if (!el) continue;
-        el.style.opacity = i === base ? String(1 - frac) : i === next ? String(frac) : "0";
-        el.style.zIndex = "";
-      }
+      a = t * t * (3 - 2 * t);
     } else {
-      const nearest = Math.round(pos) % total;
-      for (let i = 0; i < imgs.length; i++) {
-        const el = imgs[i];
-        if (!el) continue;
-        el.style.opacity = i === nearest ? "1" : "0";
-        el.style.zIndex = "";
-      }
+      show = Math.round(pos) % total;
     }
+    for (let i = 0; i < imgs.length; i++) {
+      const el = imgs[i];
+      if (!el) continue;
+      const isBase = i === show;
+      const isNext = blending && i === next && a > 0;
+      const on = isBase || isNext;
+      el.style.opacity = isBase ? "1" : isNext ? String(a) : "0";
+      el.style.zIndex = isNext ? "1" : "";
+      el.style.visibility = on ? "visible" : "hidden";
+      el.style.willChange = on ? "opacity" : "auto";
+    }
+    onPositionChangeRef.current?.(pos, total);
     const rounded = (Math.round(pos) % total) + 1; // 1-based
     if (rounded !== displayFrameRef.current) {
       displayFrameRef.current = rounded;
       setDisplayFrame(rounded);
       onFrameChangeRef.current?.(rounded, total);
     }
-  }, [total]);
+  }, [total, dragBlend]);
 
   // Single animation loop: momentum moves target, render eases toward target.
   const ensureLoop = useCallback(() => {
@@ -306,7 +313,7 @@ export function Viewer360({
   const onPointerDown = (e: React.PointerEvent) => {
     if (!ready) return;
     pauseAuto("drag"); // user takes over immediately
-    blendRef.current = VIEWER_360.crossfade;
+    blendRef.current = false; // drag uses its own blend (athlete crossfade toggle)
     velRef.current = 0; // cancel any momentum
     draggingRef.current = false;
     didDragRef.current = false;
@@ -410,7 +417,7 @@ export function Viewer360({
             alt=""
             draggable={false}
             className="pointer-events-none absolute inset-0 h-full w-full object-contain"
-            style={{ opacity: i === 0 ? 1 : 0, willChange: "opacity" }}
+            style={{ opacity: i === 0 ? 1 : 0, visibility: i === 0 ? "visible" : "hidden" }}
           />
         ))}
 
