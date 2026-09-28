@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { ChevronLeft, ChevronRight, RotateCcw } from "lucide-react";
 import type { PublicAthleteDetail } from "@/lib/data";
@@ -9,6 +10,22 @@ import { type Dict } from "@/lib/i18n";
 import { tGender } from "@/lib/i18n";
 import { initials } from "@/lib/format";
 import { Viewer360 } from "@/components/Viewer360";
+import type { ArenaHandle } from "@/components/StageArena3D";
+
+// three.js + r3f load only on the client, after first paint, and only when WebGL
+// exists; until then (or without WebGL) the flat CSS ring platform shows.
+const StageArena3D = dynamic(() => import("@/components/StageArena3D").then((mod) => mod.StageArena3D), {
+  ssr: false,
+});
+
+function hasWebGL(): boolean {
+  try {
+    const c = document.createElement("canvas");
+    return !!(window.WebGLRenderingContext && (c.getContext("webgl2") || c.getContext("webgl")));
+  } catch {
+    return false;
+  }
+}
 
 type NeighborLink = { id: string; nama: string } | null;
 
@@ -36,10 +53,22 @@ export function AthleteStageCard({
   // re-renders.
   const angleRef = useRef<HTMLSpanElement>(null);
   const ticksRef = useRef<SVGGElement>(null);
+  // 3D arena: the camera orbits on the same angle (written to a shared handle,
+  // redraw requested only when the angle changes).
+  const arenaHandle = useRef<ArenaHandle>({ angleDeg: 0, invalidate: null });
+  const platformRef = useRef<HTMLDivElement>(null);
+  const figureRef = useRef<HTMLDivElement>(null);
+  const [arenaWanted, setArenaWanted] = useState(false);
+  const [arenaOn, setArenaOn] = useState(false);
+  useEffect(() => {
+    setArenaWanted(hasWebGL());
+  }, []);
   const onPosition = useCallback((pos: number, n: number) => {
     const deg = n > 0 ? (pos / n) * 360 : 0;
     if (angleRef.current) angleRef.current.textContent = `${Math.round(deg) % 360}°`;
     ticksRef.current?.setAttribute("transform", `rotate(${(VIEWER_360.ringTurnDirection * deg).toFixed(2)})`);
+    arenaHandle.current.angleDeg = deg;
+    arenaHandle.current.invalidate?.();
   }, []);
   const tickAngles = useMemo(
     () => Array.from({ length: VIEWER_360.ringTicks }, (_, i) => (i * 360) / VIEWER_360.ringTicks),
@@ -72,7 +101,32 @@ export function AthleteStageCard({
   const figureStyle = viewer360FrameStyle();
 
   return (
-    <section className="relative overflow-hidden rounded-3xl border border-white/10 bg-[#100a0c] shadow-[0_30px_80px_-20px_rgba(0,0,0,0.8)]">
+    <section
+      className={`relative overflow-hidden rounded-3xl border border-white/10 bg-[#100a0c] shadow-[0_30px_80px_-20px_rgba(0,0,0,0.8)] ${
+        arenaOn ? "stagecard-arena-on" : ""
+      }`}
+    >
+      {/* 3D neon arena (behind everything; fades in once WebGL is up) */}
+      {arenaWanted && (
+        <div
+          className="pointer-events-none absolute inset-0 z-0 transition-opacity duration-700"
+          style={{ opacity: arenaOn ? 1 : 0 }}
+          aria-hidden
+        >
+          <StageArena3D
+            handle={arenaHandle}
+            anchorRef={platformRef}
+            figureRef={figureRef}
+            onReady={() => setArenaOn(true)}
+            onFail={() => {
+              setArenaOn(false);
+              setArenaWanted(false);
+            }}
+          />
+        </div>
+      )}
+      {/* Keeps the stats legible over the arena */}
+      {arenaOn && <div className="stagecard-arena-shade pointer-events-none absolute inset-0 z-0" aria-hidden />}
       {/* Ambient red wash + vignette across the whole card */}
       <div
         className="pointer-events-none absolute inset-0 z-0"
@@ -182,10 +236,15 @@ export function AthleteStageCard({
           )}
 
           {/* The figure */}
-          <div className="relative isolate mx-auto w-full" style={{ maxWidth: "min(300px, 78vw)" }}>
+          <div ref={figureRef} className="relative isolate mx-auto w-full" style={{ maxWidth: "min(300px, 78vw)" }}>
             {/* Neon platform, centered on the athlete's feet line and painted before
                 (so behind) the figure — the feet stay uncovered and untinted. */}
-            <div className="stagecard-platform" style={{ bottom: `${VIEWER_360.feetLinePct}%` }} aria-hidden>
+            <div
+              ref={platformRef}
+              className="stagecard-platform"
+              style={{ bottom: `${VIEWER_360.feetLinePct}%` }}
+              aria-hidden
+            >
               <div className="stagecard-ring-outer" />
               <div className="stagecard-floorglow" />
               <div className="stagecard-ring" />
