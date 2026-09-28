@@ -146,12 +146,29 @@ export const VIEWER_360 = {
  * used for each view is data (smb_athlete_media_360.views, picked in admin).
  */
 export const VIEWER_VIEWS = {
-  /** Photo crossfade + platform/camera 90° turn duration (ms). */
-  transitionMs: 520,
-  /** Minimum horizontal swipe (px) on the photo to switch view. */
-  swipeThresholdPx: 40,
-  /** Degrees between neighbouring views (camera turn per step). */
-  stepDeg: 90,
+  /**
+   * One orbit angle drives everything during a view change (3D arena camera,
+   * fallback ring, athlete photo frames). Duration for a 90° / 180° turn (ms);
+   * shorter snaps (after a swipe) scale down from `minTurnMs`.
+   */
+  turnMs90: 800,
+  turnMs180: 1000,
+  minTurnMs: 260,
+  /** Horizontal drag distance (px) that turns the view by 90° (swipe follows the finger). */
+  dragPxPer90: 170,
+  /** Movement (px) before a press becomes a horizontal drag. */
+  dragStartPx: 8,
+  /** Release velocity (px/ms) that flicks to the next view even if not dragged halfway. */
+  flickVelocity: 0.45,
+  /** Zone markers fade out while turning and back in on the new view (ms). */
+  markerFadeMs: 160,
+  /**
+   * Fallback when in-between photos aren't loaded / usable: crossfade the two
+   * view photos with a light "turn" — slight horizontal squeeze and shift in the
+   * turn direction at mid-way (kept subtle so it never reads as a card flip).
+   */
+  fallbackSqueeze: 0.05,
+  fallbackShiftPct: 3,
 } as const;
 
 /**
@@ -182,6 +199,15 @@ export const STAGE_ARENA = {
   pillars: 10,
   /** Max device pixel ratio for the WebGL canvas (keeps phones smooth). */
   maxDpr: 1.75,
+  /** Touch devices: lower canvas resolution and no MSAA (phones are fill-rate bound). */
+  touchMaxDpr: 1.25,
+  /**
+   * Safety net for weak phones: if view turns render below this frame rate
+   * (average over a whole turn) `slowTurnsToDisable` times, the 3D arena is
+   * switched off for the visit and the light CSS ring platform is used.
+   */
+  minTurnFps: 24,
+  slowTurnsToDisable: 2,
 } as const;
 
 /**

@@ -1,167 +1,254 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { Media360 } from "@/lib/data";
-import { VIEW_KEYS } from "@/lib/views";
+import { VIEW_ANGLES, VIEW_KEYS, frameAngles } from "@/lib/views";
 import { VIEWER_VIEWS, viewer360FrameStyle } from "@/lib/config";
 import { type Dict } from "@/lib/i18n";
 import { formatIDR } from "@/lib/format";
 
+/** Imperative API: the stage card's single orbit loop paints the athlete here. */
+export type AthleteViewsHandle = {
+  /** Paint the athlete at this orbit angle (deg, any real number). `moving` hides zone markers. */
+  render: (angleDeg: number, moving: boolean) => void;
+};
+
+type DragCallbacks = {
+  onDragStart: () => void;
+  /** Horizontal finger/mouse offset since the drag started (px, + = right). */
+  onDragMove: (dxPx: number) => void;
+  /** Release velocity (px/ms, + = right). */
+  onDragEnd: (vxPxPerMs: number) => void;
+};
+
+const norm360 = (a: number) => ((a % 360) + 360) % 360;
+
 /**
- * Fixed 4-view athlete photo (Depan / Kanan / Belakang / Kiri). Controlled: the
- * parent owns the active view (tabs, arrows) and this component crossfades to
- * it. Only the four view photos are loaded — and decoded up front — so switching
- * is instant. Swipe (phones) and ←/→ (keyboard) ask the parent to step.
+ * Athlete photo, painted from one orbit angle. With the in-between frames loaded
+ * the figure really turns (two nearest frames blended by the exact angle: the
+ * lower one opaque, the upper fading in on top); until then — or if the frame
+ * order can't be mapped to angles — only the four view photos are used, with a
+ * subtle squeeze/shift as a "turn" cue. The four view photos load first; the
+ * in-between frames stream in afterwards in the background.
  */
-export function AthleteViews({
-  athleteId,
-  media,
-  view,
-  onStep,
-  m,
-  label,
-}: {
-  athleteId: string;
-  media: Media360;
-  /** Active view index into VIEW_KEYS (0 = front). */
-  view: number;
-  /** Swipe / arrow-key request: +1 = next (to the right), -1 = previous. */
-  onStep: (delta: 1 | -1) => void;
-  m: Dict;
-  /** Accessible name for the photo region. */
-  label: string;
-}) {
+export const AthleteViews = forwardRef<
+  AthleteViewsHandle,
+  {
+    athleteId: string;
+    media: Media360;
+    /** Settled view index (0 Depan … 3 Kiri) — which zone markers to show. */
+    view: number;
+    m: Dict;
+    label: string;
+    /** ←/→ keys: +1 = next (Kanan direction), -1 = previous. */
+    onStep: (delta: 1 | -1) => void;
+  } & DragCallbacks
+>(function AthleteViews({ athleteId, media, view, m, label, onStep, onDragStart, onDragMove, onDragEnd }, ref) {
   const router = useRouter();
   const base = media.baseUrl.replace(/\/$/, "");
-  const files = VIEW_KEYS.map((k) => media.views?.[k] ?? media.frames[0]);
-  const urls = files.map((f) => `${base}/${f}`);
+  const frames = media.frames;
+  const viewFiles = VIEW_KEYS.map((k) => media.views?.[k] ?? frames[0]);
+  const viewIdx = viewFiles.map((f) => Math.max(0, frames.indexOf(f)));
+  const angles = useMemo(() => frameAngles(frames, media.views), [frames, media.views]);
 
-  const [ready, setReady] = useState(false);
-  const [reduced, setReduced] = useState(false);
   const imgRefs = useRef<(HTMLImageElement | null)[]>([]);
-  const topRef = useRef(view); // photo fading in / shown
-  const underRef = useRef<number | null>(null); // previous photo held opaque underneath
-  const startRef = useRef(0);
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const swipeRef = useRef<{ x: number; y: number; id: number } | null>(null);
+  const stackRef = useRef<HTMLDivElement>(null);
+  const markersRef = useRef<HTMLDivElement>(null);
+  const loadedRef = useRef<Set<number>>(new Set());
+  const fullRef = useRef(false); // all frames decoded and angle-mapped -> real turn
+  const lastRef = useRef<{ a: number; moving: boolean }>({ a: 0, moving: false });
+  const [ready, setReady] = useState(false);
+  const [phase2, setPhase2] = useState(false); // in-between frames requested
 
-  useEffect(() => {
-    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
-    const update = () => setReduced(mq.matches);
-    update();
-    mq.addEventListener("change", update);
-    return () => mq.removeEventListener("change", update);
-  }, []);
+  const url = useCallback((i: number) => `${base}/${frames[i]}`, [base, frames]);
 
-  // Load + decode the four view photos before enabling (no flash on switch).
+  const decode = (u: string) =>
+    new Promise<boolean>((res) => {
+      const img = new Image();
+      img.onload = () => {
+        if (typeof img.decode === "function") img.decode().then(() => res(true), () => res(true));
+        else res(true);
+      };
+      img.onerror = () => res(false);
+      img.src = u;
+    });
+
+  // Keyframes for the current mode: every frame (real turn) or the 4 views.
+  const keyframes = useCallback((): { a: number; i: number }[] => {
+    if (fullRef.current && angles) return angles.map((a, i) => ({ a, i })).sort((x, y) => x.a - y.a);
+    return VIEW_ANGLES.map((a, k) => ({ a, i: viewIdx[k] }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [angles, viewIdx.join(",")]);
+
+  const paint = useCallback(
+    (angleDeg: number, moving: boolean) => {
+      lastRef.current = { a: angleDeg, moving };
+      const imgs = imgRefs.current;
+      const A = norm360(angleDeg);
+      const kf = keyframes();
+      // Bracket A between two keyframes (wrapping 360 -> first).
+      let lo = kf[kf.length - 1];
+      let hi = { a: kf[0].a + 360, i: kf[0].i };
+      let loA = lo.a - 360;
+      for (let k = 0; k < kf.length; k++) {
+        const nextA = k + 1 < kf.length ? kf[k + 1].a : kf[0].a + 360;
+        if (A >= kf[k].a && A < nextA) {
+          lo = kf[k];
+          loA = kf[k].a;
+          hi = { a: nextA, i: k + 1 < kf.length ? kf[k + 1].i : kf[0].i };
+          break;
+        }
+      }
+      const span = hi.a - loA || 1;
+      const t = Math.min(1, Math.max(0, (A - loA) / span));
+      const EPS = 0.002;
+      for (let i = 0; i < imgs.length; i++) {
+        const el = imgs[i];
+        if (!el) continue;
+        const isLo = i === lo.i;
+        const isHi = i === hi.i && t > EPS && hi.i !== lo.i;
+        el.style.opacity = isLo ? "1" : isHi ? String(t) : "0";
+        el.style.zIndex = isHi ? "2" : isLo ? "1" : "0";
+        el.style.visibility = isLo || isHi ? "visible" : "hidden";
+      }
+      // Fallback "turn" cue (only when stepping between the 4 view photos).
+      const stack = stackRef.current;
+      if (stack) {
+        if (!fullRef.current && moving) {
+          const s = Math.sin(Math.PI * t);
+          stack.style.transform = `translateX(${(VIEWER_VIEWS.fallbackShiftPct * s).toFixed(2)}%) scaleX(${(
+            1 -
+            VIEWER_VIEWS.fallbackSqueeze * s
+          ).toFixed(4)})`;
+        } else {
+          stack.style.transform = "";
+        }
+      }
+      // Zone markers: hidden while turning, back on the settled view.
+      const mk = markersRef.current;
+      if (mk) {
+        mk.style.opacity = moving ? "0" : "1";
+        mk.style.visibility = moving ? "hidden" : "visible";
+      }
+    },
+    [keyframes],
+  );
+
+  useImperativeHandle(ref, () => ({ render: paint }), [paint]);
+
+  // Phase 1: the four view photos (so the page is usable fast).
   useEffect(() => {
     let alive = true;
-    const unique = Array.from(new Set(urls));
-    Promise.all(
-      unique.map(
-        (u) =>
-          new Promise<void>((res) => {
-            const img = new Image();
-            img.onload = () => {
-              if (typeof img.decode === "function") img.decode().catch(() => {}).finally(res);
-              else res();
-            };
-            img.onerror = () => res();
-            img.src = u;
-          }),
-      ),
-    ).then(() => {
-      if (alive) setReady(true);
+    const uniq = Array.from(new Set(viewIdx));
+    Promise.all(uniq.map((i) => decode(url(i)).then((ok) => ok && loadedRef.current.add(i)))).then(() => {
+      if (!alive) return;
+      setReady(true);
+      setPhase2(true);
     });
     return () => {
       alive = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [urls.join("|")]);
+  }, [base, frames.join("|"), viewIdx.join(",")]);
 
-  // Crossfade to the requested view: the new photo fades in ON TOP of the old
-  // one (which stays fully opaque, so the body never looks see-through), then
-  // the old one is hidden. A click mid-transition retargets without a glitch:
-  // whichever photo is more visible right now becomes the base underneath.
+  // Phase 2: in-between frames, decoded in the background. The real turn is
+  // switched on only while the figure is at rest, so a transition never changes
+  // mode half-way.
   useEffect(() => {
-    const imgs = imgRefs.current;
-    const target = view;
-    const prevTop = topRef.current;
-    if (target === prevTop) return;
-    const dur = reduced ? 0 : VIEWER_VIEWS.transitionMs;
-    const now = performance.now();
-    let under = prevTop;
-    if (underRef.current !== null && dur > 0 && (now - startRef.current) / dur < 0.5) under = underRef.current;
-    if (timerRef.current) clearTimeout(timerRef.current);
-
-    imgs.forEach((el, i) => {
-      if (!el) return;
-      el.style.transition = "none";
-      const isTarget = i === target;
-      const isUnder = i === under && dur > 0;
-      el.style.zIndex = isTarget ? "2" : isUnder ? "1" : "0";
-      el.style.opacity = isUnder ? "1" : isTarget ? (dur > 0 ? "0" : "1") : "0";
-      el.style.visibility = isTarget || isUnder ? "visible" : "hidden";
-    });
-    topRef.current = target;
-    underRef.current = dur > 0 ? under : null;
-    startRef.current = now;
-
-    if (dur > 0) {
-      const el = imgs[target];
-      if (el) {
-        void el.offsetWidth; // commit opacity 0 before animating
-        el.style.transition = `opacity ${dur}ms cubic-bezier(0.4, 0, 0.2, 1)`;
-        el.style.opacity = "1";
+    if (!phase2 || !angles) return;
+    let alive = true;
+    (async () => {
+      for (let i = 0; i < frames.length; i++) {
+        if (!alive) return;
+        if (loadedRef.current.has(i)) continue;
+        if (await decode(url(i))) loadedRef.current.add(i);
       }
-      timerRef.current = setTimeout(() => {
-        const u = underRef.current;
-        if (u !== null && u !== topRef.current && imgs[u]) {
-          imgs[u]!.style.opacity = "0";
-          imgs[u]!.style.visibility = "hidden";
+      if (!alive || loadedRef.current.size < frames.length) return;
+      const arm = () => {
+        if (!alive) return;
+        if (lastRef.current.moving) {
+          setTimeout(arm, 120);
+          return;
         }
-        underRef.current = null;
-      }, dur + 40);
-    }
-  }, [view, reduced]);
+        fullRef.current = true;
+        paint(lastRef.current.a, false);
+      };
+      arm();
+    })();
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase2, angles]);
 
-  useEffect(
-    () => () => {
-      if (timerRef.current) clearTimeout(timerRef.current);
-    },
-    [],
-  );
+  // Repaint once the view photos are ready (and whenever the image set changes).
+  useEffect(() => {
+    if (ready) paint(lastRef.current.a, lastRef.current.moving);
+  }, [ready, paint]);
 
-  // Zones: hotspot points are stored per 1-based frame number; show the ones
-  // for the frame this view uses.
-  const frameNo = String(media.frames.indexOf(files[view]) + 1);
-  const activeHotspots = media.hotspots.filter((h) => h.points[frameNo]);
+  // Drag (mouse + touch). Only a mostly-horizontal gesture becomes a drag, so
+  // vertical page scrolling on phones keeps working (touch-action: pan-y).
+  const dragRef = useRef<{
+    id: number;
+    x0: number;
+    y0: number;
+    active: boolean;
+    samples: { t: number; x: number }[];
+  } | null>(null);
 
   const onPointerDown = (e: React.PointerEvent) => {
-    swipeRef.current = { x: e.clientX, y: e.clientY, id: e.pointerId };
+    if (!ready) return;
+    dragRef.current = { id: e.pointerId, x0: e.clientX, y0: e.clientY, active: false, samples: [{ t: performance.now(), x: e.clientX }] };
   };
-  const onPointerUp = (e: React.PointerEvent) => {
-    const s = swipeRef.current;
-    swipeRef.current = null;
-    if (!s || s.id !== e.pointerId) return;
-    const dx = e.clientX - s.x;
-    const dy = e.clientY - s.y;
-    if (Math.abs(dx) >= VIEWER_VIEWS.swipeThresholdPx && Math.abs(dx) > Math.abs(dy) * 1.2) {
-      onStep(dx < 0 ? 1 : -1); // swipe left = next side
+  const onPointerMove = (e: React.PointerEvent) => {
+    const d = dragRef.current;
+    if (!d || d.id !== e.pointerId) return;
+    const dx = e.clientX - d.x0;
+    const dy = e.clientY - d.y0;
+    if (!d.active) {
+      if (Math.abs(dx) < VIEWER_VIEWS.dragStartPx || Math.abs(dx) < Math.abs(dy)) {
+        if (Math.abs(dy) > VIEWER_VIEWS.dragStartPx * 2) dragRef.current = null; // it's a scroll
+        return;
+      }
+      d.active = true;
+      try {
+        (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+      } catch {
+        /* no-op */
+      }
+      onDragStart();
     }
+    const now = performance.now();
+    d.samples.push({ t: now, x: e.clientX });
+    while (d.samples.length > 2 && now - d.samples[0].t > 90) d.samples.shift();
+    onDragMove(dx);
   };
+  const endDrag = (e: React.PointerEvent) => {
+    const d = dragRef.current;
+    dragRef.current = null;
+    if (!d || d.id !== e.pointerId || !d.active) return;
+    const s = d.samples;
+    const first = s[0];
+    const last = s[s.length - 1];
+    const dt = last.t - first.t;
+    onDragEnd(dt > 0 ? (last.x - first.x) / dt : 0);
+  };
+
+  const frameNo = String(viewIdx[view] + 1);
+  const activeHotspots = media.hotspots.filter((h) => h.points[frameNo]);
 
   return (
     <div
-      className="relative mx-auto select-none outline-none focus-visible:ring-2 focus-visible:ring-[#ff2d55]/70 focus-visible:ring-offset-0"
+      className="relative mx-auto select-none outline-none focus-visible:ring-2 focus-visible:ring-[#ff2d55]/70"
       style={{ ...viewer360FrameStyle(), touchAction: "pan-y" }}
       tabIndex={0}
       role="group"
       aria-label={label}
       onPointerDown={onPointerDown}
-      onPointerUp={onPointerUp}
-      onPointerCancel={() => (swipeRef.current = null)}
+      onPointerMove={onPointerMove}
+      onPointerUp={endDrag}
+      onPointerCancel={endDrag}
       onKeyDown={(e) => {
         if (e.key === "ArrowRight") {
           e.preventDefault();
@@ -175,58 +262,75 @@ export function AthleteViews({
       {/* Ground-contact shadow (behind the photo) so the athlete stands, not floats */}
       <div className="stage-contact" aria-hidden />
 
-      {urls.map((u, i) => (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          key={VIEW_KEYS[i]}
-          ref={(el) => {
-            imgRefs.current[i] = el;
-          }}
-          src={u}
-          alt=""
-          draggable={false}
-          decoding="async"
-          className="pointer-events-none absolute inset-0 h-full w-full object-contain"
-          style={{ opacity: i === view ? 1 : 0, visibility: i === view ? "visible" : "hidden", zIndex: i === view ? 2 : 0 }}
-        />
-      ))}
+      <div ref={stackRef} className="absolute inset-0" style={{ transformOrigin: "50% 100%" }}>
+        {frames.map((f, i) => {
+          const isView = viewIdx.includes(i);
+          const src = isView || phase2 ? url(i) : undefined;
+          const first = i === viewIdx[0];
+          return (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              key={f}
+              ref={(el) => {
+                imgRefs.current[i] = el;
+              }}
+              src={src}
+              alt=""
+              draggable={false}
+              decoding="async"
+              className="pointer-events-none absolute inset-0 h-full w-full object-contain"
+              style={{ opacity: first ? 1 : 0, visibility: first ? "visible" : "hidden", zIndex: first ? 1 : 0 }}
+            />
+          );
+        })}
+      </div>
 
       {!ready && (
         <div className="absolute inset-0 z-10 flex items-center justify-center text-xs text-white/60">{m.v360_loading}</div>
       )}
 
-      {ready &&
-        activeHotspots.map((h) => {
-          const p = h.points[frameNo];
-          const taken = h.status === "terisi";
-          const canApply = !!h.athleteZoneId && h.status === "tersedia";
-          return (
-            <button
-              key={h.label + frameNo}
-              type="button"
-              title={
-                h.zoneNama
-                  ? `${h.zoneNama}${h.effectivePrice != null && !taken ? " · " + formatIDR(h.effectivePrice) : taken ? " · " + m.v360_taken : ""}`
-                  : h.label
-              }
-              onClick={() => {
-                if (canApply) router.push(`/atlet/${athleteId}/ajukan?zone=${h.athleteZoneId}`);
-              }}
-              className="group absolute z-10 -translate-x-1/2 -translate-y-1/2"
-              style={{ left: `${p.x * 100}%`, top: `${p.y * 100}%` }}
-            >
-              <span
-                className={`block h-3.5 w-3.5 rounded-full border-2 border-white shadow ${
-                  taken ? "bg-white/40" : "bg-[#ff3b57]"
-                } ${canApply ? "cursor-pointer" : "cursor-default"}`}
-              />
-              <span className="pointer-events-none absolute left-1/2 top-5 hidden -translate-x-1/2 whitespace-nowrap rounded-md bg-black/85 px-2 py-1 text-[10px] text-white group-hover:block">
-                {h.zoneNama ?? h.label}
-                {taken ? ` · ${m.v360_taken}` : h.effectivePrice != null ? ` · ${formatIDR(h.effectivePrice)}` : ""}
-              </span>
-            </button>
-          );
-        })}
+      <div
+        ref={markersRef}
+        className="absolute inset-0 z-10"
+        style={{
+          transition: `opacity ${VIEWER_VIEWS.markerFadeMs}ms ease, visibility ${VIEWER_VIEWS.markerFadeMs}ms`,
+          pointerEvents: "none",
+        }}
+      >
+        {ready &&
+          activeHotspots.map((h) => {
+            const p = h.points[frameNo];
+            const taken = h.status === "terisi";
+            const canApply = !!h.athleteZoneId && h.status === "tersedia";
+            return (
+              <button
+                key={h.label + frameNo}
+                type="button"
+                title={
+                  h.zoneNama
+                    ? `${h.zoneNama}${h.effectivePrice != null && !taken ? " · " + formatIDR(h.effectivePrice) : taken ? " · " + m.v360_taken : ""}`
+                    : h.label
+                }
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={() => {
+                  if (canApply) router.push(`/atlet/${athleteId}/ajukan?zone=${h.athleteZoneId}`);
+                }}
+                className="group pointer-events-auto absolute -translate-x-1/2 -translate-y-1/2"
+                style={{ left: `${p.x * 100}%`, top: `${p.y * 100}%` }}
+              >
+                <span
+                  className={`block h-3.5 w-3.5 rounded-full border-2 border-white shadow ${
+                    taken ? "bg-white/40" : "bg-[#ff3b57]"
+                  } ${canApply ? "cursor-pointer" : "cursor-default"}`}
+                />
+                <span className="pointer-events-none absolute left-1/2 top-5 hidden -translate-x-1/2 whitespace-nowrap rounded-md bg-black/85 px-2 py-1 text-[10px] text-white group-hover:block">
+                  {h.zoneNama ?? h.label}
+                  {taken ? ` · ${m.v360_taken}` : h.effectivePrice != null ? ` · ${formatIDR(h.effectivePrice)}` : ""}
+                </span>
+              </button>
+            );
+          })}
+      </div>
     </div>
   );
-}
+});

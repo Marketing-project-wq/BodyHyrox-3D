@@ -288,6 +288,49 @@ body {
   stroke-width: 2.5px;
   filter: drop-shadow(0 0 3px rgba(255, 45, 85, 0.9));
 }
+/* Stage view readout (name + angle + hint). Font scales with the stage column
+   (container query units) so long names ("BELAKANG") always fit. */
+.stagecard-readout {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 0.5rem;
+  text-align: center;
+}
+.stagecard-readout-name {
+  font-size: clamp(1.35rem, 8cqw, 2rem);
+}
+.stagecard-readout-hint {
+  display: none;
+}
+@media (min-width: 640px) {
+  .stagecard-readout {
+    left: auto;
+    right: 0.25rem;
+    display: block;
+    text-align: right;
+    /* the space right of the (max 300px wide, centred) figure, minus a gap */
+    max-width: calc(50% - 130px);
+  }
+  .stagecard-readout-name {
+    /* one line; sized so the longest name (~8 condensed caps) fits the space
+       beside the figure: (half the column - figure half-width) / ~4.6em */
+    font-size: clamp(1.25rem, calc((50cqw - 130px) / 4.6), 3rem);
+    white-space: nowrap;
+  }
+  .stagecard-readout-deg {
+    margin-top: 0.25rem;
+  }
+  .stagecard-readout-hint {
+    display: block;
+    margin-top: 0.25rem;
+  }
+}
+
 /* With the 3D arena running, its hexagon platform replaces the flat CSS ring
    (which stays as the no-WebGL fallback). */
 .stagecard-arena-on .stagecard-ring-outer,
