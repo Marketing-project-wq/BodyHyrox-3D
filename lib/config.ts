@@ -160,6 +160,13 @@ export const VIEWER_360 = {
   maxHeightSvh: 60,
   maxHeightPx: 560,
   maxWidthPx: 300,
+  /**
+   * Where the athlete's feet sit, as % of the frame height measured from the
+   * bottom (normalized frames stand on a common baseline at ~96.5% down). The
+   * stage card centers its neon platform ring on this line so the athlete
+   * stands on it instead of floating above or sinking through it.
+   */
+  feetLinePct: 3.5,
 } as const;
 
 /**
