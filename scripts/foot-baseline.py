@@ -10,12 +10,16 @@ image size (0..1, origin top-left):
   back    lowest row of the other foot (higher on screen when one foot is
           behind the other, e.g. side / 3/4 views)
   left, right   horizontal extent of the feet in the bottom band
+  soles   one entry per shoe (max 2): [x0, x1, b] = the sole's contact span
+          (columns whose lowest pixel is within --contact of that shoe's
+          bottom) and its bottom row; the viewer draws a contact shadow
+          right under each sole
 Opaque = alpha > 0.5; connected specks smaller than --min-area px are ignored so
 cut-out fringe/noise can't fake a lower "floor".
 
 Usage (reusable for any athlete):
   python3 scripts/foot-baseline.py public/media/atlet-360/<slug> [--pattern 'frame_*.webp']
-Writes <folder>/feet.json:  {"version":1, "frames": {"frame_00.webp": {...}, ...}}
+Writes <folder>/feet.json:  {"version":2, "frames": {"frame_00.webp": {...}, ...}}
 The viewer loads it if present; otherwise it measures the same way in the
 browser at load time.
 """
@@ -36,7 +40,7 @@ except Exception:  # pragma: no cover
     ndimage = None
 
 
-def measure(path: str, min_area: int, band: float) -> dict:
+def measure(path: str, min_area: int, band: float, contact: float) -> dict:
     a = np.array(Image.open(path).convert("RGBA"))[:, :, 3].astype(np.float32) / 255.0
     h, w = a.shape
     m = a > 0.5
@@ -61,11 +65,41 @@ def measure(path: str, min_area: int, band: float) -> dict:
         return top + int(r.max()) if len(r) else toe
 
     feet = sorted([low(slice(left, cx)), low(slice(cx, right + 1))])
+
+    # Per-shoe soles: split the feet band into column runs (gaps under 2% of
+    # the width are bridged), keep the two widest, and per run take the
+    # columns whose lowest opaque pixel is near that run's bottom.
+    colbot = np.full(w, -1)
+    for x in range(left, right + 1):
+        r = np.where(reg[:, x])[0]
+        if len(r):
+            colbot[x] = top + int(r.max())
+    runs, start, gap = [], None, 0
+    bridge = max(2, int(0.02 * w))
+    for x in range(left, right + 2):
+        on = x <= right and colbot[x] >= 0
+        if on:
+            if start is None:
+                start = x
+            gap, end = 0, x
+        elif start is not None:
+            gap += 1
+            if gap > bridge or x > right:
+                runs.append((start, end))
+                start, gap = None, 0
+    runs = sorted(sorted(runs, key=lambda r: r[1] - r[0], reverse=True)[:2])
+    soles = []
+    for x0, x1 in runs:
+        cb = colbot[x0 : x1 + 1]
+        b = int(cb.max())
+        near = np.where(cb >= b - contact * h)[0]
+        soles.append([round((x0 + int(near.min())) / w, 5), round((x0 + int(near.max()) + 1) / w, 5), round((b + 1) / h, 5)])
     return {
         "toe": round((toe + 1) / h, 5),
         "back": round((feet[0] + 1) / h, 5),
         "left": round(left / w, 5),
         "right": round((right + 1) / w, 5),
+        "soles": soles,
     }
 
 
@@ -75,14 +109,15 @@ def main() -> int:
     ap.add_argument("--pattern", default="frame_*.webp")
     ap.add_argument("--min-area", type=int, default=40, help="Ignore opaque specks smaller than this (px).")
     ap.add_argument("--band", type=float, default=0.10, help="Height of the feet band above the toe (fraction).")
+    ap.add_argument("--contact", type=float, default=0.012, help="Sole contact tolerance above a shoe's bottom (fraction of height).")
     args = ap.parse_args()
     files = sorted(glob.glob(os.path.join(args.folder, args.pattern)))
     if not files:
         print("no frames found", file=sys.stderr)
         return 1
-    out = {"version": 1, "frames": {}}
+    out = {"version": 2, "frames": {}}
     for f in files:
-        out["frames"][os.path.basename(f)] = measure(f, args.min_area, args.band)
+        out["frames"][os.path.basename(f)] = measure(f, args.min_area, args.band, args.contact)
     dst = os.path.join(args.folder, "feet.json")
     with open(dst, "w") as fh:
         json.dump(out, fh, indent=1)

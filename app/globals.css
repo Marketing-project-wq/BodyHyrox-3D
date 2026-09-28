@@ -305,10 +305,10 @@ body {
   border-radius: 50%;
 }
 .stage-shadow-core {
-  background: radial-gradient(50% 50% at 50% 50%, rgba(0, 0, 0, 0.82), rgba(0, 0, 0, 0.55) 45%, transparent 75%);
+  background: radial-gradient(50% 50% at 50% 50%, rgba(0, 0, 0, 0.92), rgba(0, 0, 0, 0.7) 40%, rgba(0, 0, 0, 0.25) 70%, transparent 100%);
 }
 .stage-shadow-soft {
-  background: radial-gradient(50% 50% at 50% 50%, rgba(0, 0, 0, 0.42), rgba(0, 0, 0, 0.16) 55%, transparent 80%);
+  background: radial-gradient(50% 50% at 50% 50%, rgba(0, 0, 0, 0.62), rgba(0, 0, 0, 0.3) 55%, transparent 100%);
 }
 
 /* Stage view readout (name + angle + hint). Font scales with the stage column
