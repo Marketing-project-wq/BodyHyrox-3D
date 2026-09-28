@@ -229,43 +229,46 @@ body {
     height: calc(82% + var(--stagecard-spot-lift));
   }
 }
-.stagecard-ring-outer {
+/* Zero-size anchor on the athlete's feet line (bottom set inline from config).
+   Lives inside the figure wrapper, before the viewer, so every ring paints
+   behind the athlete. Widths use cqw = the stage column (container-type set
+   there), with a vw fallback for browsers without container queries. */
+.stagecard-platform {
   position: absolute;
   left: 50%;
-  bottom: 12%;
-  z-index: 0;
-  width: min(74%, 760px);
-  height: 150px;
+  width: 0;
+  height: 0;
   pointer-events: none;
-  transform: translateX(-50%);
+}
+.stagecard-ring-outer,
+.stagecard-ring,
+.stagecard-floorglow {
+  position: absolute;
+  left: 0;
+  top: 0;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
   border-radius: 50%;
+}
+.stagecard-ring-outer {
+  width: min(56vw, 760px);
+  width: min(74cqw, 760px);
+  height: 150px;
   border: 1px solid rgba(255, 45, 85, 0.16);
 }
 .stagecard-ring {
-  position: absolute;
-  left: 50%;
-  bottom: 15.5%;
-  z-index: 1;
-  width: min(46%, 430px);
+  width: min(34vw, 430px);
+  width: min(46cqw, 430px);
   height: 92px;
-  pointer-events: none;
-  transform: translateX(-50%);
-  border-radius: 50%;
   border: 2px solid rgba(255, 45, 85, 0.92);
   box-shadow:
     0 0 26px 2px rgba(255, 45, 85, 0.5),
     inset 0 0 22px rgba(255, 45, 85, 0.35);
 }
 .stagecard-floorglow {
-  position: absolute;
-  left: 50%;
-  bottom: 15%;
-  z-index: 1;
-  width: min(38%, 360px);
+  width: min(28vw, 360px);
+  width: min(38cqw, 360px);
   height: 72px;
-  pointer-events: none;
-  transform: translateX(-50%);
-  border-radius: 50%;
   background: radial-gradient(
     50% 62% at 50% 50%,
     rgba(255, 45, 85, 0.6),

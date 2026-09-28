@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { ChevronLeft, ChevronRight, RotateCcw } from "lucide-react";
 import type { PublicAthleteDetail } from "@/lib/data";
-import { viewer360FrameStyle } from "@/lib/config";
+import { VIEWER_360, viewer360FrameStyle } from "@/lib/config";
 import { type Dict } from "@/lib/i18n";
 import { tGender } from "@/lib/i18n";
 import { initials } from "@/lib/format";
@@ -154,12 +154,11 @@ export function AthleteStageCard({
         </div>
 
         {/* ------------------------------------------------- RIGHT: 360 stage */}
-        <div className="relative flex min-h-[56vh] items-center justify-center pt-10 lg:min-h-[72vh] lg:pt-0">
-          {/* Stage backdrops (spotlight cone + neon platform), centered on the figure */}
+        {/* container-type lets the platform (anchored inside the figure) size itself
+            against this column's width; pb reserves room for the CTA below the ring. */}
+        <div className="relative flex min-h-[56vh] items-center justify-center pb-20 pt-10 [container-type:inline-size] lg:min-h-[72vh] lg:pt-0">
+          {/* Spotlight cone behind everything, from the card's top edge */}
           <div className="stagecard-spot" aria-hidden />
-          <div className="stagecard-ring-outer" aria-hidden />
-          <div className="stagecard-ring" aria-hidden />
-          <div className="stagecard-floorglow" aria-hidden />
 
           {/* Angle readout + hint (top-right of the stage) */}
           {has360 && (
@@ -172,7 +171,14 @@ export function AthleteStageCard({
           )}
 
           {/* The figure */}
-          <div className="relative mx-auto w-full" style={{ maxWidth: "min(300px, 78vw)" }}>
+          <div className="relative isolate mx-auto w-full" style={{ maxWidth: "min(300px, 78vw)" }}>
+            {/* Neon platform, centered on the athlete's feet line and painted before
+                (so behind) the figure — the feet stay uncovered and untinted. */}
+            <div className="stagecard-platform" style={{ bottom: `${VIEWER_360.feetLinePct}%` }} aria-hidden>
+              <div className="stagecard-ring-outer" />
+              <div className="stagecard-floorglow" />
+              <div className="stagecard-ring" />
+            </div>
             {has360 ? (
               <Viewer360
                 athleteId={athlete.id}
