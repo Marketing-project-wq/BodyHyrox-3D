@@ -5,12 +5,12 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { ChevronLeft, ChevronRight, RotateCcw } from "lucide-react";
 import type { PublicAthleteDetail } from "@/lib/data";
-import { VIEWER_360, VIEWER_VIEWS, viewer360FrameStyle } from "@/lib/config";
+import { STAGE_ARENA, VIEWER_360, VIEWER_VIEWS, viewer360FrameStyle } from "@/lib/config";
 import { VIEW_KEYS } from "@/lib/views";
 import { type Dict } from "@/lib/i18n";
 import { tGender } from "@/lib/i18n";
 import { initials } from "@/lib/format";
-import { AthleteViews } from "@/components/AthleteViews";
+import { AthleteViews, type AthleteViewsHandle } from "@/components/AthleteViews";
 import type { ArenaHandle } from "@/components/StageArena3D";
 
 // three.js + r3f load only on the client, after first paint, and only when WebGL
@@ -66,37 +66,75 @@ export function AthleteStageCard({
     setArenaWanted(hasWebGL());
   }, []);
 
-  const camRef = useRef(0); // current continuous camera angle (deg)
-  const camTargetRef = useRef(0);
+  // ONE orbit angle (deg, continuous) is the single source of truth. Every
+  // animation frame the same value is pushed to the 3D arena camera, the
+  // fallback ring ticks and the athlete photo renderer, so stage and athlete
+  // always turn together.
+  const viewsRef = useRef<AthleteViewsHandle>(null);
+  const angleRef = useRef(0); // what is painted now
+  const targetRef = useRef(0); // where the current turn ends (multiple of 90)
   const tweenRef = useRef<number | null>(null);
-  const applyCam = useCallback((deg: number) => {
-    camRef.current = deg;
+  const dragBaseRef = useRef<number | null>(null);
+  const renderAt = useCallback((deg: number, moving: boolean) => {
+    angleRef.current = deg;
     ticksRef.current?.setAttribute("transform", `rotate(${(VIEWER_360.ringTurnDirection * deg).toFixed(2)})`);
     arenaHandle.current.angleDeg = deg;
     arenaHandle.current.invalidate?.();
+    viewsRef.current?.render(deg, moving);
   }, []);
-  const turnCamera = useCallback(
-    (delta: number) => {
-      const from = camRef.current;
-      const to = camTargetRef.current + delta * VIEWER_VIEWS.stepDeg;
-      camTargetRef.current = to;
+  const settleView = useCallback((deg: number) => {
+    const v = ((Math.round(deg / 90) % 4) + 4) % 4;
+    viewRef.current = v;
+    setView(v);
+  }, []);
+  // Weak-phone safety net: repeated slow turns switch the 3D arena off (the
+  // CSS ring platform takes over; the athlete keeps turning smoothly).
+  const slowTurnsRef = useRef(0);
+  const checkTurnFps = useCallback((frames: number, ms: number) => {
+    if (!arenaHandle.current.invalidate || ms < 200) return;
+    const fps = (frames * 1000) / ms;
+    if (fps >= STAGE_ARENA.minTurnFps) {
+      slowTurnsRef.current = 0;
+      return;
+    }
+    slowTurnsRef.current += 1;
+    if (slowTurnsRef.current >= STAGE_ARENA.slowTurnsToDisable) {
+      setArenaOn(false);
+      setArenaWanted(false);
+    }
+  }, []);
+  // Turn from wherever the angle is now to `to` (retargets cleanly mid-turn).
+  const turnTo = useCallback(
+    (to: number) => {
       if (tweenRef.current != null) cancelAnimationFrame(tweenRef.current);
+      tweenRef.current = null;
+      targetRef.current = to;
+      settleView(to); // tabs + readout jump to the destination right away
+      const from = angleRef.current;
+      const dist = Math.abs(to - from);
       const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-      if (reduced) {
-        applyCam(to);
+      if (reduced || dist < 0.01) {
+        renderAt(to, false);
         return;
       }
+      const { turnMs90, turnMs180, minTurnMs } = VIEWER_VIEWS;
+      const dur =
+        dist <= 90
+          ? Math.max(minTurnMs, (turnMs90 * dist) / 90)
+          : turnMs90 + ((turnMs180 - turnMs90) * Math.min(90, dist - 90)) / 90;
       const t0 = performance.now();
-      const dur = VIEWER_VIEWS.transitionMs;
+      let frames = 0;
       const tick = (now: number) => {
         const t = Math.min(1, (now - t0) / dur);
         const e = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2; // easeInOutCubic
-        applyCam(from + (to - from) * e);
+        renderAt(from + (to - from) * e, t < 1);
+        frames += 1;
         tweenRef.current = t < 1 ? requestAnimationFrame(tick) : null;
+        if (t >= 1) checkTurnFps(frames, now - t0);
       };
       tweenRef.current = requestAnimationFrame(tick);
     },
-    [applyCam],
+    [renderAt, settleView, checkTurnFps],
   );
   useEffect(
     () => () => {
@@ -104,27 +142,43 @@ export function AthleteStageCard({
     },
     [],
   );
-  // Go to a view by the shortest way round (so the stage turns the right way).
+  // Tabs: shortest way round (Front -> Back = one 180° turn).
   const goTo = useCallback(
     (target: number) => {
-      const cur = viewRef.current;
+      const cur = ((Math.round(targetRef.current / 90) % 4) + 4) % 4;
       if (target === cur) return;
       let d = (((target - cur) % 4) + 4) % 4; // 1..3
       if (d === 3) d = -1;
-      viewRef.current = target;
-      turnCamera(d);
-      setView(target);
+      turnTo(targetRef.current + d * 90);
     },
-    [turnCamera],
+    [turnTo],
   );
-  const step = useCallback(
-    (delta: 1 | -1) => {
-      const target = (viewRef.current + delta + 4) % 4;
-      viewRef.current = target;
-      turnCamera(delta);
-      setView(target);
+  // Arrows / keys: next = +90 (toward Kanan), previous = -90.
+  const step = useCallback((delta: 1 | -1) => turnTo(targetRef.current + delta * 90), [turnTo]);
+  // Swipe: the angle follows the finger (drag right = toward Kanan), then snaps.
+  const onDragStart = useCallback(() => {
+    if (tweenRef.current != null) cancelAnimationFrame(tweenRef.current);
+    tweenRef.current = null;
+    dragBaseRef.current = angleRef.current;
+  }, []);
+  const onDragMove = useCallback(
+    (dx: number) => {
+      if (dragBaseRef.current == null) return;
+      renderAt(dragBaseRef.current + (dx / VIEWER_VIEWS.dragPxPer90) * 90, true);
     },
-    [turnCamera],
+    [renderAt],
+  );
+  const onDragEnd = useCallback(
+    (vx: number) => {
+      const base = dragBaseRef.current ?? angleRef.current;
+      dragBaseRef.current = null;
+      const cur = angleRef.current;
+      const startView = Math.round(base / 90) * 90;
+      let to = Math.round(cur / 90) * 90;
+      if (to === startView && Math.abs(vx) >= VIEWER_VIEWS.flickVelocity) to = startView + Math.sign(vx) * 90;
+      turnTo(to);
+    },
+    [turnTo],
   );
   const tickAngles = useMemo(
     () => Array.from({ length: VIEWER_360.ringTicks }, (_, i) => (i * 360) / VIEWER_360.ringTicks),
@@ -277,20 +331,18 @@ export function AthleteStageCard({
         {/* ------------------------------------------------- RIGHT: 360 stage */}
         {/* container-type lets the platform (anchored inside the figure) size itself
             against this column's width; pb reserves room for the CTA below the ring. */}
-        <div className="relative flex min-h-[56vh] items-center justify-center pb-32 pt-10 [container-type:inline-size] lg:min-h-[72vh] lg:pt-0">
+        <div className="relative flex min-h-[56vh] items-center justify-center pb-32 pt-14 sm:pt-10 [container-type:inline-size] lg:min-h-[72vh] lg:pt-0">
           {/* Spotlight cone behind everything, from the card's top edge */}
           <div className="stagecard-spot" aria-hidden />
 
-          {/* Active view readout + hint (top-right of the stage) */}
+          {/* Active view readout + hint. Phones: one centred line above the
+              figure. sm+: top-right, sized to the stage column and capped to the
+              space beside the figure so it never runs off-card or into the head. */}
           {has360 && (
-            <div className="pointer-events-none absolute right-1 top-0 z-20 text-right" aria-live="polite">
-              <div className="font-condensed text-4xl font-bold uppercase leading-none sm:text-5xl">{viewNames[view]}</div>
-              <div className="mt-1 font-mono text-xs text-[#ff2d55] tabular-nums">
-                {`${view * VIEWER_VIEWS.stepDeg}°`}
-              </div>
-              <p className="mt-1 hidden max-w-[15rem] font-mono text-[11px] leading-snug text-white/45 sm:block">
-                {m.sc_hint}
-              </p>
+            <div className="stagecard-readout pointer-events-none z-20" aria-live="polite">
+              <div className="stagecard-readout-name font-condensed font-bold uppercase leading-none">{viewNames[view]}</div>
+              <div className="stagecard-readout-deg font-mono text-xs text-[#ff2d55] tabular-nums">{`${view * 90}°`}</div>
+              <p className="stagecard-readout-hint font-mono text-[11px] leading-snug text-white/45">{m.sc_hint}</p>
             </div>
           )}
 
@@ -333,10 +385,14 @@ export function AthleteStageCard({
             </div>
             {has360 ? (
               <AthleteViews
+                ref={viewsRef}
                 athleteId={athlete.id}
                 media={athlete.media360!}
                 view={view}
                 onStep={step}
+                onDragStart={onDragStart}
+                onDragMove={onDragMove}
+                onDragEnd={onDragEnd}
                 m={m}
                 label={`${athlete.nama} — ${viewNames[view]}`}
               />

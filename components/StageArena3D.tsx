@@ -285,13 +285,14 @@ class ArenaBoundary extends Component<{ onFail: () => void; children: ReactNode 
 
 /** The 3D arena canvas. Purely decorative: no pointer events, aria-hidden. */
 export function StageArena3D({ handle, anchorRef, figureRef, onReady, onFail }: Props) {
+  const coarse = typeof window !== "undefined" && window.matchMedia("(pointer: coarse)").matches;
   return (
     <ArenaBoundary onFail={onFail}>
       <Canvas
         frameloop="demand"
         flat
-        dpr={[1, A.maxDpr]}
-        gl={{ antialias: true, alpha: false, powerPreference: "high-performance" }}
+        dpr={[1, coarse ? A.touchMaxDpr : A.maxDpr]}
+        gl={{ antialias: !coarse, alpha: false, powerPreference: "high-performance" }}
         camera={{ fov: 35, near: 0.1, far: 80, position: [0, 1, A.cameraDistanceM] }}
         style={{ pointerEvents: "none" }}
         aria-hidden
