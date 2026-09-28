@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { db, supabaseUrl } from "@/lib/supabase";
 import { requireSession, requirePermission } from "@/lib/auth";
 import { SPONSOR_360_UPLOAD } from "@/lib/config";
-import { VIEW_KEYS, type ViewKey } from "@/lib/views";
+import { VIEW_KEYS, type ViewKey, type HotspotInput } from "@/lib/views";
 
 type UploadSlot = { frame: string; path: string; uploadUrl: string };
 
@@ -83,6 +83,35 @@ export async function finalizeMedia(
     p_actor_name: s.nama,
   });
   if (vErr) throw new Error(vErr.message);
+  revalidatePath(`/atlet/${athleteId}`);
+  revalidatePath(`/admin/atlet/${athleteId}`);
+  return { ok: true };
+}
+
+/** Admin only. Saves the zone markers placed on the view photos. */
+export async function setMediaHotspots(athleteId: string, hotspots: HotspotInput[]): Promise<{ ok: true }> {
+  const s = requireSession();
+  requirePermission(s, "athlete.edit");
+  if (!athleteId || !Array.isArray(hotspots)) throw new Error("missing");
+  const payload = hotspots
+    .filter((h) => h && h.athleteZoneId && h.points && Object.keys(h.points).length > 0)
+    .map((h) => ({
+      athlete_zone_id: h.athleteZoneId,
+      label: String(h.label ?? ""),
+      points: Object.fromEntries(
+        Object.entries(h.points).map(([k, v]) => [
+          k,
+          { x: Math.min(1, Math.max(0, Number(v.x))), y: Math.min(1, Math.max(0, Number(v.y))) },
+        ]),
+      ),
+    }));
+  const { error } = await db().rpc("smb_set_athlete_media_hotspots", {
+    p_athlete_id: athleteId,
+    p_hotspots: payload,
+    p_actor_id: s.sub,
+    p_actor_name: s.nama,
+  });
+  if (error) throw new Error(error.message);
   revalidatePath(`/atlet/${athleteId}`);
   revalidatePath(`/admin/atlet/${athleteId}`);
   return { ok: true };
