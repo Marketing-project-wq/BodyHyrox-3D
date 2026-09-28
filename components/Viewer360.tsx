@@ -61,7 +61,7 @@ export function Viewer360({
   const displayFrameRef = useRef(1);
   const rootRef = useRef<HTMLDivElement>(null);
 
-  // Auto-rotate (turntable). Spins only while nothing is holding it: each
+  // Idle sway (camera ping-pong around the front). Runs only while nothing is holding it: each
   // reason (drag, hover, focus, hidden tab, off-screen) pauses it until
   // released. `blendRef` crossfades frames while spinning and while easing
   // back onto a crisp frame after a pause.
@@ -72,7 +72,11 @@ export function Viewer360({
   const blendRef = useRef(false);
   const pauseReasonsRef = useRef(new Set<string>());
   const resumeTimersRef = useRef(new Map<string, ReturnType<typeof setTimeout>>());
-  const autoSpeed = total > 0 ? total / (VIEWER_360.autoRotateSecPerTurn * 1000) : 0; // frames per ms
+  // Idle sway amplitude in frames, and its phase. `swayLockedRef` = the figure is
+  // on the sway curve; false while it is still gliding back from a drag.
+  const swayAmp = total > 0 ? (total * VIEWER_360.idleSwayDeg) / 360 : 0;
+  const swayPhaseRef = useRef(0);
+  const swayLockedRef = useRef(false);
 
   const urls = media.frames.map((f) => `${media.baseUrl.replace(/\/$/, "")}/${f}`);
 
@@ -138,12 +142,22 @@ export function Viewer360({
       const dt = Math.min(now - lastTRef.current, 64);
       lastTRef.current = now;
 
-      // Auto-rotate: advance at a constant speed and paint exactly there (no
-      // easing lag), continuing from wherever the figure currently is.
       const spinning = autoActiveRef.current && !draggingRef.current && velRef.current === 0;
       if (spinning) {
-        targetRef.current = norm(targetRef.current + autoSpeed * dt);
-        renderRef.current = targetRef.current;
+        // Idle sway: ping-pong around the front on a sine. Until the figure is
+        // on that curve (e.g. after a drag left it at 180°), glide toward the
+        // moving sway point along the shortest way round, then lock onto it.
+        swayPhaseRef.current += (2 * Math.PI * dt) / (VIEWER_360.idleSwayPeriodSec * 1000);
+        const sway = norm(swayAmp * Math.sin(swayPhaseRef.current));
+        if (swayLockedRef.current) {
+          renderRef.current = sway;
+        } else {
+          const d = wrapDelta(sway - renderRef.current);
+          const k = 1 - Math.pow(1 - VIEWER_360.idleReturnPerFrame, dt / 16.667);
+          renderRef.current = norm(renderRef.current + d * k);
+          if (Math.abs(d) < 0.01) swayLockedRef.current = true;
+        }
+        targetRef.current = renderRef.current;
         paint();
         rafRef.current = requestAnimationFrame(tick);
         return;
@@ -185,20 +199,31 @@ export function Viewer360({
       rafRef.current = requestAnimationFrame(tick);
     };
     rafRef.current = requestAnimationFrame(tick);
-  }, [norm, wrapDelta, paint, autoSpeed]);
+  }, [norm, wrapDelta, paint, swayAmp]);
 
   // Start/stop spinning to match the current pause reasons.
   const syncAuto = useCallback(() => {
     const should = canAutoRef.current && pauseReasonsRef.current.size === 0;
     if (should && !autoActiveRef.current) {
       autoActiveRef.current = true;
+      // Pick the sway phase so the curve passes through where the figure is now
+      // (no jump); if it is outside the range, aim at the nearest edge and let
+      // the return glide bring it there.
+      const off = wrapDelta(renderRef.current);
+      if (swayAmp > 0 && Math.abs(off) <= swayAmp) {
+        swayPhaseRef.current = Math.asin(off / swayAmp);
+        swayLockedRef.current = true;
+      } else {
+        swayPhaseRef.current = (Math.sign(off) || 1) * (Math.PI / 2);
+        swayLockedRef.current = false;
+      }
       if (VIEWER_360.autoRotateCrossfade) blendRef.current = true;
       ensureLoop();
     } else if (!should && autoActiveRef.current) {
       autoActiveRef.current = false;
       ensureLoop(); // ease onto the nearest real frame
     }
-  }, [ensureLoop]);
+  }, [ensureLoop, wrapDelta, swayAmp]);
 
   const pauseAuto = useCallback(
     (reason: string) => {
@@ -242,7 +267,7 @@ export function Viewer360({
     return () => mq.removeEventListener("change", update);
   }, []);
 
-  // Auto-rotate is allowed only once every frame is loaded and decoded.
+  // The idle sway is allowed only once every frame is loaded and decoded.
   useEffect(() => {
     canAutoRef.current = media.autospin && !reducedMotion && ready && allLoaded && total > 1;
     syncAuto();
@@ -359,7 +384,7 @@ export function Viewer360({
     ensureLoop();
   };
 
-  // Any press (drag or plain tap) holds auto-rotate; it resumes after a short idle.
+  // Any press (drag or plain tap) holds the idle sway; it resumes after a short idle.
   const onPointerEnd = (e: React.PointerEvent) => {
     releaseAuto("drag", VIEWER_360.autoRotateResumeMs);
     endDrag(e);

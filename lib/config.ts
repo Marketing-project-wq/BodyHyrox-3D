@@ -169,20 +169,29 @@ export const VIEWER_360 = {
    */
   feetLinePct: 3.5,
   /**
-   * Turntable auto-rotate (only when the athlete's media has autospin on and the
-   * visitor hasn't asked for reduced motion). Seconds for one full 360° turn.
+   * Idle "camera sway" (only when the athlete's media has autospin on and the
+   * visitor hasn't asked for reduced motion): the view ping-pongs around the
+   * front (frame 0) by ±idleSwayDeg, one full back-and-forth per
+   * idleSwayPeriodSec, on a sine so it eases at both ends.
    */
-  autoRotateSecPerTurn: 12,
-  /** Idle time (ms) after the last drag/hover/focus before auto-rotate resumes. */
+  idleSwayDeg: 20,
+  idleSwayPeriodSec: 7,
+  /**
+   * After a drag leaves the figure outside the sway range, how quickly (0..1 per
+   * ~16.7ms frame) it glides back to the front before the sway takes over.
+   * Lower = slower, softer return.
+   */
+  idleReturnPerFrame: 0.035,
+  /** Idle time (ms) after the last drag/hover/focus before the idle sway resumes. */
   autoRotateResumeMs: 3000,
   /**
-   * Blend neighbouring frames while auto-rotating so a sparse sequence turns
+   * Blend neighbouring frames during the idle sway/return so a sparse sequence turns
    * continuously instead of stepping; drag follows the athlete's crossfade toggle,
    * and the figure still comes to rest on one crisp frame when it stops.
    */
   autoRotateCrossfade: true,
   /**
-   * Share (0..1] of each frame-to-frame step spent blending while auto-rotating;
+   * Share (0..1] of each frame-to-frame step spent blending during the idle sway;
    * the rest holds the current frame crisp. Smaller = less ghosting, more
    * "stepped"; 1 = blend the whole way.
    */
