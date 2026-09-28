@@ -1,6 +1,6 @@
 "use client";
 
-import { Component, useEffect, useMemo, type MutableRefObject, type ReactNode, type RefObject } from "react";
+import { Component, useEffect, useMemo, useRef, type MutableRefObject, type ReactNode, type RefObject } from "react";
 import { Canvas, useThree, useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
@@ -60,6 +60,8 @@ function Rig({ handle, anchorRef, figureRef }: Pick<Props, "handle" | "anchorRef
     };
   }, [handle, invalidate, setDpr]);
 
+  const lastAnchorRef = useRef({ x: NaN, y: NaN, h: NaN });
+  const fitRef = useRef<() => void>(() => {});
   useEffect(() => {
     const fit = () => {
       const a = anchorRef.current;
@@ -68,6 +70,7 @@ function Rig({ handle, anchorRef, figureRef }: Pick<Props, "handle" | "anchorRef
       if (!a || !f || c.width === 0 || c.height === 0) return;
       const ar = a.getBoundingClientRect();
       const fr = f.getBoundingClientRect();
+      lastAnchorRef.current = { x: ar.left - c.left, y: ar.top - c.top, h: fr.height };
       const W = c.width;
       const H = c.height;
       const ppm = (fr.height * A.athleteFrameFill) / A.athleteHeightM; // CSS px per metre at the athlete
@@ -88,12 +91,32 @@ function Rig({ handle, anchorRef, figureRef }: Pick<Props, "handle" | "anchorRef
       cam.setViewOffset(W, H, ox - (ar.left - c.left), oy - (ar.top - c.top), W, H);
       invalidate();
     };
+    fitRef.current = fit;
     fit();
+    // Web fonts swapping in (and other late layout shifts) move the figure
+    // without resizing anything: refit when they settle, and poll the anchor
+    // cheaply so the platform never drifts off the feet.
+    document.fonts?.ready.then(fit).catch(() => {});
+    const poll = window.setInterval(() => {
+      const a = anchorRef.current;
+      const f = figureRef.current;
+      if (!a || !f) return;
+      const c = gl.domElement.getBoundingClientRect();
+      const ar = a.getBoundingClientRect();
+      const L = lastAnchorRef.current;
+      if (
+        Math.abs(ar.left - c.left - L.x) > 0.5 ||
+        Math.abs(ar.top - c.top - L.y) > 0.5 ||
+        Math.abs(f.getBoundingClientRect().height - L.h) > 0.5
+      )
+        fit();
+    }, 400);
     const ro = new ResizeObserver(fit);
     ro.observe(gl.domElement);
     if (figureRef.current) ro.observe(figureRef.current);
     window.addEventListener("resize", fit);
     return () => {
+      window.clearInterval(poll);
       ro.disconnect();
       window.removeEventListener("resize", fit);
     };
