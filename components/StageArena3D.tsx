@@ -3,6 +3,7 @@
 import { Component, useEffect, useMemo, type MutableRefObject, type ReactNode, type RefObject } from "react";
 import { Canvas, useThree, useFrame } from "@react-three/fiber";
 import * as THREE from "three";
+import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { STAGE_ARENA as A } from "@/lib/config";
 
 /**
@@ -10,7 +11,12 @@ import { STAGE_ARENA as A } from "@/lib/config";
  * live angle (from the photo viewer) and calls `invalidate` — no React state, so
  * nothing re-renders per frame; the canvas only draws when the angle changes.
  */
-export type ArenaHandle = { angleDeg: number; invalidate: (() => void) | null };
+export type ArenaHandle = {
+  angleDeg: number;
+  invalidate: (() => void) | null;
+  /** Adaptive quality: lower the canvas pixel ratio on slow devices. */
+  setDpr: ((dpr: number) => void) | null;
+};
 
 type Props = {
   handle: MutableRefObject<ArenaHandle>;
@@ -38,7 +44,7 @@ function seeded(i: number) {
  * exactly on the athlete's feet line. Refitted whenever the layout changes.
  */
 function Rig({ handle, anchorRef, figureRef }: Pick<Props, "handle" | "anchorRef" | "figureRef">) {
-  const { camera, gl, invalidate, size } = useThree();
+  const { camera, gl, invalidate, size, setDpr } = useThree();
   const cam = camera as THREE.PerspectiveCamera;
   const d = A.cameraDistanceM;
   const camY = d * Math.tan(rad(A.cameraElevationDeg));
@@ -47,10 +53,12 @@ function Rig({ handle, anchorRef, figureRef }: Pick<Props, "handle" | "anchorRef
   useEffect(() => {
     const h = handle.current;
     h.invalidate = invalidate;
+    h.setDpr = setDpr;
     return () => {
       h.invalidate = null;
+      h.setDpr = null;
     };
-  }, [handle, invalidate]);
+  }, [handle, invalidate, setDpr]);
 
   useEffect(() => {
     const fit = () => {
@@ -116,28 +124,6 @@ function useGlowTexture() {
     t.colorSpace = THREE.SRGBColorSpace;
     return t;
   }, []);
-}
-
-/** A thin glowing neon bar between two points (core + soft additive halo). */
-function NeonBar({ from, to, w = 0.028, glow = 0.14 }: { from: THREE.Vector3; to: THREE.Vector3; w?: number; glow?: number }) {
-  const { pos, quat, len } = useMemo(() => {
-    const dir = new THREE.Vector3().subVectors(to, from);
-    const l = dir.length();
-    const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.normalize());
-    return { pos: new THREE.Vector3().addVectors(from, to).multiplyScalar(0.5), quat: q, len: l };
-  }, [from, to]);
-  return (
-    <group position={pos} quaternion={quat}>
-      <mesh>
-        <boxGeometry args={[w, len, w]} />
-        <meshBasicMaterial color={A.color} toneMapped={false} />
-      </mesh>
-      <mesh>
-        <boxGeometry args={[w * 5, len, w * 5]} />
-        <meshBasicMaterial color={A.color} transparent opacity={glow} blending={THREE.AdditiveBlending} depthWrite={false} toneMapped={false} />
-      </mesh>
-    </group>
-  );
 }
 
 function Platform() {
@@ -213,59 +199,111 @@ function Floor() {
   );
 }
 
-/** Pillars, light frames and slanted beams — all beyond the camera radius. */
+/** A box of the given size placed/oriented along the segment from -> to. */
+function barGeometry(from: THREE.Vector3, to: THREE.Vector3, w: number): THREE.BufferGeometry {
+  const dir = new THREE.Vector3().subVectors(to, from);
+  const len = dir.length();
+  const g = new THREE.BoxGeometry(w, len, w);
+  const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.normalize());
+  const mid = new THREE.Vector3().addVectors(from, to).multiplyScalar(0.5);
+  g.applyMatrix4(new THREE.Matrix4().compose(mid, q, new THREE.Vector3(1, 1, 1)));
+  return g;
+}
+
+/**
+ * Pillars, light frames, slanted beams and a far ring of panels, all beyond the
+ * camera radius and spread all the way round (the stage turns continuously, so
+ * no side may be empty). Everything static is merged into three meshes — dark
+ * bodies, neon cores, glow halos — so the whole scenery costs 3 draw calls per
+ * frame instead of ~100.
+ */
 function Scenery() {
-  const items = useMemo(() => {
-    const out: { kind: "pillar" | "frame" | "beam"; a: number; r: number; h: number }[] = [];
-    const n = A.pillars;
-    for (let i = 0; i < n; i++) {
-      const a = (i / n) * Math.PI * 2 + seeded(i) * 0.35;
-      out.push({ kind: "pillar", a, r: A.minSceneryRadiusM + 0.6 + seeded(i + 10) * 3.5, h: 3.2 + seeded(i + 20) * 2.2 });
+  const geos = useMemo(() => {
+    const bodies: THREE.BufferGeometry[] = [];
+    const cores: THREE.BufferGeometry[] = [];
+    const halos: THREE.BufferGeometry[] = [];
+    const Y0 = -0.1;
+    const place = (g: THREE.BufferGeometry, a: number, r: number) =>
+      g.applyMatrix4(
+        new THREE.Matrix4().compose(
+          new THREE.Vector3(Math.sin(a) * r, 0, Math.cos(a) * r),
+          new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), a),
+          new THREE.Vector3(1, 1, 1),
+        ),
+      );
+    const neon = (from: THREE.Vector3, to: THREE.Vector3, w: number, halo: boolean, a: number, r: number) => {
+      cores.push(place(barGeometry(from, to, w), a, r));
+      if (halo) halos.push(place(barGeometry(from, to, w * 5), a, r));
+    };
+    const v = (x: number, y: number, z = 0) => new THREE.Vector3(x, y, z);
+
+    // Pillars (near ring)
+    for (let i = 0; i < A.pillars; i++) {
+      const a = (i / A.pillars) * Math.PI * 2 + seeded(i) * 0.35;
+      const r = A.minSceneryRadiusM + 0.6 + seeded(i + 10) * 3.5;
+      const h = 3.2 + seeded(i + 20) * 2.2;
+      const s = 0.34;
+      const body = new THREE.BoxGeometry(s, h, s);
+      body.translate(0, Y0 + h / 2, 0);
+      bodies.push(place(body, a, r));
+      neon(v(-s / 2, Y0, -s / 2 - 0.01), v(-s / 2, Y0 + h, -s / 2 - 0.01), 0.028, true, a, r);
+      neon(v(s / 2, Y0, -s / 2 - 0.01), v(s / 2, Y0 + h * 0.72, -s / 2 - 0.01), 0.028, true, a, r);
     }
-    for (let i = 0; i < 4; i++) {
-      out.push({ kind: "frame", a: (i / 4) * Math.PI * 2 + 0.4, r: A.minSceneryRadiusM + 1.8, h: 3.1 });
+    // Light frames: one every 45°
+    for (let i = 0; i < A.frames; i++) {
+      const a = (i / A.frames) * Math.PI * 2 + 0.4;
+      const r = A.minSceneryRadiusM + 1.8 + (i % 2) * 1.2;
+      const w = 2.2;
+      const h = 3.1;
+      neon(v(-w / 2, Y0), v(-w / 2, Y0 + h), 0.028, true, a, r);
+      neon(v(w / 2, Y0), v(w / 2, Y0 + h), 0.028, true, a, r);
+      neon(v(-w / 2, Y0 + h), v(w / 2, Y0 + h), 0.028, true, a, r);
+      neon(v(-w / 2 + 0.25, Y0 + h - 0.25), v(w / 2 - 0.25, Y0 + h - 0.25), 0.012, false, a, r);
     }
+    // Slanted beams leaning in toward the stage
     for (let i = 0; i < 8; i++) {
-      out.push({ kind: "beam", a: (i / 8) * Math.PI * 2 + 0.2, r: A.minSceneryRadiusM + 4.5, h: 5.5 });
+      const a = (i / 8) * Math.PI * 2 + 0.2;
+      const r = A.minSceneryRadiusM + 4.5;
+      const from = new THREE.Vector3(Math.sin(a) * r, Y0, Math.cos(a) * r);
+      const to = new THREE.Vector3(Math.sin(a + 0.18) * (r - 1.6), 5.5, Math.cos(a + 0.18) * (r - 1.6));
+      cores.push(barGeometry(from, to, 0.02));
+      halos.push(barGeometry(from, to, 0.1));
     }
-    return out;
+    // Far ring of tall slim panels (fog-faded) so the horizon is never empty
+    for (let i = 0; i < A.farPanels; i++) {
+      const a = (i / A.farPanels) * Math.PI * 2 + seeded(i + 40) * 0.2;
+      const r = A.farRadiusM + seeded(i + 50) * 2;
+      const h = 4 + seeded(i + 60) * 3;
+      const body = new THREE.BoxGeometry(0.6, h, 0.25);
+      body.translate(0, Y0 + h / 2, 0);
+      bodies.push(place(body, a, r));
+      neon(v(0.3, Y0, -0.14), v(0.3, Y0 + h, -0.14), 0.035, false, a, r);
+    }
+    return {
+      bodies: mergeGeometries(bodies)!,
+      cores: mergeGeometries(cores)!,
+      halos: mergeGeometries(halos)!,
+    };
   }, []);
 
   return (
     <group>
-      {items.map((it, i) => {
-        const x = Math.sin(it.a) * it.r;
-        const z = Math.cos(it.a) * it.r;
-        if (it.kind === "pillar") {
-          const s = 0.34;
-          return (
-            <group key={i} position={[x, -0.1, z]} rotation={[0, it.a, 0]}>
-              <mesh position={[0, it.h / 2, 0]}>
-                <boxGeometry args={[s, it.h, s]} />
-                <meshBasicMaterial color="#150a0d" />
-              </mesh>
-              <NeonBar from={new THREE.Vector3(-s / 2, 0, -s / 2 - 0.01)} to={new THREE.Vector3(-s / 2, it.h, -s / 2 - 0.01)} />
-              <NeonBar from={new THREE.Vector3(s / 2, 0, -s / 2 - 0.01)} to={new THREE.Vector3(s / 2, it.h * 0.72, -s / 2 - 0.01)} glow={0.1} />
-            </group>
-          );
-        }
-        if (it.kind === "frame") {
-          const w = 2.2;
-          const h = it.h;
-          const p = (px: number, py: number) => new THREE.Vector3(px, py, 0);
-          return (
-            <group key={i} position={[x, -0.1, z]} rotation={[0, it.a, 0]}>
-              <NeonBar from={p(-w / 2, 0)} to={p(-w / 2, h)} />
-              <NeonBar from={p(w / 2, 0)} to={p(w / 2, h)} />
-              <NeonBar from={p(-w / 2, h)} to={p(w / 2, h)} />
-              <NeonBar from={p(-w / 2 + 0.25, h - 0.25)} to={p(w / 2 - 0.25, h - 0.25)} w={0.012} glow={0.08} />
-            </group>
-          );
-        }
-        // Slanted light beam leaning in toward the stage
-        const top = new THREE.Vector3(Math.sin(it.a + 0.18) * (it.r - 1.6), it.h, Math.cos(it.a + 0.18) * (it.r - 1.6));
-        return <NeonBar key={i} from={new THREE.Vector3(x, -0.1, z)} to={top} w={0.02} glow={0.1} />;
-      })}
+      <mesh geometry={geos.bodies}>
+        <meshBasicMaterial color="#150a0d" />
+      </mesh>
+      <mesh geometry={geos.cores}>
+        <meshBasicMaterial color={A.color} toneMapped={false} />
+      </mesh>
+      <mesh geometry={geos.halos}>
+        <meshBasicMaterial
+          color={A.color}
+          transparent
+          opacity={0.12}
+          blending={THREE.AdditiveBlending}
+          depthWrite={false}
+          toneMapped={false}
+        />
+      </mesh>
     </group>
   );
 }
