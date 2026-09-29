@@ -5,7 +5,7 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { ChevronLeft, ChevronRight, RotateCcw } from "lucide-react";
 import type { PublicAthleteDetail } from "@/lib/data";
-import { STAGE_ARENA, STAGE_READOUT, VIEWER_360, VIEWER_VIEWS, viewer360FrameStyle } from "@/lib/config";
+import { STAGE_ARENA, STAGE_READOUT, VIEWER_360, VIEWER_VIEWS, stageFitVars, viewer360FrameStyle } from "@/lib/config";
 import { VIEW_KEYS } from "@/lib/views";
 import { type Dict } from "@/lib/i18n";
 import { tGender } from "@/lib/i18n";
@@ -468,8 +468,8 @@ export function AthleteStageCard({
       ref={sectionRef}
       className={`relative overflow-hidden rounded-3xl border border-white/10 bg-[#100a0c] shadow-[0_30px_80px_-20px_rgba(0,0,0,0.8)] ${
         arenaOn ? "stagecard-arena-on" : ""
-      }`}
-      style={{ ["--stage-tilt" as string]: STAGE_TILT }}
+      } stagecard-fit`}
+      style={{ ["--stage-tilt" as string]: STAGE_TILT, ...stageFitVars() } as React.CSSProperties}
     >
       {/* 3D neon arena (behind everything; fades in once WebGL is up) */}
       {arenaWanted && (

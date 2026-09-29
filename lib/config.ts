@@ -367,13 +367,55 @@ export function stageMotionVars(): Record<string, string> {
 }
 
 /**
+ * Phones and tablets (below lg): the athlete photo also shrinks so that, with
+ * the view name right under the header, the view tabs, the "View sponsors"
+ * button and the carousel dots all sit above a band reserved for the browser's
+ * floating bottom toolbar (iOS Safari). Everything stacked around the photo is
+ * listed here (px); the photo gets 100svh minus all of it. Desktop (lg+) never
+ * uses this.
+ */
+export const STAGE_FIT = {
+  /** Sticky public header height without the top safe-area inset. */
+  headerPx: 57,
+  /** The header's own top padding, replaced by the safe-area inset when larger. */
+  headerPadTopPx: 14,
+  /** Stage column top padding (room for the view name): phones / sm+. */
+  topPadPx: { xs: 56, sm: 40 },
+  /** Stage column bottom padding (view tabs + View sponsors button). */
+  bottomStackPx: 128,
+  /** Card padding below the stage plus the carousel dots: phones / sm+. */
+  belowStagePx: { xs: 46, sm: 54 },
+  /**
+   * Band kept free for the browser's floating bottom toolbar, on top of
+   * env(safe-area-inset-bottom). A safe first guess: re-tune it from
+   * ?debug=viewport measurements on a real iPhone.
+   */
+  toolbarAllowancePx: 80,
+  /** Never shrink the photo below this (short landscape screens can't fit anyway). */
+  minFigurePx: 240,
+};
+
+/** CSS custom properties (set on the stage card) with the phone / sm+ photo height budgets. */
+export function stageFitVars(): Record<string, string> {
+  const F = STAGE_FIT;
+  const budget = (topPad: number, below: number) =>
+    `max(${F.minFigurePx}px, calc(100svh - (${F.headerPx - F.headerPadTopPx}px + max(${F.headerPadTopPx}px, env(safe-area-inset-top, 0px)) + ${topPad}px + ${F.bottomStackPx}px + ${below}px + ${F.toolbarAllowancePx}px + env(safe-area-inset-bottom, 0px))))`;
+  return {
+    "--stage-fit-xs": budget(F.topPadPx.xs, F.belowStagePx.xs),
+    "--stage-fit-sm": budget(F.topPadPx.sm, F.belowStagePx.sm),
+  };
+}
+
+/**
  * Inline style for the portrait athlete figure (360 viewer or fallback photo).
  * Height-capped to the viewport so the whole body fits without scrolling; width
  * follows the frame aspect ratio. Shared so the viewer and the page stay in sync.
+ * Below lg the stage card also sets --stage-fit-max (see STAGE_FIT); elsewhere
+ * the fallback equals maxHeightPx, so nothing changes.
  */
 export function viewer360FrameStyle() {
   return {
-    height: `min(${VIEWER_360.maxHeightSvh}svh, ${VIEWER_360.maxHeightPx}px)`,
+    height: `min(${VIEWER_360.maxHeightSvh}svh, ${VIEWER_360.maxHeightPx}px, var(--stage-fit-max, ${VIEWER_360.maxHeightPx}px))`,
     width: "auto",
     aspectRatio: "168 / 395",
     maxWidth: `min(${VIEWER_360.maxWidthPx}px, 82vw)`,
