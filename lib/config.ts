@@ -279,6 +279,8 @@ export const STAGE_ARENA = {
  */
 export const SPONSOR_360_UPLOAD = {
   bucket: "smb-athlete-360",
+  /** Draft uploads + unpublished photos (admin only, read via signed URLs). */
+  privateBucket: "smb-athlete-360-private",
   minFrames: 8,
   maxFrames: 36,
   maxFileMB: 5,
