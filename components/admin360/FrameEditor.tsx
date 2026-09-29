@@ -256,7 +256,7 @@ export function FrameEditor({
   const unpct = (v: number) => v / 100;
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-black/85 backdrop-blur-sm" role="dialog" aria-modal="true">
+    <div className="safe-inset fixed inset-0 z-50 flex flex-col bg-black/85 backdrop-blur-sm" role="dialog" aria-modal="true">
       <div className="flex items-center justify-between gap-2 border-b border-white/10 px-4 py-2 text-white">
         <div className="min-w-0 text-sm">
           <span className="font-semibold">{fmt(m.st_editTitle, { n: index + 1, total: n })}</span>
@@ -283,7 +283,7 @@ export function FrameEditor({
             headY={guideHead}
             targetX={guideX}
             noTransform={raw}
-            className="h-[56svh] border border-white/10 lg:h-[min(78vh,900px)]"
+            className="h-[56vh] border border-white/10 supports-[height:1svh]:h-[56svh] lg:h-[min(78vh,900px)] lg:supports-[height:1svh]:h-[min(78svh,900px)]"
             layers={[
               { key: "p", src: prev.src, foot: prev.foot, t: prev.t, opacity: onionOpacity, filter: "sepia(1) hue-rotate(160deg) saturate(3)", hidden: !onion || prev.file === cur.file },
               { key: "n", src: next.src, foot: next.foot, t: next.t, opacity: onionOpacity, filter: "sepia(1) hue-rotate(-50deg) saturate(3)", hidden: !onion || next.file === cur.file || next.file === prev.file },

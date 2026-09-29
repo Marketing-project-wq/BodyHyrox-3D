@@ -51,7 +51,7 @@ export default async function AtletDetailPage({
   const available = a.zones.filter((z) => z.status === "tersedia").length;
 
   return (
-    <div className="min-h-screen bg-[#0b0b0d] text-[#f3f3f4]">
+    <div className="safe-x min-h-screen supports-[height:1dvh]:min-h-[100dvh] bg-[#0b0b0d] text-[#f3f3f4]">
       <PublicHeader locale={locale} back={{ href: "/atlet", label: m.pub_back }} />
 
       <div className="mx-auto w-full max-w-6xl px-4 pb-4 pt-4 sm:px-6">

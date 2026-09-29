@@ -379,6 +379,14 @@ export function AthleteStageCard({
     snapToSide();
     resumeLater("tap", STAGE_ARENA.tapHoldMs);
   }, [holdNow, snapToSide, resumeLater]);
+  // A zone card is open (touch): no idle spin until it closes.
+  const onZoneCardChange = useCallback(
+    (open: boolean) => {
+      if (open) holdNow("zone");
+      else resumeLater("zone", STAGE_ARENA.autoRotateResumeMs);
+    },
+    [holdNow, resumeLater],
+  );
   const onFocusChange = useCallback(
     (focused: boolean) => {
       if (focused) {
@@ -553,19 +561,12 @@ export function AthleteStageCard({
 
           {/* Athlete carousel dots (desktop pinned to bottom of the left column) */}
           {dots.length > 1 && (
-            <div className="mt-8 hidden flex-wrap items-center gap-1.5 lg:flex">
-              {dots.map((d) =>
-                d.active ? (
-                  <span key={d.id} className="h-1.5 w-5 rounded-full bg-[#ff2d55]" aria-current="true" />
-                ) : (
-                  <Link
-                    key={d.id}
-                    href={`/atlet/${d.id}`}
-                    className="h-1.5 w-1.5 rounded-full bg-white/25 transition-colors hover:bg-white/50"
-                    aria-label={m.sc_next}
-                  />
-                ),
-              )}
+            // Position indicator only: dots are far too small to tap (44px each
+            // would not fit); the 44px prev/next arrows at the card edges navigate.
+            <div className="mt-8 hidden flex-wrap items-center gap-1.5 lg:flex" aria-hidden>
+              {dots.map((d) => (
+                <span key={d.id} className={d.active ? "h-1.5 w-5 rounded-full bg-[#ff2d55]" : "h-1.5 w-1.5 rounded-full bg-white/25"} />
+              ))}
             </div>
           )}
         </div>
@@ -573,7 +574,7 @@ export function AthleteStageCard({
         {/* ------------------------------------------------- RIGHT: 360 stage */}
         {/* container-type lets the platform (anchored inside the figure) size itself
             against this column's width; pb reserves room for the CTA below the ring. */}
-        <div className="relative flex min-h-[56vh] items-center justify-center pb-32 pt-14 sm:pt-10 [container-type:inline-size] lg:min-h-[72vh] lg:pt-0">
+        <div className="relative flex min-h-[56vh] items-center justify-center pb-32 pt-14 supports-[height:1svh]:min-h-[56svh] sm:pt-10 [container-type:inline-size] lg:min-h-[72vh] lg:pt-0 lg:supports-[height:1svh]:min-h-[72svh]">
           {/* Spotlight cone behind everything, from the card's top edge */}
           <div className="stagecard-spot" aria-hidden />
 
@@ -639,6 +640,7 @@ export function AthleteStageCard({
                 onTap={onTap}
                 onFocusChange={onFocusChange}
                 onReady={() => setPhotosReady(true)}
+                onZoneCardChange={onZoneCardChange}
                 arena={arenaOn ? arenaHandle : undefined}
                 debug={debugFeet}
                 m={m}
@@ -670,11 +672,15 @@ export function AthleteStageCard({
                 type="button"
                 onClick={() => step(-1)}
                 aria-label={m.view_prev}
-                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-white/15 bg-black/50 text-white/80 backdrop-blur transition-colors hover:border-white/40 hover:text-white"
+                className="group flex h-11 w-11 shrink-0 items-center justify-center max-[359px]:hidden"
               >
-                <ChevronLeft size={16} />
+                <span className="flex h-8 w-8 items-center justify-center rounded-full border border-white/15 bg-black/50 text-white/80 backdrop-blur [@media(pointer:coarse)]:bg-black/65 [@media(pointer:coarse)]:backdrop-blur-none transition-colors group-hover:border-white/40 group-hover:text-white">
+                  <ChevronLeft size={16} />
+                </span>
               </button>
-              <div role="tablist" aria-label={m.view_tabs} className="flex rounded-full border border-white/10 bg-black/50 p-0.5 backdrop-blur">
+              {/* Tabs: 44px tall touch targets; the pill track stays slim (drawn behind). */}
+              <div role="tablist" aria-label={m.view_tabs} className="relative flex px-0.5">
+                <span aria-hidden className="absolute inset-x-0 top-1/2 h-[30px] -translate-y-1/2 rounded-full border border-white/10 bg-black/50 backdrop-blur [@media(pointer:coarse)]:bg-black/65 [@media(pointer:coarse)]:backdrop-blur-none" />
                 {VIEW_KEYS.map((k, i) => (
                   <button
                     key={k}
@@ -682,13 +688,17 @@ export function AthleteStageCard({
                     role="tab"
                     aria-selected={view === i}
                     onClick={() => goTo(i)}
-                    className={`rounded-full px-2.5 py-1 text-[11px] font-semibold transition-colors sm:px-3.5 sm:text-xs ${
-                      view === i
-                        ? "bg-[#ff2d55] text-white shadow-[0_0_14px_rgba(255,45,85,0.55)]"
-                        : "text-white/60 hover:text-white"
-                    }`}
+                    className="group relative flex h-11 items-center"
                   >
-                    {viewNames[i]}
+                    <span
+                      className={`rounded-full px-2.5 py-1 text-[11px] font-semibold transition-colors sm:px-3.5 sm:text-xs ${
+                        view === i
+                          ? "bg-[#ff2d55] text-white shadow-[0_0_14px_rgba(255,45,85,0.55)]"
+                          : "text-white/60 group-hover:text-white"
+                      }`}
+                    >
+                      {viewNames[i]}
+                    </span>
                   </button>
                 ))}
               </div>
@@ -696,9 +706,11 @@ export function AthleteStageCard({
                 type="button"
                 onClick={() => step(1)}
                 aria-label={m.view_next}
-                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-white/15 bg-black/50 text-white/80 backdrop-blur transition-colors hover:border-white/40 hover:text-white"
+                className="group flex h-11 w-11 shrink-0 items-center justify-center max-[359px]:hidden"
               >
-                <ChevronRight size={16} />
+                <span className="flex h-8 w-8 items-center justify-center rounded-full border border-white/15 bg-black/50 text-white/80 backdrop-blur [@media(pointer:coarse)]:bg-black/65 [@media(pointer:coarse)]:backdrop-blur-none transition-colors group-hover:border-white/40 group-hover:text-white">
+                  <ChevronRight size={16} />
+                </span>
               </button>
             </div>
           )}
@@ -720,7 +732,7 @@ export function AthleteStageCard({
         <Link
           href={`/atlet/${prev.id}`}
           aria-label={`${m.sc_prev}: ${prev.nama}`}
-          className="absolute left-3 top-1/2 z-30 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-white/15 bg-black/40 text-white/80 backdrop-blur transition-colors hover:border-white/40 hover:text-white sm:left-5"
+          className="absolute left-3 top-1/2 z-30 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-white/15 bg-black/40 text-white/80 backdrop-blur [@media(pointer:coarse)]:bg-black/60 [@media(pointer:coarse)]:backdrop-blur-none transition-colors hover:border-white/40 hover:text-white sm:left-5"
         >
           <ChevronLeft size={20} />
         </Link>
@@ -729,7 +741,7 @@ export function AthleteStageCard({
         <Link
           href={`/atlet/${next.id}`}
           aria-label={`${m.sc_next}: ${next.nama}`}
-          className="absolute right-3 top-1/2 z-30 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-white/15 bg-black/40 text-white/80 backdrop-blur transition-colors hover:border-white/40 hover:text-white sm:right-5"
+          className="absolute right-3 top-1/2 z-30 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-white/15 bg-black/40 text-white/80 backdrop-blur [@media(pointer:coarse)]:bg-black/60 [@media(pointer:coarse)]:backdrop-blur-none transition-colors hover:border-white/40 hover:text-white sm:right-5"
         >
           <ChevronRight size={20} />
         </Link>
@@ -737,14 +749,10 @@ export function AthleteStageCard({
 
       {/* Dots on mobile (below the stage, centered) */}
       {dots.length > 1 && (
-        <div className="relative z-10 flex flex-wrap items-center justify-center gap-1.5 pb-5 lg:hidden">
-          {dots.map((d) =>
-            d.active ? (
-              <span key={d.id} className="h-1.5 w-5 rounded-full bg-[#ff2d55]" aria-current="true" />
-            ) : (
-              <Link key={d.id} href={`/atlet/${d.id}`} className="h-1.5 w-1.5 rounded-full bg-white/25" aria-label={m.sc_next} />
-            ),
-          )}
+        <div className="relative z-10 flex flex-wrap items-center justify-center gap-1.5 pb-5 lg:hidden" aria-hidden>
+          {dots.map((d) => (
+            <span key={d.id} className={d.active ? "h-1.5 w-5 rounded-full bg-[#ff2d55]" : "h-1.5 w-1.5 rounded-full bg-white/25"} />
+          ))}
         </div>
       )}
 

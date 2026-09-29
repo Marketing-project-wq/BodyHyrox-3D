@@ -20,7 +20,7 @@ export function PublicHeader({
       className={
         overlay
           ? "absolute inset-x-0 top-0 z-30 flex items-center justify-between gap-4 px-5 py-3.5 pt-[max(0.875rem,env(safe-area-inset-top))] md:px-8"
-          : "sticky top-0 z-20 flex items-center justify-between gap-4 border-b border-white/10 bg-[#0b0b0d]/90 px-5 py-3.5 backdrop-blur md:px-8"
+          : "sticky top-0 z-20 flex items-center justify-between gap-4 border-b border-white/10 bg-[#0b0b0d]/90 px-5 py-3.5 pt-[max(0.875rem,env(safe-area-inset-top))] backdrop-blur md:px-8"
       }
     >
       {/* Landing (/) is a static page served via rewrite, not an app route — use a

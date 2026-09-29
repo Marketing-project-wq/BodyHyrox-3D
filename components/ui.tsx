@@ -213,7 +213,7 @@ export function RevenueChart({
 /* ---------- "Almost ready" notice when the DB key isn't set yet ---------- */
 export function NotConfigured() {
   return (
-    <div className="flex min-h-[100dvh] items-center justify-center bg-bg px-4">
+    <div className="flex min-h-screen supports-[height:1dvh]:min-h-[100dvh] items-center justify-center bg-bg px-4">
       <div className="card max-w-md p-6 text-center">
         <Logo imgClassName="h-8" onLight className="mx-auto mb-4" />
         <h1 className="text-lg font-bold">Dashboard hampir siap</h1>

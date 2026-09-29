@@ -17,7 +17,7 @@ export default function LoginPage({
   const m = getMessages();
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-bg px-4">
+    <div className="safe-x flex min-h-screen supports-[height:1dvh]:min-h-[100dvh] items-center justify-center bg-bg px-4">
       <div className="w-full max-w-sm">
         <div className="mb-6 text-center">
           <Logo imgClassName="h-10" onLight />

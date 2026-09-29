@@ -134,6 +134,12 @@ export const VIEWER_360 = {
    */
   feetLinePct: 3.5,
   /**
+   * Frames whose stored feet predate two-contact detection (or have none) are
+   * measured in the visitor's browser at most this wide (px), in idle time,
+   * never at full resolution. Old feet keep their stored toe for the anchor.
+   */
+  footMeasureMaxW: 160,
+  /**
    * No-WebGL fallback platform: tick marks on the flat CSS ring that turn with
    * the view change. `ringTurnDirection` matches the 3D arena's turn.
    */
@@ -266,6 +272,12 @@ export const STAGE_ARENA = {
   liftedShadowWidth: 1.6,
   liftedShadowHeight: 1.8,
   poolShadowHeight: 0.045,
+  /**
+   * The platform check (a 3D raycast per sole) is cached and redone only when
+   * the leading frame changes, the stage turns more than this many degrees,
+   * or the layout changes (resize / scroll).
+   */
+  groundRecheckDeg: 5,
   /**
    * Ignore frame-rate samples for this long after the stage starts (images and
    * fonts are still decoding then), and only switch the arena off after this

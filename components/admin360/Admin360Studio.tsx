@@ -628,7 +628,7 @@ export function Admin360Studio({
 
       {/* ---- big preview ---- */}
       {preview != null && frames[preview] && (
-        <div className="fixed inset-0 z-50 flex flex-col bg-black/90" role="dialog" aria-modal="true" onKeyDown={(e) => {
+        <div className="safe-inset fixed inset-0 z-50 flex flex-col bg-black/90" role="dialog" aria-modal="true" onKeyDown={(e) => {
           if (e.key === "Escape") setPreview(null);
           if (e.key === "ArrowLeft") setPreview((preview - 1 + n) % n);
           if (e.key === "ArrowRight") setPreview((preview + 1) % n);
@@ -673,8 +673,7 @@ export function Admin360Studio({
               <FrameStage
                 aspect={aspect}
                 guides
-                className="border border-white/10"
-                style={{ height: "min(82vh, 1000px)" }}
+                className="h-[min(82vh,1000px)] border border-white/10 supports-[height:1svh]:h-[min(82svh,1000px)]"
                 layers={[{ key: "c", src: srcOf(frames[preview]), foot: footOf(frames[preview].file), t: meta[frames[preview].file]?.t }]}
               />
             )}

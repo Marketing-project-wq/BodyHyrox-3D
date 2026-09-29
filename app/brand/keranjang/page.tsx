@@ -39,7 +39,7 @@ export default async function KeranjangPage({
   const err = searchParams.error ? ERR[searchParams.error] ?? m.crt_err_failed : null;
 
   return (
-    <div className="min-h-[100dvh] bg-[#0b0b0d] text-[#f3f3f4]">
+    <div className="safe-x min-h-screen supports-[height:1dvh]:min-h-[100dvh] bg-[#0b0b0d] text-[#f3f3f4]">
       <PublicHeader locale={locale} back={{ href: "/atlet", label: m.pub_back }} />
       <main className="mx-auto max-w-3xl px-5 py-10">
         <BrandAccountNav active="keranjang" cartCount={items.length} company={s.company} m={m} />
