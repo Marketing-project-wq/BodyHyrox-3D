@@ -10,6 +10,9 @@ const en = {
   // sidebar / nav
   manage: "Manage",
   logout: "Log out",
+  nav_openMenu: "Open menu",
+  nav_closeMenu: "Close menu",
+  login_usernamePlaceholder: "username",
   nav_overview: "Overview",
   nav_athletes: "Athletes",
   nav_brands: "Brands",
@@ -602,6 +605,9 @@ export type Dict = Record<keyof typeof en, string>;
 const id: Dict = {
   manage: "Kelola",
   logout: "Keluar",
+  nav_openMenu: "Buka menu",
+  nav_closeMenu: "Tutup menu",
+  login_usernamePlaceholder: "nama pengguna",
   nav_overview: "Overview",
   nav_athletes: "Atlet",
   nav_brands: "Brand",

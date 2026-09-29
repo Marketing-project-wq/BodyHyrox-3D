@@ -140,82 +140,6 @@ body {
   }
 }
 
-/* ---------- Athlete neon stage (public /atlet/[id]) ---------------------
-   Original 20FIT "dark room" look built from CSS/SVG only (no canvas/JS loop).
-   Namespaced `stage-*` so it never touches other pages' styles. Effects are
-   gradient-based (cheap); density is reduced on phones and motion is dropped
-   for prefers-reduced-motion. -------------------------------------------- */
-.stage {
-  isolation: isolate;
-}
-.stage-glow {
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  pointer-events: none;
-  background:
-    radial-gradient(58% 46% at 50% 34%, rgba(255, 45, 85, 0.24), transparent 70%),
-    radial-gradient(130% 80% at 50% 118%, rgba(255, 45, 85, 0.14), transparent 62%);
-}
-.stage-floor {
-  position: absolute;
-  left: 50%;
-  bottom: -8%;
-  z-index: 0;
-  width: 220%;
-  height: 62%;
-  pointer-events: none;
-  transform: translateX(-50%) perspective(560px) rotateX(62deg);
-  transform-origin: bottom center;
-  background-image:
-    repeating-linear-gradient(to right, rgba(255, 45, 85, 0.16) 0 1px, transparent 1px 58px),
-    repeating-linear-gradient(to bottom, rgba(255, 45, 85, 0.12) 0 1px, transparent 1px 58px);
-  -webkit-mask-image: radial-gradient(78% 82% at 50% 2%, #000 18%, transparent 76%);
-  mask-image: radial-gradient(78% 82% at 50% 2%, #000 18%, transparent 76%);
-  opacity: 0.55;
-}
-.stage-beams {
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  width: 100%;
-  height: 100%;
-  pointer-events: none;
-  opacity: 0.62;
-  filter: drop-shadow(0 0 7px rgba(255, 45, 85, 0.6));
-}
-.stage-platform {
-  position: absolute;
-  left: 50%;
-  bottom: 7%;
-  z-index: 1;
-  width: 60%;
-  max-width: 440px;
-  height: 84px;
-  pointer-events: none;
-  transform: translateX(-50%);
-  border-radius: 50%;
-  background: radial-gradient(
-    50% 58% at 50% 50%,
-    rgba(255, 45, 85, 0.64),
-    rgba(255, 45, 85, 0.18) 46%,
-    transparent 72%
-  );
-}
-.stage-platform::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: 50%;
-  box-shadow: inset 0 0 0 1px rgba(255, 45, 85, 0.42);
-}
-.stage-vignette {
-  position: absolute;
-  inset: 0;
-  z-index: 2;
-  pointer-events: none;
-  background: radial-gradient(122% 100% at 50% 42%, transparent 54%, rgba(0, 0, 0, 0.55) 100%);
-}
 /* Soft ground-contact shadow under the athlete's feet. Sits at the bottom of
    the (transparent) figure frame, behind the cut-out image, so the athlete
    reads as standing on the stage instead of floating. */
@@ -334,19 +258,6 @@ body {
   stroke-width: 2.5px;
   filter: drop-shadow(0 0 3px rgba(255, 45, 85, 0.9));
 }
-/* Contact shadow under the athlete's soles (position/size set per frame in
-   JS from the measured feet). Sits on the platform, under the photo. */
-.stage-shadow {
-  position: absolute;
-  z-index: 0;
-  left: 50%;
-  top: 96.5%;
-  width: 40%;
-  height: 2%;
-  transform: translate(-50%, -50%);
-  pointer-events: none;
-  border-radius: 50%;
-}
 /* Sole/pool shadows on the athlete stage: fixed full-box size, placed and
    sized with transform only (no layout per frame). JS sets
    translate(centre) scale(size) translate(-50%, -50%). */
@@ -376,11 +287,24 @@ body {
 @media (max-width: 639.98px) {
   .stagecard-fit {
     --stage-fit-max: var(--stage-fit-xs);
+    --stage-fit-max-vh: var(--stage-fit-xs-vh);
   }
 }
 @media (min-width: 640px) and (max-width: 1023.98px) {
   .stagecard-fit {
     --stage-fit-max: var(--stage-fit-sm);
+    --stage-fit-max-vh: var(--stage-fit-sm-vh);
+  }
+}
+/* Athlete photo height (viewer360FrameStyle in lib/config.ts): vh for browsers
+   without svh, svh everywhere else. Two rules, so it never depends on class
+   order. */
+.v360-frame {
+  height: var(--v360-h-vh);
+}
+@supports (height: 1svh) {
+  .v360-frame {
+    height: var(--v360-h);
   }
 }
 
@@ -489,151 +413,6 @@ body {
     rgba(255, 45, 85, 0.16) 48%,
     transparent 74%
   );
-}
-
-/* ---- Ambient motion — slow & elegant. Durations/intensity come from config
-   (CSS vars set by <AthleteStage>); all of it is dropped for reduced-motion. */
-.stage-breathe {
-  animation: stage-breathe var(--stage-breathe, 7s) ease-in-out infinite;
-}
-@keyframes stage-breathe {
-  0%,
-  100% {
-    opacity: 0.72;
-    transform: scale(1);
-  }
-  50% {
-    opacity: 1;
-    transform: scale(1.045);
-  }
-}
-.stage-beam-pulse {
-  animation: stage-beam-pulse var(--stage-beam, 6.5s) ease-in-out infinite;
-}
-@keyframes stage-beam-pulse {
-  0%,
-  100% {
-    opacity: calc(0.4 * var(--stage-intensity, 1));
-  }
-  50% {
-    opacity: calc(0.62 * var(--stage-intensity, 1));
-  }
-}
-/* Perspective grid slowly flows toward the viewer (one 58px cell per loop). */
-.stage-floor-drift {
-  animation: stage-floor-drift var(--stage-floor, 24s) linear infinite;
-}
-@keyframes stage-floor-drift {
-  from {
-    background-position: 0 0, 0 0;
-  }
-  to {
-    background-position: 0 0, 0 58px;
-  }
-}
-
-/* Faint floating dust motes drifting up through the room. */
-.stage-dust {
-  position: absolute;
-  inset: 0;
-  z-index: 1;
-  pointer-events: none;
-}
-.stage-mote {
-  position: absolute;
-  width: 4px;
-  height: 4px;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(255, 220, 225, 0.9), rgba(255, 45, 85, 0.35) 55%, transparent 70%);
-  opacity: 0;
-  animation: stage-rise var(--stage-dust, 16s) ease-in-out infinite;
-}
-@keyframes stage-rise {
-  0% {
-    transform: translateY(20px);
-    opacity: 0;
-  }
-  18% {
-    opacity: calc(0.55 * var(--stage-intensity, 1));
-  }
-  82% {
-    opacity: calc(0.4 * var(--stage-intensity, 1));
-  }
-  100% {
-    transform: translateY(-150px);
-    opacity: 0;
-  }
-}
-.stage-mote-1 {
-  left: 18%;
-  bottom: 26%;
-}
-.stage-mote-2 {
-  left: 32%;
-  bottom: 20%;
-  width: 3px;
-  height: 3px;
-  animation-delay: -3s;
-}
-.stage-mote-3 {
-  left: 47%;
-  bottom: 30%;
-  animation-delay: -7s;
-  animation-duration: calc(var(--stage-dust, 16s) * 1.25);
-}
-.stage-mote-4 {
-  left: 58%;
-  bottom: 22%;
-  width: 5px;
-  height: 5px;
-  animation-delay: -10s;
-}
-.stage-mote-5 {
-  left: 68%;
-  bottom: 28%;
-  width: 3px;
-  height: 3px;
-  animation-delay: -5s;
-}
-.stage-mote-6 {
-  left: 78%;
-  bottom: 24%;
-  animation-delay: -12s;
-  animation-duration: calc(var(--stage-dust, 16s) * 0.9);
-}
-.stage-mote-7 {
-  left: 40%;
-  bottom: 18%;
-  width: 3px;
-  height: 3px;
-  animation-delay: -8s;
-}
-
-@media (max-width: 640px) {
-  .stage-floor {
-    opacity: 0.4;
-    height: 54%;
-  }
-  .stage-beams {
-    opacity: 0.34;
-  }
-  /* Trim motes on phones to keep paint/battery light. */
-  .stage-mote-5,
-  .stage-mote-6,
-  .stage-mote-7 {
-    display: none;
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  .stage-breathe,
-  .stage-beam-pulse,
-  .stage-floor-drift,
-  .stage-mote {
-    animation: none;
-  }
-  .stage-dust {
-    display: none;
-  }
 }
 
 /* Thin scrollbars */

@@ -27,7 +27,7 @@ export default function LoginPage({
         <form action={login} className="card space-y-4 p-6">
           <div>
             <label className="mb-1 block text-xs text-faint">{m.login_username}</label>
-            <input name="username" required autoFocus className="input" placeholder="username" />
+            <input name="username" required autoFocus className="input" placeholder={m.login_usernamePlaceholder} />
           </div>
           <div>
             <label className="mb-1 block text-xs text-faint">{m.login_password}</label>

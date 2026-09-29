@@ -1,3 +1,4 @@
+import type { CSSProperties } from "react";
 /**
  * Central business configuration for Sponsor My Body.
  *
@@ -395,14 +396,19 @@ export const STAGE_FIT = {
   minFigurePx: 240,
 };
 
-/** CSS custom properties (set on the stage card) with the phone / sm+ photo height budgets. */
+/**
+ * CSS custom properties (set on the stage card) with the phone / sm+ photo
+ * height budgets, in svh and — for browsers without svh — in vh.
+ */
 export function stageFitVars(): Record<string, string> {
   const F = STAGE_FIT;
-  const budget = (topPad: number, below: number) =>
-    `max(${F.minFigurePx}px, calc(100svh - (${F.headerPx - F.headerPadTopPx}px + max(${F.headerPadTopPx}px, env(safe-area-inset-top, 0px)) + ${topPad}px + ${F.bottomStackPx}px + ${below}px + ${F.toolbarAllowancePx}px + env(safe-area-inset-bottom, 0px))))`;
+  const budget = (unit: "svh" | "vh", topPad: number, below: number) =>
+    `max(${F.minFigurePx}px, calc(100${unit} - (${F.headerPx - F.headerPadTopPx}px + max(${F.headerPadTopPx}px, env(safe-area-inset-top, 0px)) + ${topPad}px + ${F.bottomStackPx}px + ${below}px + ${F.toolbarAllowancePx}px + env(safe-area-inset-bottom, 0px))))`;
   return {
-    "--stage-fit-xs": budget(F.topPadPx.xs, F.belowStagePx.xs),
-    "--stage-fit-sm": budget(F.topPadPx.sm, F.belowStagePx.sm),
+    "--stage-fit-xs": budget("svh", F.topPadPx.xs, F.belowStagePx.xs),
+    "--stage-fit-sm": budget("svh", F.topPadPx.sm, F.belowStagePx.sm),
+    "--stage-fit-xs-vh": budget("vh", F.topPadPx.xs, F.belowStagePx.xs),
+    "--stage-fit-sm-vh": budget("vh", F.topPadPx.sm, F.belowStagePx.sm),
   };
 }
 
@@ -412,14 +418,21 @@ export function stageFitVars(): Record<string, string> {
  * follows the frame aspect ratio. Shared so the viewer and the page stay in sync.
  * Below lg the stage card also sets --stage-fit-max (see STAGE_FIT); elsewhere
  * the fallback equals maxHeightPx, so nothing changes.
+ * The height itself is applied by the VIEWER_360_FRAME_CLASS rule in
+ * globals.css: an inline style can't hold an @supports fallback, so the svh
+ * and vh versions travel as custom properties and the class picks one.
  */
-export function viewer360FrameStyle() {
+export const VIEWER_360_FRAME_CLASS = "v360-frame";
+export function viewer360FrameStyle(): CSSProperties {
+  const cap = (unit: "svh" | "vh", fit: string) =>
+    `min(${VIEWER_360.maxHeightSvh}${unit}, ${VIEWER_360.maxHeightPx}px, var(${fit}, ${VIEWER_360.maxHeightPx}px))`;
   return {
-    height: `min(${VIEWER_360.maxHeightSvh}svh, ${VIEWER_360.maxHeightPx}px, var(--stage-fit-max, ${VIEWER_360.maxHeightPx}px))`,
+    "--v360-h": cap("svh", "--stage-fit-max"),
+    "--v360-h-vh": cap("vh", "--stage-fit-max-vh"),
     width: "auto",
     aspectRatio: "168 / 395",
     maxWidth: `min(${VIEWER_360.maxWidthPx}px, 82vw)`,
-  };
+  } as CSSProperties;
 }
 
 /** Default notification toggles for a fresh platform. */

@@ -4,7 +4,7 @@ import { forwardRef, useCallback, useEffect, useImperativeHandle, useLayoutEffec
 import { useRouter } from "next/navigation";
 import type { Media360 } from "@/lib/data";
 import { VIEW_ANGLES, VIEW_KEYS, frameAngles } from "@/lib/views";
-import { STAGE_ARENA, VIEWER_360, VIEWER_VIEWS, viewer360FrameStyle } from "@/lib/config";
+import { STAGE_ARENA, VIEWER_360, VIEWER_360_FRAME_CLASS, VIEWER_VIEWS, viewer360FrameStyle } from "@/lib/config";
 import { type Dict } from "@/lib/i18n";
 import { formatIDR } from "@/lib/format";
 import { footIsCurrent, frameCss, measureFrame, soleLifted, transformFoot, type Foot } from "@/lib/media360";
@@ -644,7 +644,7 @@ export const AthleteViews = forwardRef<
   return (
     <div
       ref={rootRef}
-      className="relative mx-auto select-none outline-none focus-visible:ring-2 focus-visible:ring-[#ff2d55]/70"
+      className={`relative mx-auto select-none outline-none focus-visible:ring-2 focus-visible:ring-[#ff2d55]/70 ${VIEWER_360_FRAME_CLASS}`}
       style={{ ...viewer360FrameStyle(), touchAction: "pan-y" }}
       tabIndex={0}
       role="group"
