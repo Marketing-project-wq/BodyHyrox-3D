@@ -5,7 +5,7 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { ChevronLeft, ChevronRight, RotateCcw } from "lucide-react";
 import type { PublicAthleteDetail } from "@/lib/data";
-import { STAGE_ARENA, VIEWER_360, VIEWER_VIEWS, viewer360FrameStyle } from "@/lib/config";
+import { STAGE_ARENA, STAGE_READOUT, VIEWER_360, VIEWER_VIEWS, viewer360FrameStyle } from "@/lib/config";
 import { VIEW_KEYS } from "@/lib/views";
 import { type Dict } from "@/lib/i18n";
 import { tGender } from "@/lib/i18n";
@@ -582,10 +582,21 @@ export function AthleteStageCard({
               figure. sm+: top-right, sized to the stage column and capped to the
               space beside the figure so it never runs off-card or into the head. */}
           {has360 && (
-            <div className="stagecard-readout pointer-events-none z-20" aria-live="polite">
+            <div
+              className="stagecard-readout pointer-events-none z-20"
+              aria-live="polite"
+              style={
+                {
+                  "--ro-scrim": STAGE_READOUT.scrimOpacity,
+                  "--ro-spread": `${STAGE_READOUT.scrimSpreadPx}px`,
+                  "--ro-shadow": STAGE_READOUT.textShadowOpacity,
+                  "--ro-hint": STAGE_READOUT.hintOpacity,
+                } as React.CSSProperties
+              }
+            >
               <div className="stagecard-readout-name font-condensed font-bold uppercase leading-none">{viewNames[view]}</div>
               <div className="stagecard-readout-deg font-mono text-xs text-[#ff2d55] tabular-nums">{`${view * 90}°`}</div>
-              <p className="stagecard-readout-hint font-mono text-[11px] leading-snug text-white/45">{m.sc_hint}</p>
+              <p className="stagecard-readout-hint font-mono text-[11px] leading-snug">{m.sc_hint}</p>
             </div>
           )}
 

@@ -376,22 +376,56 @@ body {
   top: 0;
   left: 0;
   right: 0;
+  /* hug the text (centred) so the backing below stays small */
+  width: fit-content;
+  max-width: calc(100% - 1rem);
+  margin-inline: auto;
   display: flex;
   align-items: baseline;
   justify-content: center;
   gap: 0.5rem;
   text-align: center;
+  isolation: isolate;
+}
+/* Soft dark backing behind the text: solid under the text, fading to fully
+   transparent over its outer --ro-spread on every side (two crossed masks),
+   so it never reads as a box over the arena. Strength and reach come from
+   STAGE_READOUT (lib/config.ts). */
+.stagecard-readout::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: calc(-1 * var(--ro-spread, 28px));
+  pointer-events: none;
+  background: rgba(10, 5, 7, var(--ro-scrim, 0.78));
+  -webkit-mask-image:
+    linear-gradient(to right, transparent, #000 var(--ro-spread, 28px), #000 calc(100% - var(--ro-spread, 28px)), transparent),
+    linear-gradient(to bottom, transparent, #000 var(--ro-spread, 28px), #000 calc(100% - var(--ro-spread, 28px)), transparent);
+  -webkit-mask-composite: source-in;
+  mask-image:
+    linear-gradient(to right, transparent, #000 var(--ro-spread, 28px), #000 calc(100% - var(--ro-spread, 28px)), transparent),
+    linear-gradient(to bottom, transparent, #000 var(--ro-spread, 28px), #000 calc(100% - var(--ro-spread, 28px)), transparent);
+  mask-composite: intersect;
+}
+.stagecard-readout-name,
+.stagecard-readout-deg {
+  text-shadow:
+    0 1px 2px rgba(0, 0, 0, var(--ro-shadow, 0.9)),
+    0 0 10px rgba(0, 0, 0, var(--ro-shadow, 0.9));
 }
 .stagecard-readout-name {
   font-size: clamp(1.35rem, 8cqw, 2rem);
 }
 .stagecard-readout-hint {
   display: none;
+  color: rgba(255, 255, 255, var(--ro-hint, 0.6));
+  text-shadow: 0 1px 2px rgba(0, 0, 0, var(--ro-shadow, 0.9));
 }
 @media (min-width: 640px) {
   .stagecard-readout {
     left: auto;
     right: 0.25rem;
+    margin-inline: 0;
     display: block;
     text-align: right;
     /* the space right of the (max 300px wide, centred) figure, minus a gap */
