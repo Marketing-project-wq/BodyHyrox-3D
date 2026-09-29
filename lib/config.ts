@@ -267,6 +267,12 @@ export const STAGE_ARENA = {
   liftedShadowHeight: 1.8,
   poolShadowHeight: 0.045,
   /**
+   * The platform check (a 3D raycast per sole) is cached and redone only when
+   * the leading frame changes, the stage turns more than this many degrees,
+   * or the layout changes (resize / scroll).
+   */
+  groundRecheckDeg: 5,
+  /**
    * Ignore frame-rate samples for this long after the stage starts (images and
    * fonts are still decoding then), and only switch the arena off after this
    * many slow measurement windows in a row.

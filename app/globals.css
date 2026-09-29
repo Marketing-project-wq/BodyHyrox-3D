@@ -346,6 +346,22 @@ body {
   pointer-events: none;
   border-radius: 50%;
 }
+/* Sole/pool shadows on the athlete stage: fixed full-box size, placed and
+   sized with transform only (no layout per frame). JS sets
+   translate(centre) scale(size) translate(-50%, -50%). */
+.stage-shadow-t {
+  position: absolute;
+  z-index: 0;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  transform-origin: 0 0;
+  transform: scale(0);
+  pointer-events: none;
+  border-radius: 50%;
+  will-change: transform, opacity;
+}
 .stage-shadow-core {
   background: radial-gradient(50% 50% at 50% 50%, rgba(0, 0, 0, 0.97), rgba(0, 0, 0, 0.85) 45%, rgba(0, 0, 0, 0.35) 75%, transparent 100%);
 }

@@ -32,6 +32,12 @@ type DragCallbacks = {
 
 const norm360 = (a: number) => ((a % 360) + 360) % 360;
 
+type GroundHit = { inside: boolean; scale: number };
+
+/** Place a full-box .stage-shadow-t: centre (cx, cy) and size (w, h), as fractions of the box. */
+const shadowTransform = (cx: number, cy: number, w: number, h: number) =>
+  `translate(${(cx * 100).toFixed(2)}%, ${(cy * 100).toFixed(2)}%) scale(${w.toFixed(4)}, ${h.toFixed(4)}) translate(-50%, -50%)`;
+
 const mixFoot = (p: Foot, q: Foot, t: number): Foot => ({
   toe: p.toe + (q.toe - p.toe) * t,
   back: p.back + (q.back - p.back) * t,
@@ -96,6 +102,10 @@ export const AthleteViews = forwardRef<
   const stackRef = useRef<HTMLDivElement>(null);
   const markersRef = useRef<HTMLDivElement>(null);
   const shadowsRef = useRef<HTMLDivElement>(null);
+  // Cached stage box (client coords) and platform raycasts; see paint().
+  const boxRef = useRef<DOMRect | null>(null);
+  const layoutVerRef = useRef(0);
+  const groundCacheRef = useRef<{ key: string; a: number; hits: (GroundHit | null)[] } | null>(null);
   const poolRef = useRef<HTMLDivElement>(null);
   const soleRefs = useRef<(HTMLDivElement | null)[]>([]);
   const feetRef = useRef<(Foot | null)[]>([]); // per frame index, after its transform
@@ -130,8 +140,12 @@ export const AthleteViews = forwardRef<
   const paint = useCallback(
     (angleDeg: number, moving: boolean, turning = false) => {
       lastRef.current = { a: angleDeg, moving, turning };
-      // Layout read first (before any style writes this frame).
-      const box = rootRef.current?.getBoundingClientRect() ?? null;
+      // Layout read only after a resize / scroll invalidated the cached box.
+      let box = boxRef.current;
+      if (!box && rootRef.current) {
+        box = rootRef.current.getBoundingClientRect();
+        boxRef.current = box;
+      }
       const imgs = imgRefs.current;
       const A = norm360(angleDeg);
       const kf = keyframes();
@@ -224,14 +238,24 @@ export const AthleteViews = forwardRef<
       const S = STAGE_ARENA;
       const ground = arenaRef.current?.current.groundHit ?? null;
       const shiftFrac = line - foot.toe; // same shift as the photo
-      const contacts = soles.map((sole) => {
+      // Raycasts are cached: redo them only for a new leading frame, a turn of
+      // more than groundRecheckDeg, or a layout change.
+      const hits: (GroundHit | null)[] = [];
+      const leadIdx = base === lo.i && a >= 0.5 && hi.i !== lo.i ? hi.i : base;
+      const gc = groundCacheRef.current;
+      const key = `${leadIdx}|${feet[leadIdx] ? 1 : 0}|${ground ? 1 : 0}|${layoutVerRef.current}`;
+      const dA = gc ? Math.abs(((A - gc.a + 540) % 360) - 180) : Infinity;
+      const recheck = !gc || gc.key !== key || dA > S.groundRecheckDeg;
+      const contacts = soles.map((sole, k) => {
         const [x0, x1, b] = sole;
         const cx = box ? box.left + ((x0 + x1) / 2) * box.width : 0;
         const cy = box ? box.top + (b + shiftFrac) * box.height + S.footOverlapPx : 0;
         let planted = !soleLifted(sole);
         let scale = 1;
         if (planted && ground && box) {
-          const g = ground(cx, cy);
+          const cached = recheck ? undefined : gc?.hits[k];
+          const g = cached !== undefined ? cached : ground(cx, cy);
+          if (recheck) hits[k] = g;
           if (g) {
             planted = g.inside;
             scale = Math.min(1.2, Math.max(0.6, g.scale));
@@ -239,6 +263,7 @@ export const AthleteViews = forwardRef<
         }
         return { x0, x1, b, planted, scale, cx, cy };
       });
+      if (recheck) groundCacheRef.current = { key, a: A, hits };
       if (shadows) {
         shadows.style.transform = shift;
         soleRefs.current.forEach((el, k) => {
@@ -251,10 +276,12 @@ export const AthleteViews = forwardRef<
           const wide = c.planted ? 1 : S.liftedShadowWidth;
           const tall = c.planted ? 1 : S.liftedShadowHeight;
           el.style.opacity = c.planted ? "1" : String(S.liftedShadowOpacity);
-          el.style.left = `${(((c.x0 + c.x1) / 2) * 100).toFixed(2)}%`;
-          el.style.top = `${((c.b - S.soleShadowRise * c.scale) * 100).toFixed(2)}%`;
-          el.style.width = `${(Math.max(c.x1 - c.x0, S.soleShadowMinSpan) * S.soleShadowWidth * wide * c.scale * 100).toFixed(2)}%`;
-          el.style.height = `${(S.soleShadowHeight * tall * c.scale * 100).toFixed(2)}%`;
+          el.style.transform = shadowTransform(
+            (c.x0 + c.x1) / 2,
+            c.b - S.soleShadowRise * c.scale,
+            Math.max(c.x1 - c.x0, S.soleShadowMinSpan) * S.soleShadowWidth * wide * c.scale,
+            S.soleShadowHeight * tall * c.scale,
+          );
         });
         const pool = poolRef.current;
         if (pool) {
@@ -263,10 +290,7 @@ export const AthleteViews = forwardRef<
           const x1 = Math.max(...ps.map((c) => c.x1));
           const b1 = Math.max(...ps.map((c) => c.b));
           const b0 = Math.min(...ps.map((c) => c.b));
-          pool.style.left = `${(((x0 + x1) / 2) * 100).toFixed(2)}%`;
-          pool.style.top = `${(((b0 + b1) / 2 - S.soleShadowRise) * 100).toFixed(2)}%`;
-          pool.style.width = `${((x1 - x0) * 1.35 * 100).toFixed(2)}%`;
-          pool.style.height = `${((b1 - b0 + S.poolShadowHeight) * 100).toFixed(2)}%`;
+          pool.style.transform = shadowTransform((x0 + x1) / 2, (b0 + b1) / 2 - S.soleShadowRise, (x1 - x0) * 1.35, b1 - b0 + S.poolShadowHeight);
         }
       }
       // ?debug=feet overlay: platform top face (cyan), each contact point
@@ -411,6 +435,32 @@ export const AthleteViews = forwardRef<
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase2, angles]);
+
+  // Layout changes invalidate the cached box and raycasts, then repaint once.
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!root) return;
+    let raf = 0;
+    const invalidate = () => {
+      boxRef.current = null;
+      layoutVerRef.current++;
+      if (raf || !ready) return;
+      raf = requestAnimationFrame(() => {
+        raf = 0;
+        paint(lastRef.current.a, lastRef.current.moving, lastRef.current.turning);
+      });
+    };
+    const ro = new ResizeObserver(invalidate);
+    ro.observe(root);
+    window.addEventListener("scroll", invalidate, { passive: true, capture: true });
+    window.addEventListener("resize", invalidate, { passive: true });
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("scroll", invalidate, { capture: true });
+      window.removeEventListener("resize", invalidate);
+      if (raf) cancelAnimationFrame(raf);
+    };
+  }, [paint, ready]);
 
   // Repaint once the view photos are ready (and whenever the image set changes).
   useEffect(() => {
@@ -592,14 +642,14 @@ export const AthleteViews = forwardRef<
       {/* Contact shadows (behind the photo, on the platform): a soft pool plus
           one tight shadow under each sole, so the athlete stands, not floats */}
       <div ref={shadowsRef} className="pointer-events-none absolute inset-0 z-0" aria-hidden>
-        <div ref={poolRef} className="stage-shadow stage-shadow-soft" />
+        <div ref={poolRef} className="stage-shadow-t stage-shadow-soft" />
         {[0, 1].map((k) => (
           <div
             key={k}
             ref={(el) => {
               soleRefs.current[k] = el;
             }}
-            className="stage-shadow stage-shadow-core"
+            className="stage-shadow-t stage-shadow-core"
           />
         ))}
       </div>
