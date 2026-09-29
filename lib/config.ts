@@ -148,6 +148,22 @@ export const VIEWER_360 = {
 } as const;
 
 /**
+ * Stage view readout (view name, angle, hint) over the arena. A soft dark
+ * backing fades to transparent at its edges (no visible box) so the neon
+ * scenery behind never cuts through the text, in any view.
+ */
+export const STAGE_READOUT = {
+  /** Backing darkness at its centre (0-1); it fades to 0 at the edge. */
+  scrimOpacity: 0.9,
+  /** How far the backing reaches past the text on each side (px). */
+  scrimSpreadPx: 28,
+  /** Text shadow strength on the name and angle (0-1). */
+  textShadowOpacity: 0.9,
+  /** Hint text opacity (white). */
+  hintOpacity: 0.6,
+};
+
+/**
  * Fixed 4-view athlete viewer (Depan / Kanan / Belakang / Kiri). Which photo is
  * used for each view is data (smb_athlete_media_360.views, picked in admin).
  */
