@@ -3,35 +3,40 @@
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Check, RotateCw, X } from "lucide-react";
-import { VIEW_KEYS, type HotspotInput, type Media360Views } from "@/lib/views";
+import { VIEW_KEYS, type Media360Views } from "@/lib/views";
+import type { SideHotspot } from "@/lib/media360-sides";
 import type { AdminZoneRow } from "@/lib/data";
 import { type Dict, fmt } from "@/lib/i18n";
-import { setMediaHotspots } from "@/app/atlet/[id]/media-actions";
+import { saveDraftSides } from "@/app/atlet/[id]/media-actions";
 
 type Point = { x: number; y: number };
 
 /**
  * Admin: place each body zone's marker on the Depan / Kanan / Belakang / Kiri
- * photos. Markers are stored per frame number (the photo each side uses), so
- * the public viewer shows them on that side and a click opens the zone.
+ * photos. Markers are keyed by the photo's file and saved into the DRAFT
+ * (saveDraftSides), on the photo each side uses in the draft; they go live
+ * with Publish in the studio.
  */
 export function AthleteZonesPlacer({
   athleteId,
-  baseUrl,
-  frames,
+  srcs,
   views,
   viewsSaved,
   zones,
   initial,
+  pending: draftPending,
   m,
 }: {
   athleteId: string;
-  baseUrl: string;
-  frames: string[];
+  /** Image URL per frame file. */
+  srcs: Record<string, string>;
   views: Media360Views;
   viewsSaved: boolean;
   zones: AdminZoneRow[];
-  initial: HotspotInput[];
+  /** Markers keyed by frame file. */
+  initial: SideHotspot[];
+  /** The draft carries markers that are not published yet. */
+  pending: boolean;
   m: Dict;
 }) {
   const router = useRouter();
@@ -49,10 +54,8 @@ export function AthleteZonesPlacer({
 
   const names = [m.view_front, m.view_right, m.view_back, m.view_left];
   const file = views[VIEW_KEYS[view]];
-  const frameNo = String(frames.indexOf(file) + 1);
-  const base = baseUrl.replace(/\/$/, "");
   const zoneName = (id: string) => placeable.find((z) => z.athleteZoneId === id)?.nama ?? "";
-  const onThisView = Object.entries(points).filter(([, p]) => p[frameNo]);
+  const onThisView = Object.entries(points).filter(([, p]) => p[file]);
 
   const place = (e: React.MouseEvent<HTMLDivElement>) => {
     if (!selected) {
@@ -66,7 +69,7 @@ export function AthleteZonesPlacer({
     setOk(false);
     setPoints((prev) => ({
       ...prev,
-      [selected]: { ...(prev[selected] ?? {}), [frameNo]: { x: +x.toFixed(4), y: +y.toFixed(4) } },
+      [selected]: { ...(prev[selected] ?? {}), [file]: { x: +x.toFixed(4), y: +y.toFixed(4) } },
     }));
   };
 
@@ -74,7 +77,7 @@ export function AthleteZonesPlacer({
     setOk(false);
     setPoints((prev) => {
       const next = { ...prev, [id]: { ...(prev[id] ?? {}) } };
-      delete next[id][frameNo];
+      delete next[id][file];
       return next;
     });
   };
@@ -82,12 +85,12 @@ export function AthleteZonesPlacer({
   const save = () => {
     setOk(false);
     setError(null);
-    const payload: HotspotInput[] = Object.entries(points)
+    const payload: SideHotspot[] = Object.entries(points)
       .filter(([, p]) => Object.keys(p).length > 0)
       .map(([athleteZoneId, p]) => ({ athleteZoneId, label: zoneName(athleteZoneId), points: p }));
     start(async () => {
       try {
-        await setMediaHotspots(athleteId, payload);
+        await saveDraftSides(athleteId, { hotspots: payload });
         setOk(true);
         router.refresh();
       } catch (err) {
@@ -101,6 +104,7 @@ export function AthleteZonesPlacer({
       <h2 className="text-sm font-semibold text-text">{m.m360_zones_title}</h2>
       <p className="mt-1 text-xs text-muted">{m.m360_zones_hint}</p>
       {!viewsSaved && <p className="mt-1 text-xs text-faint">{m.m360_zones_needViews}</p>}
+      {draftPending && <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">{m.m360_sides_pending}</p>}
 
       <div className="mt-3 flex flex-wrap gap-1.5" role="tablist">
         {VIEW_KEYS.map((k, i) => (
@@ -127,9 +131,9 @@ export function AthleteZonesPlacer({
             className="relative aspect-[168/395] w-full cursor-crosshair overflow-hidden rounded-lg border border-border bg-[#141414]"
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={`${base}/${file}`} alt={names[view]} draggable={false} className="pointer-events-none h-full w-full object-contain" />
+            <img src={srcs[file]} alt={names[view]} draggable={false} className="pointer-events-none h-full w-full object-contain" />
             {onThisView.map(([id, p]) => {
-              const pt = p[frameNo];
+              const pt = p[file];
               const active = id === selected;
               return (
                 <button
@@ -162,7 +166,7 @@ export function AthleteZonesPlacer({
         <div className="flex flex-col gap-1.5">
           {placeable.map((z) => {
             const id = z.athleteZoneId!;
-            const here = !!points[id]?.[frameNo];
+            const here = !!points[id]?.[file];
             const active = id === selected;
             return (
               <div
@@ -198,7 +202,7 @@ export function AthleteZonesPlacer({
           {pending ? <RotateCw className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
           {m.m360_zones_save}
         </button>
-        {ok && <span className="text-sm text-[#0f9d63]">{m.m360_zones_saved}</span>}
+        {ok && <span className="text-sm text-[#0f9d63]">{m.m360_zones_savedDraft}</span>}
       </div>
     </section>
   );

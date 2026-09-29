@@ -12,6 +12,8 @@ import { Badge } from "@/components/ui";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { Athlete360Admin } from "@/components/Athlete360Admin";
 import { AthleteViewsPicker } from "@/components/AthleteViewsPicker";
+import { sidesSource } from "@/lib/media360-sides";
+import { resolveViews } from "@/lib/views";
 import { AthleteZonesPlacer } from "@/components/AthleteZonesPlacer";
 import { Admin360Studio } from "@/components/admin360/Admin360Studio";
 import type { FrameMetaMap, Media360Draft } from "@/lib/media360";
@@ -75,6 +77,16 @@ export function AthleteEditorClient({
   m: Dict;
 }) {
   const [photo, setPhoto] = useState(athlete.photoUrl ?? "");
+  // Sides picker + zone placer work on the draft when there is one (published with it).
+  const sides = (() => {
+    const src = sidesSource(
+      { baseUrl: media360.baseUrl, frames: media360.frameNames, views: media360.views, hotspots: media360.hotspots },
+      media360.draft,
+      media360.draftUrls,
+    );
+    // No sides chosen in the draft yet: start from evenly spaced photos, like the live page.
+    return { ...src, views: src.views ?? resolveViews(src.frames, null) };
+  })();
   const [imgOk, setImgOk] = useState(true);
   const showImg = photo.trim().length > 0 && imgOk;
 
@@ -325,27 +337,28 @@ export function AthleteEditorClient({
             m={m}
           />
         )}
-        {canEdit && media360.frames > 0 && media360.views && (
+        {canEdit && sides.views && (
           <AthleteViewsPicker
-            key={media360.frameNames.join("|")}
+            key={`${sides.frames.join("|")}#${JSON.stringify(sides.views)}`}
             athleteId={athlete.id}
-            baseUrl={media360.baseUrl}
-            frames={media360.frameNames}
-            views={media360.views}
-            saved={media360.viewsSaved}
+            frames={sides.frames}
+            srcs={sides.srcs}
+            views={sides.views}
+            saved={media360.viewsSaved || sides.pendingViews}
+            pending={sides.pendingViews}
             m={m}
           />
         )}
-        {canEdit && media360.frames > 0 && media360.views && (
+        {canEdit && sides.views && (
           <AthleteZonesPlacer
-            key={`${media360.frameNames.join("|")}#${JSON.stringify(media360.views)}`}
+            key={`${sides.frames.join("|")}#${JSON.stringify(sides.views)}#${JSON.stringify(sides.hotspots)}`}
             athleteId={athlete.id}
-            baseUrl={media360.baseUrl}
-            frames={media360.frameNames}
-            views={media360.views}
-            viewsSaved={media360.viewsSaved}
+            srcs={sides.srcs}
+            views={sides.views}
+            viewsSaved={media360.viewsSaved || sides.pendingViews}
             zones={athlete.zones}
-            initial={media360.hotspots}
+            initial={sides.hotspots}
+            pending={sides.pendingHotspots}
             m={m}
           />
         )}

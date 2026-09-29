@@ -41,6 +41,7 @@ import { loadBackgroundRemover, measureBlob, preparePhoto, uploadDraftBlobs } fr
 import { discardDraft, publishDraft, restoreVersion, saveDraft, signDraftFiles } from "@/app/atlet/[id]/media-actions";
 import type { Media360VersionRow } from "@/lib/data";
 import { FrameStage } from "./FrameStage";
+import { draftHotspotsByFile } from "@/lib/media360-sides";
 import { FrameEditor, type EditorFrame } from "./FrameEditor";
 import { Flipbook } from "./Flipbook";
 
@@ -220,7 +221,10 @@ export function Admin360Studio({
     return VIEW_KEYS.filter((k) => live.views![k] === f.origin);
   };
   const markersOf = (f: DraftFrame): number => {
-    if (draft && draft.hotspots !== undefined) return 0;
+    if (draft && draft.hotspots !== undefined) {
+      // Draft markers are keyed by frame file (lib/media360-sides).
+      return draftHotspotsByFile(draft.hotspots, draft.frames.map((d) => d.file)).filter((h) => h.points[f.file]).length;
+    }
     if (!f.origin) return 0;
     const no = String(live.frames.indexOf(f.origin) + 1);
     return live.hotspots.filter((h) => h.points[no]).length;
@@ -230,6 +234,13 @@ export function Admin360Studio({
     if (!draft || draft.views !== undefined || !live.viewsSaved || !live.views) return [];
     return VIEW_KEYS.filter((k) => !draft.frames.some((f) => f.origin === live.views![k]));
   }, [draft, live.views, live.viewsSaved]);
+
+  // Sides chosen in the draft whose frame was removed since: publish refuses
+  // them (never drops the sides silently), so ask to pick them again first.
+  const draftLostViews = useMemo(() => {
+    if (!draft || !draft.views) return [];
+    return VIEW_KEYS.filter((k) => !draft.frames.some((f) => f.file === draft.views![k]));
+  }, [draft]);
 
   // Zone markers that sit on a published frame no longer in the draft.
   const lostMarkers = useMemo(() => {
@@ -511,6 +522,11 @@ export function Admin360Studio({
       {lostViews.length > 0 && (
         <p className="mt-2 rounded-lg bg-amber-500/10 px-3 py-2 text-xs text-amber-700">
           {fmt(m.st_lostViews, { views: lostViews.map((k) => viewNames[k]).join(", ") })}
+        </p>
+      )}
+      {draftLostViews.length > 0 && (
+        <p className="mt-2 rounded-lg bg-amber-500/10 px-3 py-2 text-xs text-amber-700">
+          {fmt(m.st_lostDraftViews, { views: draftLostViews.map((k) => viewNames[k]).join(", ") })}
         </p>
       )}
       {lostMarkers.length > 0 && (
