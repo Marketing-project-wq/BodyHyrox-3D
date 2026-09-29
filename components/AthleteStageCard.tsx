@@ -379,6 +379,14 @@ export function AthleteStageCard({
     snapToSide();
     resumeLater("tap", STAGE_ARENA.tapHoldMs);
   }, [holdNow, snapToSide, resumeLater]);
+  // A zone card is open (touch): no idle spin until it closes.
+  const onZoneCardChange = useCallback(
+    (open: boolean) => {
+      if (open) holdNow("zone");
+      else resumeLater("zone", STAGE_ARENA.autoRotateResumeMs);
+    },
+    [holdNow, resumeLater],
+  );
   const onFocusChange = useCallback(
     (focused: boolean) => {
       if (focused) {
@@ -639,6 +647,7 @@ export function AthleteStageCard({
                 onTap={onTap}
                 onFocusChange={onFocusChange}
                 onReady={() => setPhotosReady(true)}
+                onZoneCardChange={onZoneCardChange}
                 arena={arenaOn ? arenaHandle : undefined}
                 debug={debugFeet}
                 m={m}

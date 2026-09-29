@@ -1,6 +1,6 @@
 "use client";
 
-import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { Media360 } from "@/lib/data";
 import { VIEW_ANGLES, VIEW_KEYS, frameAngles } from "@/lib/views";
@@ -10,6 +10,7 @@ import { formatIDR } from "@/lib/format";
 import { footIsCurrent, frameCss, measureFrame, soleLifted, transformFoot, type Foot } from "@/lib/media360";
 import type { ArenaHandle } from "@/components/StageArena3D";
 import type { MutableRefObject } from "react";
+import { X } from "lucide-react";
 
 /** Imperative API: the stage card's single orbit loop paints the athlete here. */
 export type AthleteViewsHandle = {
@@ -63,6 +64,8 @@ export const AthleteViews = forwardRef<
     arena?: MutableRefObject<ArenaHandle>;
     /** ?debug=feet: draw the platform top face and each foot's contact point. */
     debug?: boolean;
+    /** A zone card opened (touch) or closed: the stage holds its idle spin meanwhile. */
+    onZoneCardChange?: (open: boolean) => void;
     /** Mouse over / off the athlete. */
     onHoverChange?: (over: boolean) => void;
     /** A press on the athlete that did not become a drag (phones: tap). */
@@ -71,7 +74,7 @@ export const AthleteViews = forwardRef<
     onFocusChange?: (focused: boolean) => void;
   } & DragCallbacks
 >(function AthleteViews(
-  { athleteId, media, view, m, label, onStep, onReady, onHoverChange, onTap, onFocusChange, onDragStart, onDragMove, onDragEnd, arena, debug },
+  { athleteId, media, view, m, label, onStep, onReady, onHoverChange, onTap, onFocusChange, onDragStart, onDragMove, onDragEnd, arena, debug, onZoneCardChange },
   ref,
 ) {
   const rootRef = useRef<HTMLDivElement>(null);
@@ -80,6 +83,8 @@ export const AthleteViews = forwardRef<
   arenaRef.current = arena;
   const debugOn = useRef(!!debug);
   debugOn.current = !!debug;
+  // Set below; paint() closes an open zone card when the stage starts moving.
+  const closeCardRef = useRef<() => void>(() => {});
   const router = useRouter();
   const base = media.baseUrl.replace(/\/$/, "");
   const frames = media.frames;
@@ -287,6 +292,7 @@ export const AthleteViews = forwardRef<
       }
       // Zone markers: hidden while turning, back on the settled view.
       const mk = markersRef.current;
+      if (moving) closeCardRef.current();
       if (mk) {
         mk.style.opacity = moving ? "0" : "1";
         mk.style.visibility = moving ? "hidden" : "visible";
@@ -441,6 +447,7 @@ export const AthleteViews = forwardRef<
         return;
       }
       d.active = true;
+      closeCardRef.current();
       try {
         (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
       } catch {
@@ -470,6 +477,79 @@ export const AthleteViews = forwardRef<
 
   const frameNo = String(viewIdx[view] + 1);
   const activeHotspots = media.hotspots.filter((h) => h.points[frameNo]);
+
+  // ---- zone markers: touch opens a card, mouse/pen hovers + clicks through ----
+  // Decided per event from the pointer that pressed the marker (not a media
+  // query), so an iPad with a trackpad or a touch laptop behaves right either way.
+  const markerPointer = useRef<string>("");
+  const [hoverZone, setHoverZone] = useState<string | null>(null);
+  const [card, setCard] = useState<{ key: string; x: number; y: number } | null>(null);
+  const cardRef = useRef<HTMLDivElement>(null);
+  const cardOpen = useRef(false);
+  const onZoneCardChangeRef = useRef(onZoneCardChange);
+  onZoneCardChangeRef.current = onZoneCardChange;
+  const closeCard = useCallback(() => {
+    if (!cardOpen.current) return;
+    cardOpen.current = false;
+    setCard(null);
+    onZoneCardChangeRef.current?.(false);
+  }, []);
+  closeCardRef.current = closeCard;
+  const openCard = (key: string, el: HTMLElement) => {
+    const root = rootRef.current?.getBoundingClientRect();
+    const b = el.getBoundingClientRect();
+    if (!root) return;
+    cardOpen.current = true;
+    setCard({ key, x: b.left + b.width / 2 - root.left, y: b.top + b.height / 2 - root.top });
+    onZoneCardChangeRef.current?.(true);
+  };
+  // Close on a press outside the card / markers, on Escape, and when the view changes.
+  useEffect(() => {
+    if (!card) return;
+    const onDown = (e: PointerEvent) => {
+      const t = e.target as Node;
+      if (cardRef.current?.contains(t) || markersRef.current?.contains(t)) return;
+      closeCard();
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") closeCard();
+    };
+    document.addEventListener("pointerdown", onDown, true);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("pointerdown", onDown, true);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [card, closeCard]);
+  useEffect(() => {
+    closeCard();
+  }, [view, closeCard]);
+  useEffect(() => () => closeCard(), [closeCard]);
+  // Keep the card inside the stage card (and the screen), flipping above the
+  // marker when there is no room below.
+  useLayoutEffect(() => {
+    const el = cardRef.current;
+    const root = rootRef.current;
+    if (!card || !el || !root) return;
+    const r = root.getBoundingClientRect();
+    const bounds = (root.closest("section") ?? document.body).getBoundingClientRect();
+    const pad = 8;
+    const minX = Math.max(bounds.left, 0) + pad;
+    const maxX = Math.min(bounds.right, window.innerWidth) - pad;
+    const w = el.offsetWidth;
+    const h = el.offsetHeight;
+    let left = r.left + card.x - w / 2;
+    left = Math.min(Math.max(left, minX), maxX - w);
+    const gap = 26;
+    let top = r.top + card.y + gap;
+    const maxY = Math.min(bounds.bottom, window.innerHeight) - pad;
+    if (top + h > maxY) top = r.top + card.y - gap - h;
+    top = Math.max(top, Math.max(bounds.top, 0) + pad);
+    el.style.left = `${left - r.left}px`;
+    el.style.top = `${top - r.top}px`;
+    el.style.visibility = "visible";
+  }, [card]);
+  const cardZone = card ? activeHotspots.find((h) => h.label + frameNo === card.key) : null;
 
   return (
     <div
@@ -580,11 +660,27 @@ export const AthleteViews = forwardRef<
                     ? `${h.zoneNama}${h.effectivePrice != null && !taken ? " · " + formatIDR(h.effectivePrice) : taken ? " · " + m.v360_taken : ""}`
                     : h.label
                 }
-                onPointerDown={(e) => e.stopPropagation()}
-                onClick={() => {
+                aria-expanded={card?.key === h.label + frameNo}
+                onPointerDown={(e) => {
+                  e.stopPropagation();
+                  markerPointer.current = e.pointerType;
+                }}
+                onPointerEnter={(e) => {
+                  if (e.pointerType !== "touch") setHoverZone(h.label + frameNo);
+                }}
+                onPointerLeave={() => setHoverZone(null)}
+                onClick={(e) => {
+                  const touch = markerPointer.current === "touch";
+                  markerPointer.current = "";
+                  if (touch) {
+                    // Touch: first tap shows what the zone is; the card's button applies.
+                    if (card?.key === h.label + frameNo) closeCard();
+                    else openCard(h.label + frameNo, e.currentTarget);
+                    return;
+                  }
                   if (canApply) router.push(`/atlet/${athleteId}/ajukan?zone=${h.athleteZoneId}`);
                 }}
-                className="group pointer-events-auto absolute -translate-x-1/2 -translate-y-1/2"
+                className="pointer-events-auto absolute flex h-11 w-11 -translate-x-1/2 -translate-y-1/2 items-center justify-center"
                 style={{ left: `${p.x * 100}%`, top: `${p.y * 100}%` }}
               >
                 <span
@@ -592,14 +688,58 @@ export const AthleteViews = forwardRef<
                     taken ? "bg-white/40" : "bg-[#ff3b57]"
                   } ${canApply ? "cursor-pointer" : "cursor-default"}`}
                 />
-                <span className="pointer-events-none absolute left-1/2 top-5 hidden -translate-x-1/2 whitespace-nowrap rounded-md bg-black/85 px-2 py-1 text-[10px] text-white group-hover:block">
-                  {h.zoneNama ?? h.label}
-                  {taken ? ` · ${m.v360_taken}` : h.effectivePrice != null ? ` · ${formatIDR(h.effectivePrice)}` : ""}
-                </span>
+                {hoverZone === h.label + frameNo && !card && (
+                  <span className="pointer-events-none absolute left-1/2 top-9 -translate-x-1/2 whitespace-nowrap rounded-md bg-black/85 px-2 py-1 text-[10px] text-white">
+                    {h.zoneNama ?? h.label}
+                    {taken ? ` · ${m.v360_taken}` : h.effectivePrice != null ? ` · ${formatIDR(h.effectivePrice)}` : ""}
+                  </span>
+                )}
               </button>
             );
           })}
       </div>
+
+      {/* Zone card (touch): what the tapped zone is, and the way to apply */}
+      {card && cardZone && (
+        <div
+          ref={cardRef}
+          role="dialog"
+          aria-label={cardZone.zoneNama ?? cardZone.label}
+          onPointerDown={(e) => e.stopPropagation()}
+          className="absolute z-40 w-[min(15rem,calc(100vw-2rem))] rounded-xl border border-white/15 bg-[#140a0d]/95 p-3 text-white shadow-2xl"
+          style={{ left: 0, top: 0, visibility: "hidden" }}
+        >
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0 pt-1">
+              <div className="truncate text-sm font-semibold">{cardZone.zoneNama ?? cardZone.label}</div>
+              <div className="mt-0.5 text-xs text-white/60">
+                {cardZone.status === "terisi"
+                  ? m.v360_taken
+                  : cardZone.effectivePrice != null
+                    ? formatIDR(cardZone.effectivePrice)
+                    : ""}
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={closeCard}
+              aria-label={m.v360_close}
+              className="-mr-2 -mt-2 flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-white/60 hover:text-white"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+          {!!cardZone.athleteZoneId && cardZone.status === "tersedia" && (
+            <button
+              type="button"
+              onClick={() => router.push(`/atlet/${athleteId}/ajukan?zone=${cardZone.athleteZoneId}`)}
+              className="mt-2 flex min-h-11 w-full items-center justify-center rounded-full bg-[#ff2d55] px-4 text-sm font-semibold text-white"
+            >
+              {m.v360_apply_zone}
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 });

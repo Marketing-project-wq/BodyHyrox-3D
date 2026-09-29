@@ -251,6 +251,8 @@ const en = {
   v360_placeholder: "Placeholder · test photos",
   v360_loading: "Loading…",
   v360_taken: "Taken",
+  v360_apply_zone: "Apply for this zone",
+  v360_close: "Close",
   v360_frameOf: "{n} / {total}",
   v360_hint: "Drag to rotate",
   v3d_fallback: "Your browser doesn't support 3D — showing photos instead.",
@@ -831,6 +833,8 @@ const id: Dict = {
   v360_placeholder: "Placeholder · foto uji",
   v360_loading: "Memuat…",
   v360_taken: "Sudah diambil",
+  v360_apply_zone: "Ajukan zona ini",
+  v360_close: "Tutup",
   v360_frameOf: "{n} / {total}",
   v360_hint: "Seret untuk memutar",
 
