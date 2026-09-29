@@ -331,6 +331,37 @@ export const AthleteViews = forwardRef<
   // Feet metrics: the precomputed feet.json next to the frames, else measure
   // each decoded frame in the browser, else the config feet line.
   const feetJsonRef = useRef<Record<string, Foot> | null | undefined>(undefined);
+  // Visitor-side measuring: a small copy of the frame, never full resolution.
+  const measureSmall = async (i: number): Promise<Foot | null> => {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    await new Promise<void>((res) => {
+      img.onload = () => res();
+      img.onerror = () => res();
+      img.src = url(i);
+    });
+    return img.naturalWidth ? measureFrame(img, VIEWER_360.footMeasureMaxW) : null;
+  };
+  // One measurement per idle slot, in the order asked (the four views first).
+  const idleQueue = useRef<(() => Promise<void>)[]>([]);
+  const idleBusy = useRef(false);
+  const whenIdle = (job: () => Promise<void>) => {
+    idleQueue.current.push(job);
+    if (idleBusy.current) return;
+    idleBusy.current = true;
+    const ric: (cb: () => void) => void =
+      typeof window.requestIdleCallback === "function"
+        ? (cb) => window.requestIdleCallback(cb, { timeout: 2000 })
+        : (cb) => setTimeout(cb, 200);
+    const next = () =>
+      ric(async () => {
+        const j = idleQueue.current.shift();
+        if (j) await j().catch(() => undefined);
+        if (idleQueue.current.length) next();
+        else idleBusy.current = false;
+      });
+    next();
+  };
   const ensureFoot = useCallback(
     async (i: number) => {
       if (feetRef.current[i]) return;
@@ -347,9 +378,25 @@ export const AthleteViews = forwardRef<
         }
       };
       // Stored feet only when measured with the current (two-contact) rules
-      // or placed by hand; older ones are re-measured from the photo.
-      if (footIsCurrent(fm?.foot)) {
+      // or placed by hand. Older ones anchor with their stored toe right away;
+      // their contact points are measured small, in idle time.
+      // (cast: keep TS from narrowing fm.foot to never below)
+      if (footIsCurrent(fm?.foot as Foot | undefined)) {
         setFoot(fm!.foot!);
+        return;
+      }
+      const old: Foot | undefined = fm?.foot ?? undefined;
+      if (old) {
+        setFoot({ toe: old.toe, back: old.back, left: old.left, right: old.right });
+        whenIdle(async () => {
+          const r = await measureSmall(i);
+          if (!r?.soles?.length) return;
+          // Keep the stored anchor: move the small-scale soles onto its toe.
+          const d = old.toe - r.toe;
+          setFoot({ toe: old.toe, back: old.back, left: old.left, right: old.right, soles: r.soles.map(([x0, x1, b, ...rest]) => [x0, x1, b + d, ...rest]) });
+          groundCacheRef.current = null;
+          paint(lastRef.current.a, lastRef.current.moving, lastRef.current.turning);
+        });
         return;
       }
       if (feetJsonRef.current === undefined) {
@@ -369,14 +416,7 @@ export const AthleteViews = forwardRef<
         setFoot(fromJson);
         return;
       }
-      const img = new Image();
-      img.crossOrigin = "anonymous";
-      await new Promise<void>((res) => {
-        img.onload = () => res();
-        img.onerror = () => res();
-        img.src = url(i);
-      });
-      if (img.naturalWidth) setFoot(measureFrame(img));
+      setFoot(await measureSmall(i));
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [base, frames, url],

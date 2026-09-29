@@ -134,6 +134,12 @@ export const VIEWER_360 = {
    */
   feetLinePct: 3.5,
   /**
+   * Frames whose stored feet predate two-contact detection (or have none) are
+   * measured in the visitor's browser at most this wide (px), in idle time,
+   * never at full resolution. Old feet keep their stored toe for the anchor.
+   */
+  footMeasureMaxW: 160,
+  /**
    * No-WebGL fallback platform: tick marks on the flat CSS ring that turn with
    * the view change. `ringTurnDirection` matches the 3D arena's turn.
    */
