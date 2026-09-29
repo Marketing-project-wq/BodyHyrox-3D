@@ -15,6 +15,7 @@ import type { ArenaHandle } from "@/components/StageArena3D";
 
 // three.js + r3f load only on the client, after first paint, and only when WebGL
 // exists; until then (or without WebGL) the flat CSS ring platform shows.
+const ViewportDebug = dynamic(() => import("@/components/ViewportDebug").then((mod) => mod.ViewportDebug), { ssr: false });
 const StageArena3D = dynamic(() => import("@/components/StageArena3D").then((mod) => mod.StageArena3D), {
   ssr: false,
 });
@@ -62,9 +63,13 @@ export function AthleteStageCard({
   const ticksRef = useRef<SVGGElement>(null);
   const arenaHandle = useRef<ArenaHandle>({ angleDeg: 0, invalidate: null, setDpr: null, groundHit: null, outline: null });
   // ?debug=feet: draw the platform top face and each foot's contact point.
+  // ?debug=viewport: viewport / toolbar measuring overlay (both: debug=feet,viewport).
   const [debugFeet, setDebugFeet] = useState(false);
+  const [debugViewport, setDebugViewport] = useState(false);
   useEffect(() => {
-    setDebugFeet(new URLSearchParams(window.location.search).get("debug") === "feet");
+    const debug = (new URLSearchParams(window.location.search).get("debug") ?? "").split(",");
+    setDebugFeet(debug.includes("feet"));
+    setDebugViewport(debug.includes("viewport"));
   }, []);
   const platformRef = useRef<HTMLDivElement>(null);
   const figureRef = useRef<HTMLDivElement>(null);
@@ -772,6 +777,7 @@ export function AthleteStageCard({
       <span className="sr-only">
         <RotateCcw size={12} /> {m.sc_dragOnly}
       </span>
+      {debugViewport && <ViewportDebug sectionRef={sectionRef} />}
     </section>
   );
 }
