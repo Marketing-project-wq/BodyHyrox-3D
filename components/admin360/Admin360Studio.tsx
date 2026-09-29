@@ -222,6 +222,20 @@ export function Admin360Studio({
     return VIEW_KEYS.filter((k) => !draft.frames.some((f) => f.origin === live.views![k]));
   }, [draft, live.views, live.viewsSaved]);
 
+  // Zone markers that sit on a published frame no longer in the draft.
+  const lostMarkers = useMemo(() => {
+    if (!draft || draft.hotspots !== undefined) return [];
+    const kept = new Set(draft.frames.map((f) => f.origin).filter(Boolean));
+    const out: string[] = [];
+    for (const h of live.hotspots) {
+      for (const k of Object.keys(h.points)) {
+        const src = live.frames[Number(k) - 1];
+        if (src && !kept.has(src)) out.push(`${h.label || "?"} (${fmt(m.st_frameOf, { n: k, total: live.frames.length })})`);
+      }
+    }
+    return out;
+  }, [draft, live.hotspots, live.frames, m]);
+
   // ---- replace / insert (one photo) ----
   const pick = (mode: "replace" | "insert", index: number) => {
     pendingPick.current = { mode, index };
@@ -292,9 +306,22 @@ export function Admin360Studio({
     const f = frames[i];
     const warn = viewOf(f).length || markersOf(f) ? `\n\n${m.st_deleteWarn}` : "";
     if (!window.confirm(fmt(m.st_deleteConfirm, { n: i + 1 }) + warn)) return;
+    // "Add photo" next to a frame and then deleting that frame is really a
+    // replace: hand the deleted slot's sides / zone markers to the new photo
+    // (and keep the old one as its backup) instead of dropping them.
+    const heir = f.origin
+      ? [i - 1, i + 1].filter((j) => j >= 0 && j < n && frames[j].origin === null && frames[j].base === null)
+      : [];
     mutate((d) => {
       d.frames.splice(i, 1);
+      if (heir.length === 1) {
+        const j = heir[0] > i ? heir[0] - 1 : heir[0];
+        const nf = d.frames[j];
+        nf.origin = f.origin;
+        d.meta[nf.file] = { ...(d.meta[nf.file] ?? {}), prev: [...(d.meta[f.file]?.prev ?? []), { file: f.file, base: f.base }] };
+      }
     });
+    if (heir.length === 1) setNotice(fmt(m.st_relinked, { n: (heir[0] > i ? heir[0] - 1 : heir[0]) + 1 }));
   };
   const move = (from: number, to: number) => {
     if (to < 0 || to >= n || from === to) return;
@@ -321,7 +348,8 @@ export function Admin360Studio({
     const missing = frames.filter((f) => !footOf(f.file));
     if (missing.length && !window.confirm(fmt(m.st_publishNoFeet, { n: missing.length }))) return;
     const lost = lostViews.length ? `\n\n${fmt(m.st_lostViews, { views: lostViews.map((k) => viewNames[k]).join(", ") })}` : "";
-    if (!window.confirm(m.st_publishConfirm + lost)) return;
+    const lostM = lostMarkers.length ? `\n\n${fmt(m.st_lostMarkers, { n: lostMarkers.length, zones: lostMarkers.join(", ") })}` : "";
+    if (!window.confirm(m.st_publishConfirm + lost + lostM)) return;
     setBusy(m.st_busyPublish);
     setError(null);
     try {
@@ -420,6 +448,11 @@ export function Admin360Studio({
       {lostViews.length > 0 && (
         <p className="mt-2 rounded-lg bg-amber-500/10 px-3 py-2 text-xs text-amber-700">
           {fmt(m.st_lostViews, { views: lostViews.map((k) => viewNames[k]).join(", ") })}
+        </p>
+      )}
+      {lostMarkers.length > 0 && (
+        <p className="mt-2 rounded-lg bg-amber-500/10 px-3 py-2 text-xs text-amber-700">
+          {fmt(m.st_lostMarkers, { n: lostMarkers.length, zones: lostMarkers.join(", ") })}
         </p>
       )}
       {draft?.hotspots !== undefined && <p className="mt-2 rounded-lg bg-amber-500/10 px-3 py-2 text-xs text-amber-700">{m.st_resetNote}</p>}

@@ -131,6 +131,24 @@ function Rig({ handle, anchorRef, figureRef }: Pick<Props, "handle" | "anchorRef
   return null;
 }
 
+/** Spotlight pool on the platform top: bright centre, soft edge (made in code). */
+function usePoolTexture() {
+  return useMemo(() => {
+    const c = document.createElement("canvas");
+    c.width = c.height = 128;
+    const g = c.getContext("2d")!;
+    const grd = g.createRadialGradient(64, 64, 0, 64, 64, 64);
+    grd.addColorStop(0, "rgba(255,255,255,1)");
+    grd.addColorStop(0.45, "rgba(255,255,255,0.55)");
+    grd.addColorStop(1, "rgba(255,255,255,0)");
+    g.fillStyle = grd;
+    g.fillRect(0, 0, 128, 128);
+    const t = new THREE.CanvasTexture(c);
+    t.colorSpace = THREE.SRGBColorSpace;
+    return t;
+  }, []);
+}
+
 /** Soft radial glow sprite texture (made in code, no asset). */
 function useGlowTexture() {
   return useMemo(() => {
@@ -152,6 +170,7 @@ function useGlowTexture() {
 function Platform() {
   const R = A.platformRadiusM;
   const glowTex = useGlowTexture();
+  const poolTex = usePoolTexture();
   return (
     <group>
       {/* Body + top face (hexagonal: 6 radial segments) */}
@@ -161,7 +180,21 @@ function Platform() {
       </mesh>
       <mesh position={[0, 0.001, 0]} rotation={[-Math.PI / 2, 0, 0]}>
         <circleGeometry args={[R * 0.97, 6, Math.PI / 2]} />
-        <meshBasicMaterial color="#26101a" />
+        <meshBasicMaterial color={A.topFaceColor} />
+      </mesh>
+      {/* Spotlight pool under the feet (the athlete stands on a lit floor) */}
+      <mesh position={[0, 0.002, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <circleGeometry args={[R * A.poolRadius, 48]} />
+        <meshBasicMaterial
+          map={poolTex}
+          color={A.poolColor}
+          transparent
+          opacity={A.poolOpacity}
+          blending={THREE.AdditiveBlending}
+          depthWrite={false}
+          toneMapped={false}
+          fog={false}
+        />
       </mesh>
       {/* Neon hexagon rim (torus with 6 tubular segments = hexagon), aligned to the body */}
       <group rotation={[0, Math.PI / 2, 0]}>
