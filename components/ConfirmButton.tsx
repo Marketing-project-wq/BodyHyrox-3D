@@ -12,7 +12,8 @@ export function ConfirmButton({
   return (
     <button
       type="submit"
-      className={className}
+      // Admin text buttons (tables): at least 44px tall to tap (CLAUDE.md).
+      className={`inline-flex min-h-11 min-w-11 items-center justify-center ${className ?? ""}`}
       onClick={(e) => {
         if (!window.confirm(message)) e.preventDefault();
       }}

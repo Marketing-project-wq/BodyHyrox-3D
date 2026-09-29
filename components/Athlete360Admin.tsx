@@ -220,7 +220,7 @@ export function Athlete360Admin({
       )}
 
       <div className="mt-4 flex flex-wrap items-center gap-4">
-        <label className="flex items-center gap-2 text-sm text-text">
+        <label className="flex min-h-11 items-center gap-2 text-sm text-text">
           <input type="checkbox" checked={cutout} onChange={(e) => setCutout(e.target.checked)} className="accent-red-600" />
           {m.m360_cutout}
         </label>

@@ -67,17 +67,17 @@ export function Flipbook({ frames, aspect, m }: { frames: EditorFrame[]; aspect:
           className="h-8 w-full accent-red-600"
           aria-label={m.st_scrub}
         />
-        <label className="flex items-center gap-2 text-xs text-muted">
+        <label className="flex min-h-11 items-center gap-2 text-xs text-muted">
           {m.st_speed}
           <input type="range" min={2} max={24} step={1} value={fps} onChange={(e) => setFps(Number(e.target.value))} className="flex-1 accent-red-600" />
           <span className="w-12 font-mono text-text">{fps} fps</span>
         </label>
         <div className="flex flex-wrap gap-4 text-sm">
-          <label className="flex items-center gap-2">
+          <label className="flex min-h-11 items-center gap-2">
             <input type="checkbox" className="accent-red-600" checked={raw} onChange={(e) => setRaw(e.target.checked)} />
             {m.st_showOriginal}
           </label>
-          <label className="flex items-center gap-2">
+          <label className="flex min-h-11 items-center gap-2">
             <input type="checkbox" className="accent-red-600" checked={guides} onChange={(e) => setGuides(e.target.checked)} />
             {m.st_guides}
           </label>

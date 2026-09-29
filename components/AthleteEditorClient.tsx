@@ -88,7 +88,7 @@ export function AthleteEditorClient({
         <div className="flex items-center gap-3">
           <Link
             href="/admin/atlet"
-            className="flex h-8 w-8 items-center justify-center rounded-lg border border-border text-muted transition-colors hover:text-text"
+            className="flex h-11 w-11 items-center justify-center rounded-lg border border-border text-muted transition-colors hover:text-text"
             aria-label={m.ae_back}
           >
             <ArrowLeft size={16} />
@@ -427,7 +427,7 @@ export function AthleteEditorClient({
                   className="input"
                   title={m.ae_placementHint}
                 />
-                <label className="flex items-center gap-2 px-1 text-sm text-muted">
+                <label className="flex min-h-11 items-center gap-2 px-1 text-sm text-muted">
                   <input type="checkbox" name="is_podium" className="h-4 w-4 accent-accent" />
                   {m.ae_podium}
                 </label>
@@ -550,8 +550,8 @@ function ZoneRow({
               autoFocus
               className="input w-32 tabnum"
             />
-            <button type="submit" className="text-xs font-medium text-accent hover:underline">{m.ae_savePrice}</button>
-            <button type="button" onClick={() => setEditing(false)} className="text-xs text-muted hover:text-text">{m.ae_cancel}</button>
+            <button type="submit" className="inline-flex min-h-11 min-w-11 items-center justify-center text-xs font-medium text-accent hover:underline">{m.ae_savePrice}</button>
+            <button type="button" onClick={() => setEditing(false)} className="inline-flex min-h-11 min-w-11 items-center justify-center text-xs text-muted hover:text-text">{m.ae_cancel}</button>
           </form>
         ) : (
           <div className="flex flex-col gap-0.5">
@@ -560,7 +560,7 @@ function ZoneRow({
               <SourceBadge isOverride={z.isOverride} m={m} />
             </div>
             <div className="flex items-center gap-3">
-              <button type="button" onClick={() => setEditing(true)} className="text-xs font-medium text-accent hover:underline">
+              <button type="button" onClick={() => setEditing(true)} className="inline-flex min-h-11 min-w-11 items-center justify-center text-xs font-medium text-accent hover:underline">
                 {m.ae_editPrice}
               </button>
               {z.isOverride && (
@@ -595,15 +595,19 @@ function ZoneRow({
         {isTaken ? (
           <span className="text-xs text-amber" title={m.ae_zoneTakenNote}>🔒</span>
         ) : (
-          <input form={formId} name="active" type="checkbox" defaultChecked={z.active} className="h-4 w-4 accent-accent" />
+          <label className="inline-flex h-11 w-11 cursor-pointer items-center justify-center">
+            <input form={formId} name="active" type="checkbox" defaultChecked={z.active} className="h-4 w-4 accent-accent" />
+          </label>
         )}
       </td>
       <td className="td text-center">
-        <input form={formId} name="exclusive" type="checkbox" defaultChecked={z.exclusive} className="h-4 w-4 accent-accent" />
+        <label className="inline-flex h-11 w-11 cursor-pointer items-center justify-center">
+          <input form={formId} name="exclusive" type="checkbox" defaultChecked={z.exclusive} className="h-4 w-4 accent-accent" />
+        </label>
       </td>
       <td className="td"><Badge tone={statusTone}>{statusLabel}</Badge></td>
       <td className="td text-right">
-        <button type="submit" form={formId} className="text-xs font-medium text-accent hover:underline">
+        <button type="submit" form={formId} className="inline-flex min-h-11 min-w-11 items-center justify-center text-xs font-medium text-accent hover:underline">
           {m.ae_saveZone}
         </button>
       </td>

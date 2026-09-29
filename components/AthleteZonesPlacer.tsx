@@ -110,7 +110,7 @@ export function AthleteZonesPlacer({
             role="tab"
             aria-selected={view === i}
             onClick={() => setView(i)}
-            className={`rounded-full px-3 py-1 text-xs font-semibold ${
+            className={`min-h-11 rounded-full px-3 py-1 text-xs font-semibold ${
               view === i ? "bg-accent text-white" : "border border-border text-muted hover:text-text"
             }`}
           >
@@ -140,7 +140,7 @@ export function AthleteZonesPlacer({
                     setSelected(id);
                   }}
                   title={zoneName(id)}
-                  className="group absolute -translate-x-1/2 -translate-y-1/2"
+                  className="group absolute flex h-11 w-11 -translate-x-1/2 -translate-y-1/2 items-center justify-center"
                   style={{ left: `${pt.x * 100}%`, top: `${pt.y * 100}%` }}
                 >
                   <span
@@ -148,7 +148,7 @@ export function AthleteZonesPlacer({
                       active ? "bg-[#ff2d55] ring-2 ring-[#ff2d55]/40" : "bg-[#ff2d55]/70"
                     }`}
                   />
-                  <span className="pointer-events-none absolute left-1/2 top-4 -translate-x-1/2 whitespace-nowrap rounded bg-black/80 px-1.5 py-0.5 text-[9px] text-white">
+                  <span className="pointer-events-none absolute left-1/2 top-[calc(50%+0.625rem)] -translate-x-1/2 whitespace-nowrap rounded bg-black/80 px-1.5 py-0.5 text-[9px] text-white">
                     {zoneName(id)}
                   </span>
                 </button>
@@ -171,7 +171,7 @@ export function AthleteZonesPlacer({
                   active ? "border-accent bg-accent-soft" : "border-border"
                 }`}
               >
-                <button type="button" onClick={() => setSelected(id)} className="flex flex-1 items-center gap-2 text-left text-text">
+                <button type="button" onClick={() => setSelected(id)} className="flex min-h-11 flex-1 items-center gap-2 text-left text-text">
                   <span className={`h-2 w-2 rounded-full ${here ? "bg-[#ff2d55]" : "bg-border"}`} />
                   {z.nama}
                 </button>
@@ -181,7 +181,7 @@ export function AthleteZonesPlacer({
                     onClick={() => remove(id)}
                     aria-label={m.m360_zones_remove}
                     title={m.m360_zones_remove}
-                    className="flex h-6 w-6 items-center justify-center rounded-full text-muted hover:bg-accent hover:text-white"
+                    className="-my-1.5 flex h-11 w-11 items-center justify-center rounded-full text-muted hover:bg-accent hover:text-white"
                   >
                     <X className="h-3.5 w-3.5" />
                   </button>

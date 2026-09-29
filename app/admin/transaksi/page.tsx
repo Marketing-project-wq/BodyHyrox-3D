@@ -80,7 +80,7 @@ export default async function TransaksiPage({
             <Link
               key={c.key}
               href={`/admin/transaksi${qs(c.key)}`}
-              className={`rounded-full border px-3.5 py-1.5 text-sm transition-colors ${
+              className={`min-h-11 rounded-full border px-3.5 py-1.5 text-sm transition-colors ${
                 activeChip ? "border-accent bg-accent-soft text-text" : "border-border text-muted hover:text-text"
               }`}
             >
