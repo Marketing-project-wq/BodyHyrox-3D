@@ -258,7 +258,7 @@ export const STAGE_ARENA = {
   soleShadowWidth: 1.5,
   soleShadowHeight: 0.02,
   soleShadowRise: 0.002,
-  raisedFootLift: 0.025,
+  raisedFootLift: 0.06,
   poolShadowHeight: 0.045,
   /**
    * Ignore frame-rate samples for this long after the stage starts (images and
