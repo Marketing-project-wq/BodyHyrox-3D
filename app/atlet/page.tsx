@@ -16,7 +16,7 @@ export default async function AtletPage() {
   const athletes = await getPublicAthletes();
 
   return (
-    <div className="min-h-[100dvh] bg-[#0b0b0d] text-[#f3f3f4]">
+    <div className="safe-x min-h-[100dvh] bg-[#0b0b0d] text-[#f3f3f4]">
       <PublicHeader locale={locale} />
       <main className="mx-auto max-w-6xl px-5 py-10 md:px-8">
         <p className="font-mono text-xs uppercase tracking-[0.22em] text-[#ff3b57]">{m.pub_eyebrow}</p>

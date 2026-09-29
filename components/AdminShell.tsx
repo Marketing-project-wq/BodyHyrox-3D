@@ -62,7 +62,7 @@ export function AdminShell({
     <div className="bg-bg lg:h-[100dvh] lg:overflow-hidden">
       {/* Sidebar */}
       <aside
-        className={`fixed inset-y-0 left-0 z-40 flex w-[250px] flex-col bg-sidebar text-sidebar-text transition-transform lg:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-40 flex w-[calc(250px+env(safe-area-inset-left))] flex-col bg-sidebar pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] pt-[env(safe-area-inset-top)] text-sidebar-text transition-transform lg:translate-x-0 ${
           open ? "translate-x-0" : "-translate-x-full"
         }`}
       >
@@ -128,15 +128,15 @@ export function AdminShell({
       {open && <div className="fixed inset-0 z-30 bg-black/50 lg:hidden" onClick={() => setOpen(false)} />}
 
       {/* Main column (no topbar) */}
-      <div className="lg:flex lg:h-full lg:flex-col lg:pl-[250px]">
-        <div className="sticky top-0 z-20 flex items-center gap-3 border-b border-border bg-sidebar px-4 py-2.5 lg:hidden">
+      <div className="lg:flex lg:h-full lg:flex-col lg:pl-[calc(250px+env(safe-area-inset-left))]">
+        <div className="sticky top-0 z-20 flex items-center gap-3 border-b border-border bg-sidebar px-4 py-2.5 pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] pt-[max(0.625rem,env(safe-area-inset-top))] lg:hidden">
           <button className="text-white" onClick={() => setOpen(true)} aria-label="Menu">
             <Menu size={22} />
           </button>
           <Logo imgClassName="h-5" />
         </div>
 
-        <main className="p-4 md:p-5 lg:min-h-0 lg:flex-1 lg:overflow-hidden">{children}</main>
+        <main className="safe-admin p-4 md:p-5 lg:min-h-0 lg:flex-1 lg:overflow-hidden">{children}</main>
       </div>
     </div>
   );

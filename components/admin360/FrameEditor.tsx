@@ -256,7 +256,7 @@ export function FrameEditor({
   const unpct = (v: number) => v / 100;
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-black/85 backdrop-blur-sm" role="dialog" aria-modal="true">
+    <div className="safe-inset fixed inset-0 z-50 flex flex-col bg-black/85 backdrop-blur-sm" role="dialog" aria-modal="true">
       <div className="flex items-center justify-between gap-2 border-b border-white/10 px-4 py-2 text-white">
         <div className="min-w-0 text-sm">
           <span className="font-semibold">{fmt(m.st_editTitle, { n: index + 1, total: n })}</span>

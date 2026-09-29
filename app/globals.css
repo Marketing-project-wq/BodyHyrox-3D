@@ -33,6 +33,37 @@ body {
    Only iOS/iPadOS supports -webkit-touch-callout, so desktop and Android keep
    their designed sizes. :is() carries the (0,1,1) specificity of
    input:not(...), which beats Tailwind text-size utilities on every field. */
+/* Pages opt in with viewport-fit=cover (app/layout.tsx). The dark page roots
+   pad their content away from the notch in landscape; the padding area keeps
+   the root's own background, so no strip shows beside the notch. Top insets
+   are handled by the headers themselves, never here, so they don't double. */
+.safe-x {
+  padding-left: env(safe-area-inset-left, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* Full-screen overlays (studio editor / lightbox) keep controls off the notch
+   and home indicator; the overlay's own backdrop fills the inset area. */
+.safe-inset {
+  padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px)
+    env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
+}
+
+/* Admin main column: same padding as p-4 / md:p-5, widened to the safe area. */
+.safe-admin {
+  padding-left: max(1rem, env(safe-area-inset-left, 0px));
+  padding-right: max(1rem, env(safe-area-inset-right, 0px));
+  padding-bottom: max(1rem, env(safe-area-inset-bottom, 0px));
+}
+@media (min-width: 768px) {
+  .safe-admin {
+    padding-left: max(1.25rem, env(safe-area-inset-left, 0px));
+    padding-right: max(1.25rem, env(safe-area-inset-right, 0px));
+    padding-bottom: max(1.25rem, env(safe-area-inset-bottom, 0px));
+  }
+}
+
 @supports (-webkit-touch-callout: none) {
   :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]), select, textarea) {
     font-size: max(16px, 1em);

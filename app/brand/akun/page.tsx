@@ -31,7 +31,7 @@ export default async function AkunPage({
   const err = searchParams.error ? ERR[searchParams.error] ?? m.acc_err_failed : null;
 
   return (
-    <div className="min-h-[100dvh] bg-[#0b0b0d] text-[#f3f3f4]">
+    <div className="safe-x min-h-[100dvh] bg-[#0b0b0d] text-[#f3f3f4]">
       <PublicHeader locale={locale} back={{ href: "/atlet", label: m.pub_back }} />
       <main className="mx-auto max-w-2xl px-5 py-10">
         <BrandAccountNav active="akun" cartCount={cartCount} company={s.company} m={m} />

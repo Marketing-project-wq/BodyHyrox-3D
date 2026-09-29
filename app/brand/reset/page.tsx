@@ -23,7 +23,7 @@ export default function ResetPage({
     searchParams.error === "missing" ? m.rs_err_missing : searchParams.error ? m.rs_err_invalid : null;
 
   return (
-    <div className="min-h-[100dvh] bg-[#0b0b0d] text-[#f3f3f4]">
+    <div className="safe-x min-h-[100dvh] bg-[#0b0b0d] text-[#f3f3f4]">
       <PublicHeader locale={locale} back={{ href: "/brand/masuk", label: m.ver_signin }} />
       <main className="mx-auto max-w-md px-5 py-14">
         <h1 className="font-condensed text-3xl font-bold uppercase">{m.rs_title}</h1>
