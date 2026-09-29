@@ -24,6 +24,7 @@ import { SPONSOR_360_UPLOAD } from "@/lib/config";
 import { VIEW_KEYS, type Media360Views, type HotspotInput, type ViewKey } from "@/lib/views";
 import { type Dict, fmt } from "@/lib/i18n";
 import {
+  footIsCurrent,
   isIdentity,
   loadImage,
   measureFrame,
@@ -113,7 +114,12 @@ export function Admin360Studio({
     (f: { file: string; base: string | null }) => (f.base === null ? urls[f.file] : `${f.base}/${f.file}`),
     [urls],
   );
-  const footOf = useCallback((file: string) => meta[file]?.foot ?? feet[file] ?? null, [meta, feet]);
+  // Stored feet when current (two-contact rules or placed by hand), else the
+  // fresh measurement.
+  const footOf = useCallback(
+    (file: string) => (footIsCurrent(meta[file]?.foot) ? meta[file]!.foot! : feet[file] ?? meta[file]?.foot ?? null),
+    [meta, feet],
+  );
 
   // ---- measure feet / head / centre of every frame (for guides, auto-align,
   //      fitting replacements and the stored metadata) ----
@@ -129,7 +135,7 @@ export function Admin360Studio({
         measuring.current.add(f.file);
         try {
           const img = await loadImage(src);
-          const foot = measureFrame(img, 480);
+          const foot = measureFrame(img);
           setDims((d) => (d.w === img.naturalWidth && d.h === img.naturalHeight ? d : { w: img.naturalWidth, h: img.naturalHeight }));
           setFeet((prev) => ({ ...prev, [f.file]: foot }));
         } catch {
@@ -154,7 +160,7 @@ export function Admin360Studio({
       const out = clone(d);
       for (const f of out.frames) {
         const ft = feet[f.file];
-        if (!out.meta[f.file]?.foot && ft) out.meta[f.file] = { ...(out.meta[f.file] ?? {}), foot: ft };
+        if (!footIsCurrent(out.meta[f.file]?.foot) && ft) out.meta[f.file] = { ...(out.meta[f.file] ?? {}), foot: ft };
       }
       return out;
     },
@@ -341,6 +347,19 @@ export function Admin360Studio({
     },
     [mutate],
   );
+  // Contact points placed by hand (null = back to automatic detection).
+  const setFoot = useCallback(
+    (file: string, foot: Foot | null) => {
+      mutate((d) => {
+        const cur = d.meta[file] ?? {};
+        if (foot) cur.foot = foot;
+        else if (feetRef.current[file]) cur.foot = feetRef.current[file]!;
+        else delete cur.foot;
+        d.meta[file] = cur;
+      });
+    },
+    [mutate],
+  );
 
   // ---- publish / discard / versions ----
   const publish = async () => {
@@ -399,7 +418,13 @@ export function Admin360Studio({
     }
   };
 
-  const editorFrames: EditorFrame[] = frames.map((f) => ({ file: f.file, src: srcOf(f), foot: footOf(f.file), t: meta[f.file]?.t }));
+  const editorFrames: EditorFrame[] = frames.map((f) => ({
+    file: f.file,
+    src: srcOf(f),
+    foot: footOf(f.file),
+    autoFoot: feet[f.file] ?? null,
+    t: meta[f.file]?.t,
+  }));
   const aspect = dims.w / dims.h;
   const fmtTime = (iso?: string) => (iso ? new Date(iso).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }) : "");
 
@@ -664,6 +689,7 @@ export function Admin360Studio({
           aspect={aspect}
           onIndex={setEditing}
           onChange={setTransform}
+          onFootChange={setFoot}
           onClose={() => setEditing(null)}
           m={m}
         />

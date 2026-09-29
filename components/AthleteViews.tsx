@@ -7,7 +7,9 @@ import { VIEW_ANGLES, VIEW_KEYS, frameAngles } from "@/lib/views";
 import { STAGE_ARENA, VIEWER_360, VIEWER_VIEWS, viewer360FrameStyle } from "@/lib/config";
 import { type Dict } from "@/lib/i18n";
 import { formatIDR } from "@/lib/format";
-import { frameCss, measureFrame, transformFoot, type Foot } from "@/lib/media360";
+import { footIsCurrent, frameCss, measureFrame, soleLifted, transformFoot, type Foot } from "@/lib/media360";
+import type { ArenaHandle } from "@/components/StageArena3D";
+import type { MutableRefObject } from "react";
 
 /** Imperative API: the stage card's single orbit loop paints the athlete here. */
 export type AthleteViewsHandle = {
@@ -57,6 +59,10 @@ export const AthleteViews = forwardRef<
     onStep: (delta: 1 | -1) => void;
     /** The four view photos are decoded and painted. */
     onReady?: () => void;
+    /** The 3D arena (when running): tells whether each sole lands on the platform top. */
+    arena?: MutableRefObject<ArenaHandle>;
+    /** ?debug=feet: draw the platform top face and each foot's contact point. */
+    debug?: boolean;
     /** Mouse over / off the athlete. */
     onHoverChange?: (over: boolean) => void;
     /** A press on the athlete that did not become a drag (phones: tap). */
@@ -65,9 +71,15 @@ export const AthleteViews = forwardRef<
     onFocusChange?: (focused: boolean) => void;
   } & DragCallbacks
 >(function AthleteViews(
-  { athleteId, media, view, m, label, onStep, onReady, onHoverChange, onTap, onFocusChange, onDragStart, onDragMove, onDragEnd },
+  { athleteId, media, view, m, label, onStep, onReady, onHoverChange, onTap, onFocusChange, onDragStart, onDragMove, onDragEnd, arena, debug },
   ref,
 ) {
+  const rootRef = useRef<HTMLDivElement>(null);
+  const debugRef = useRef<SVGSVGElement>(null);
+  const arenaRef = useRef(arena);
+  arenaRef.current = arena;
+  const debugOn = useRef(!!debug);
+  debugOn.current = !!debug;
   const router = useRouter();
   const base = media.baseUrl.replace(/\/$/, "");
   const frames = media.frames;
@@ -113,6 +125,8 @@ export const AthleteViews = forwardRef<
   const paint = useCallback(
     (angleDeg: number, moving: boolean, turning = false) => {
       lastRef.current = { a: angleDeg, moving, turning };
+      // Layout read first (before any style writes this frame).
+      const box = rootRef.current?.getBoundingClientRect() ?? null;
       const imgs = imgRefs.current;
       const A = norm360(angleDeg);
       const kf = keyframes();
@@ -193,47 +207,83 @@ export const AthleteViews = forwardRef<
         mk0.style.transformOrigin = fc.transformOrigin;
         mk0.style.transform = fc.transform === "none" ? shift : `${shift} ${fc.transform}`;
       }
-      // Contact shadows (drawn in the photo's own coordinates, shifted with it):
-      // a tight dark ellipse right under EACH sole, so every shoe that touches
-      // the floor reads as planted, plus a soft pool around both feet. Taken
-      // from whichever frame dominates the blend.
+      // Contact shadows (drawn in the photo's own coordinates, shifted with it),
+      // one per sole, from whichever frame dominates the blend. A sole whose
+      // contact point lands on the platform's top face (asked of the 3D camera)
+      // is planted: tight dark shadow right under it, smaller further back like
+      // the floor. A sole marked lifted in the studio, or off the platform:
+      // faint, wider shadow. Plus a soft pool spanning the planted soles.
       const shadows = shadowsRef.current;
+      const lead = base === lo.i && a >= 0.5 && hi.i !== lo.i ? feet[hi.i] ?? foot : foot;
+      const soles = lead.soles?.length ? lead.soles : [[lead.left, lead.right, lead.toe]];
+      const S = STAGE_ARENA;
+      const ground = arenaRef.current?.current.groundHit ?? null;
+      const shiftFrac = line - foot.toe; // same shift as the photo
+      const contacts = soles.map((sole) => {
+        const [x0, x1, b] = sole;
+        const cx = box ? box.left + ((x0 + x1) / 2) * box.width : 0;
+        const cy = box ? box.top + (b + shiftFrac) * box.height + S.footOverlapPx : 0;
+        let planted = !soleLifted(sole);
+        let scale = 1;
+        if (planted && ground && box) {
+          const g = ground(cx, cy);
+          if (g) {
+            planted = g.inside;
+            scale = Math.min(1.2, Math.max(0.6, g.scale));
+          }
+        }
+        return { x0, x1, b, planted, scale, cx, cy };
+      });
       if (shadows) {
         shadows.style.transform = shift;
-        const lead = base === lo.i && a >= 0.5 && hi.i !== lo.i ? feet[hi.i] ?? foot : foot;
-        const soles = lead.soles?.length ? lead.soles : [[lead.left, lead.right, lead.toe]];
-        const S = STAGE_ARENA;
         soleRefs.current.forEach((el, k) => {
           if (!el) return;
-          const sole = soles[k];
-          if (!sole) {
+          const c = contacts[k];
+          if (!c) {
             el.style.opacity = "0";
             return;
           }
-          const [x0, x1, b] = sole;
-          // A shoe a little higher on screen is planted further back: shadow at
-          // its sole. Clearly higher = lifted mid-step: its (fainter, wider)
-          // shadow falls on the floor near the planted foot's line instead.
-          const lift = Math.max(0, lead.toe - b);
-          const raised = lift > S.raisedFootLift;
-          const floor = raised ? lead.toe - S.raisedFootLift : b;
-          el.style.opacity = raised ? "0.4" : (1 - (0.35 * lift) / S.raisedFootLift).toFixed(3);
-          el.style.left = `${(((x0 + x1) / 2) * 100).toFixed(2)}%`;
-          el.style.top = `${((floor - S.soleShadowRise) * 100).toFixed(2)}%`;
-          el.style.width = `${((x1 - x0) * S.soleShadowWidth * (raised ? 1.2 : 1) * 100).toFixed(2)}%`;
-          el.style.height = `${(S.soleShadowHeight * (raised ? 1.3 : 1) * 100).toFixed(2)}%`;
+          const wide = c.planted ? 1 : S.liftedShadowWidth;
+          const tall = c.planted ? 1 : S.liftedShadowHeight;
+          el.style.opacity = c.planted ? "1" : String(S.liftedShadowOpacity);
+          el.style.left = `${(((c.x0 + c.x1) / 2) * 100).toFixed(2)}%`;
+          el.style.top = `${((c.b - S.soleShadowRise * c.scale) * 100).toFixed(2)}%`;
+          el.style.width = `${(Math.max(c.x1 - c.x0, S.soleShadowMinSpan) * S.soleShadowWidth * wide * c.scale * 100).toFixed(2)}%`;
+          el.style.height = `${(S.soleShadowHeight * tall * c.scale * 100).toFixed(2)}%`;
         });
         const pool = poolRef.current;
         if (pool) {
-          const x0 = Math.min(...soles.map((q) => q[0]));
-          const x1 = Math.max(...soles.map((q) => q[1]));
-          const b1 = Math.max(...soles.map((q) => q[2]));
-          const b0 = Math.max(Math.min(...soles.map((q) => q[2])), b1 - S.raisedFootLift);
+          const ps = contacts.some((c) => c.planted) ? contacts.filter((c) => c.planted) : contacts;
+          const x0 = Math.min(...ps.map((c) => c.x0));
+          const x1 = Math.max(...ps.map((c) => c.x1));
+          const b1 = Math.max(...ps.map((c) => c.b));
+          const b0 = Math.min(...ps.map((c) => c.b));
           pool.style.left = `${(((x0 + x1) / 2) * 100).toFixed(2)}%`;
           pool.style.top = `${(((b0 + b1) / 2 - S.soleShadowRise) * 100).toFixed(2)}%`;
           pool.style.width = `${((x1 - x0) * 1.35 * 100).toFixed(2)}%`;
           pool.style.height = `${((b1 - b0 + S.poolShadowHeight) * 100).toFixed(2)}%`;
         }
+      }
+      // ?debug=feet overlay: platform top face (cyan), each contact point
+      // (yellow = planted, red = lifted / off the platform), feet line (red).
+      const dbg = debugRef.current;
+      if (dbg && debugOn.current && box) {
+        const poly = arenaRef.current?.current.outline?.() ?? [];
+        const pts = poly.map(([x, y]) => `${(x - box.left).toFixed(1)},${(y - box.top).toFixed(1)}`).join(" ");
+        const gy = (line * box.height + S.footOverlapPx).toFixed(1);
+        dbg.innerHTML =
+          (pts ? `<polygon points="${pts}" fill="rgba(0,255,255,0.12)" stroke="#22d3ee" stroke-width="2"/>` : "") +
+          `<line x1="-40" x2="${box.width + 40}" y1="${gy}" y2="${gy}" stroke="#ff2d55" stroke-dasharray="6 4"/>` +
+          contacts
+            .map((c) => {
+              const x = (c.cx - box.left).toFixed(1);
+              const y = (c.cy - box.top).toFixed(1);
+              const col = c.planted ? "#facc15" : "#ef4444";
+              const x0 = (c.x0 * box.width).toFixed(1);
+              const x1 = (c.x1 * box.width).toFixed(1);
+              return `<line x1="${x0}" x2="${x1}" y1="${y}" y2="${y}" stroke="${col}" stroke-width="2"/><circle cx="${x}" cy="${y}" r="5" fill="${col}" stroke="#000"/>`;
+            })
+            .join("");
       }
       // Zone markers: hidden while turning, back on the settled view.
       const mk = markersRef.current;
@@ -266,17 +316,19 @@ export const AthleteViews = forwardRef<
           el.style.transform = fc.transform;
         }
       };
-      if (fm?.foot) {
-        setFoot(fm.foot);
+      // Stored feet only when measured with the current (two-contact) rules
+      // or placed by hand; older ones are re-measured from the photo.
+      if (footIsCurrent(fm?.foot)) {
+        setFoot(fm!.foot!);
         return;
       }
-      if (feetJsonRef.current === undefined && !fm?.foot) {
+      if (feetJsonRef.current === undefined) {
         feetJsonRef.current = null;
         try {
-          const r = await fetch(`${base}/feet.json?v=2`, { cache: "force-cache" });
+          const r = await fetch(`${base}/feet.json?v=3`, { cache: "force-cache" });
           if (r.ok) {
-            const j = (await r.json()) as { frames?: Record<string, Foot> };
-            feetJsonRef.current = j.frames ?? null;
+            const j = (await r.json()) as { version?: number; frames?: Record<string, Foot> };
+            feetJsonRef.current = j.version === 3 ? j.frames ?? null : null;
           }
         } catch {
           /* no metadata: measure below */
@@ -294,7 +346,7 @@ export const AthleteViews = forwardRef<
         img.onerror = () => res();
         img.src = url(i);
       });
-      if (img.naturalWidth) setFoot(measureFrame(img, 120));
+      if (img.naturalWidth) setFoot(measureFrame(img));
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [base, frames, url],
@@ -357,7 +409,7 @@ export const AthleteViews = forwardRef<
   // Repaint once the view photos are ready (and whenever the image set changes).
   useEffect(() => {
     if (ready) paint(lastRef.current.a, lastRef.current.moving, lastRef.current.turning);
-  }, [ready, paint]);
+  }, [ready, paint, arena, debug]);
   const onReadyRef = useRef(onReady);
   onReadyRef.current = onReady;
   useEffect(() => {
@@ -421,6 +473,7 @@ export const AthleteViews = forwardRef<
 
   return (
     <div
+      ref={rootRef}
       className="relative mx-auto select-none outline-none focus-visible:ring-2 focus-visible:ring-[#ff2d55]/70"
       style={{ ...viewer360FrameStyle(), touchAction: "pan-y" }}
       tabIndex={0}
@@ -448,6 +501,14 @@ export const AthleteViews = forwardRef<
         }
       }}
     >
+      {debug && (
+        <svg
+          ref={debugRef}
+          className="pointer-events-none absolute inset-0 z-30 h-full w-full"
+          style={{ overflow: "visible" }}
+          aria-hidden
+        />
+      )}
       {/* Contact shadows (behind the photo, on the platform): a soft pool plus
           one tight shadow under each sole, so the athlete stands, not floats */}
       <div ref={shadowsRef} className="pointer-events-none absolute inset-0 z-0" aria-hidden>

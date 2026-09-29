@@ -202,7 +202,7 @@ export const STAGE_ARENA = {
    * shoes, which is what makes them read as standing on it. Always toward the
    * viewer, so it holds at every orbit angle.
    */
-  feetForward: 0.55,
+  feetForward: 0.65,
   /**
    * Platform top face: a visible (not black) surface, plus a soft spotlight
    * pool centred on the feet so the soles meet a lit floor instead of the dark
@@ -246,19 +246,25 @@ export const STAGE_ARENA = {
   /** The feet sink this many px into the platform surface (no antialiasing hairline). */
   footOverlapPx: 2,
   /**
-   * Contact shadows, one tight ellipse under each sole (from feet.json soles),
-   * as fractions of the photo: width = sole span x soleShadowWidth, height =
-   * soleShadowHeight of the frame height, centre raised soleShadowRise above
-   * the sole bottom (negative = below, so it shows past the shoe). A shoe up to
-   * raisedFootLift higher on screen than the front one is a planted back foot
-   * (shadow at its sole); higher than that it is lifted mid-step (fainter,
-   * wider shadow on the floor). The soft pool spans both soles,
-   * poolShadowHeight tall.
+   * Contact shadows, one tight ellipse under EACH sole (frame_meta / feet.json
+   * soles), as fractions of the photo: width = sole span x soleShadowWidth,
+   * height = soleShadowHeight of the frame height, centre raised
+   * soleShadowRise above the sole bottom. A sole counts as planted when its
+   * contact point lands on the platform's top face (checked against the 3D
+   * camera, at least contactMarginM inside its edge); its shadow then shrinks
+   * with distance like the floor does. A sole marked "lifted" in the studio,
+   * or one off the platform, gets a faint, wider shadow (liftedShadow*).
+   * The soft pool spans the planted soles, poolShadowHeight tall.
    */
   soleShadowWidth: 1.5,
   soleShadowHeight: 0.02,
   soleShadowRise: 0.002,
-  raisedFootLift: 0.06,
+  contactMarginM: 0.02,
+  /** A contact seen only at its heel/toe tip is narrow: shadows are at least this wide (share of width) before soleShadowWidth. */
+  soleShadowMinSpan: 0.08,
+  liftedShadowOpacity: 0.35,
+  liftedShadowWidth: 1.6,
+  liftedShadowHeight: 1.8,
   poolShadowHeight: 0.045,
   /**
    * Ignore frame-rate samples for this long after the stage starts (images and
