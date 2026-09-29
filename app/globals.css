@@ -29,10 +29,6 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* iOS Safari zooms the page when a focused field's text is under 16px.
-   Only iOS/iPadOS supports -webkit-touch-callout, so desktop and Android keep
-   their designed sizes. :is() carries the (0,1,1) specificity of
-   input:not(...), which beats Tailwind text-size utilities on every field. */
 /* Pages opt in with viewport-fit=cover (app/layout.tsx). The dark page roots
    pad their content away from the notch in landscape; the padding area keeps
    the root's own background, so no strip shows beside the notch. Top insets
@@ -64,6 +60,10 @@ body {
   }
 }
 
+/* iOS Safari zooms the page when a focused field's text is under 16px.
+   Only iOS/iPadOS supports -webkit-touch-callout, so desktop and Android keep
+   their designed sizes. :is() carries the (0,1,1) specificity of
+   input:not(...), which beats Tailwind text-size utilities on every field. */
 @supports (-webkit-touch-callout: none) {
   :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]), select, textarea) {
     font-size: max(16px, 1em);
