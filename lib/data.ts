@@ -1,7 +1,8 @@
 import { db } from "./supabase";
 import { resolveViews, type Media360Views, type HotspotInput } from "./views";
 export { VIEW_KEYS, resolveViews, type ViewKey, type Media360Views } from "./views";
-import type { TxStatus, ActiveStatus, Visibility } from "./config";
+import { SPONSOR_360_UPLOAD, type TxStatus, type ActiveStatus, type Visibility } from "./config";
+import type { FrameMetaMap, Media360Draft } from "./media360";
 
 /** PostgREST returns bigint as string; coerce to number safely. */
 const n = (v: unknown): number => (v == null ? 0 : Number(v));
@@ -341,6 +342,9 @@ export type Media360 = {
   crossfade: boolean;
   isPlaceholder: boolean;
   hotspots: Media360Hotspot[];
+  /** Per-frame transform + measured feet (admin studio). */
+  frameMeta: FrameMetaMap;
+  version: number;
 };
 /** Optional profile stats shown on the stage card. Null = not filled → hidden. */
 export type AthleteProfileStats = {
@@ -369,6 +373,8 @@ function mapMedia360(raw: unknown): Media360 | null {
     autospin: Boolean(m.autospin),
     crossfade: Boolean(m.crossfade),
     isPlaceholder: Boolean(m.is_placeholder),
+    frameMeta: (m.frame_meta && typeof m.frame_meta === "object" ? m.frame_meta : {}) as FrameMetaMap,
+    version: Number(m.version ?? 1),
     hotspots: hotspotsRaw.map((h) => {
       const pointsRaw = (h.points ?? {}) as Record<string, { x: number; y: number }>;
       const points: Record<string, { x: number; y: number }> = {};
@@ -663,7 +669,10 @@ export type BrandUserRow = {
   brandNama: string | null;
   requestCount: number;
 };
-/** 360 media meta for the admin editor's upload panel (any status; service role). */
+/** A published 360 version kept for restore. */
+export type Media360VersionRow = { version: number; createdAt: string; actorName: string | null; frames: number };
+
+/** 360 media meta for the admin editor's upload panel + studio (any status; service role). */
 export async function getAthleteMedia360Meta(
   athleteId: string,
 ): Promise<{
@@ -676,13 +685,44 @@ export async function getAthleteMedia360Meta(
   autospin: boolean;
   crossfade: boolean;
   isPlaceholder: boolean;
+  frameMeta: FrameMetaMap;
+  draft: Media360Draft | null;
+  version: number;
+  publishedAt: string | null;
+  history: Media360VersionRow[];
+  /** Signed read URLs for draft files still in the private bucket. */
+  draftUrls: Record<string, string>;
 }> {
   const { data } = await db()
     .from("smb_athlete_media_360")
-    .select("base_url,frames,views,hotspots,autospin,crossfade,is_placeholder")
+    .select("base_url,frames,views,hotspots,autospin,crossfade,is_placeholder,frame_meta,draft,version,published_at")
     .eq("athlete_id", athleteId)
     .maybeSingle();
   const framesArr = Array.isArray(data?.frames) ? (data!.frames as unknown[]).map((f) => String(f)) : [];
+  const draft = (data?.draft ?? null) as Media360Draft | null;
+  const { data: hist } = await db()
+    .from("smb_athlete_media_360_history")
+    .select("version,created_at,actor_name,snapshot->frames")
+    .eq("athlete_id", athleteId)
+    .order("version", { ascending: false })
+    .limit(20);
+  const privateFiles = draft
+    ? Array.from(
+        new Set([
+          ...draft.frames.filter((f) => f.base === null).map((f) => f.file),
+          ...Object.values(draft.meta ?? {}).flatMap((m) => (m.prev ?? []).filter((p) => p.base === null).map((p) => p.file)),
+        ]),
+      )
+    : [];
+  const draftUrls: Record<string, string> = {};
+  if (privateFiles.length) {
+    const { data: signed } = await db()
+      .storage.from(SPONSOR_360_UPLOAD.privateBucket)
+      .createSignedUrls(privateFiles.map((f) => `${athleteId}/${f}`), 60 * 60 * 6);
+    (signed ?? []).forEach((r, i) => {
+      if (r.signedUrl) draftUrls[privateFiles[i]] = r.signedUrl;
+    });
+  }
   return {
     frames: framesArr.length,
     frameNames: framesArr,
@@ -699,6 +739,17 @@ export async function getAthleteMedia360Meta(
     autospin: data?.autospin ?? true,
     crossfade: data?.crossfade ?? false,
     isPlaceholder: data?.is_placeholder ?? false,
+    frameMeta: (data?.frame_meta ?? {}) as FrameMetaMap,
+    draft,
+    version: Number(data?.version ?? 1),
+    publishedAt: data?.published_at ? String(data.published_at) : null,
+    history: (hist ?? []).map((h: Record<string, unknown>) => ({
+      version: Number(h.version),
+      createdAt: String(h.created_at),
+      actorName: h.actor_name == null ? null : String(h.actor_name),
+      frames: Array.isArray(h.frames) ? h.frames.length : 0,
+    })),
+    draftUrls,
   };
 }
 

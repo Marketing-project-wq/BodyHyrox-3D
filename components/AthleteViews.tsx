@@ -7,6 +7,7 @@ import { VIEW_ANGLES, VIEW_KEYS, frameAngles } from "@/lib/views";
 import { STAGE_ARENA, VIEWER_360, VIEWER_VIEWS, viewer360FrameStyle } from "@/lib/config";
 import { type Dict } from "@/lib/i18n";
 import { formatIDR } from "@/lib/format";
+import { frameCss, measureFrame, transformFoot, type Foot } from "@/lib/media360";
 
 /** Imperative API: the stage card's single orbit loop paints the athlete here. */
 export type AthleteViewsHandle = {
@@ -28,84 +29,12 @@ type DragCallbacks = {
 
 const norm360 = (a: number) => ((a % 360) + 360) % 360;
 
-/** Where the feet touch the ground in a frame, as fractions of the image (see scripts/foot-baseline.py). */
-type Foot = { toe: number; back: number; left: number; right: number; soles?: number[][] };
 const mixFoot = (p: Foot, q: Foot, t: number): Foot => ({
   toe: p.toe + (q.toe - p.toe) * t,
   back: p.back + (q.back - p.back) * t,
   left: p.left + (q.left - p.left) * t,
   right: p.right + (q.right - p.right) * t,
 });
-
-/** Same measurement as the script, in the browser (for sets without feet.json). */
-function measureFoot(img: HTMLImageElement): Foot | null {
-  try {
-    const W = 120;
-    const H = Math.round((W * img.naturalHeight) / img.naturalWidth) || 280;
-    const c = document.createElement("canvas");
-    c.width = W;
-    c.height = H;
-    const g = c.getContext("2d", { willReadFrequently: true });
-    if (!g) return null;
-    g.drawImage(img, 0, 0, W, H);
-    const d = g.getImageData(0, 0, W, H).data; // throws if the image is cross-origin tainted
-    const op = (x: number, y: number) => d[(y * W + x) * 4 + 3] > 127;
-    const rowCount = (y: number, x0 = 0, x1 = W) => {
-      let n = 0;
-      for (let x = x0; x < x1; x++) if (op(x, y)) n++;
-      return n;
-    };
-    let toe = -1;
-    for (let y = H - 1; y >= 0; y--) if (rowCount(y) >= 2) { toe = y; break; } // ignore 1px specks
-    if (toe < 0) return null;
-    const top = Math.max(0, Math.round(toe - 0.1 * H));
-    let left = W, right = -1, sum = 0, cnt = 0;
-    for (let y = top; y <= toe; y++)
-      for (let x = 0; x < W; x++)
-        if (op(x, y)) { left = Math.min(left, x); right = Math.max(right, x); sum += x; cnt++; }
-    const cx = cnt ? Math.round(sum / cnt) : W / 2;
-    const low = (x0: number, x1: number) => {
-      for (let y = toe; y >= top; y--) if (rowCount(y, x0, x1) >= 1) return y;
-      return toe;
-    };
-    const back = Math.min(low(left, cx), low(cx, right + 1));
-    // Per-shoe soles, as in the script: column runs in the feet band (small
-    // gaps bridged), the two widest, each trimmed to the columns near its bottom.
-    const colBot: number[] = [];
-    for (let x = left; x <= right; x++) {
-      colBot[x] = -1;
-      for (let y = toe; y >= top; y--) if (op(x, y)) { colBot[x] = y; break; }
-    }
-    const runs: [number, number][] = [];
-    const bridge = Math.max(2, Math.round(0.02 * W));
-    let start = -1, end = -1, gap = 0;
-    for (let x = left; x <= right + 1; x++) {
-      if (x <= right && colBot[x] >= 0) {
-        if (start < 0) start = x;
-        end = x;
-        gap = 0;
-      } else if (start >= 0 && (++gap > bridge || x > right)) {
-        runs.push([start, end]);
-        start = -1;
-        gap = 0;
-      }
-    }
-    const soles = runs
-      .sort((p, q) => q[1] - q[0] - (p[1] - p[0]))
-      .slice(0, 2)
-      .sort((p, q) => p[0] - q[0])
-      .map(([x0, x1]) => {
-        let b = -1;
-        for (let x = x0; x <= x1; x++) b = Math.max(b, colBot[x]);
-        let n0 = x1, n1 = x0;
-        for (let x = x0; x <= x1; x++) if (colBot[x] >= b - 0.012 * H) { n0 = Math.min(n0, x); n1 = Math.max(n1, x); }
-        return [n0 / W, (n1 + 1) / W, (b + 1) / H];
-      });
-    return { toe: (toe + 1) / H, back: (back + 1) / H, left: left / W, right: (right + 1) / W, soles };
-  } catch {
-    return null;
-  }
-}
 
 /**
  * Athlete photo, painted from one orbit angle. With the in-between frames loaded
@@ -152,7 +81,9 @@ export const AthleteViews = forwardRef<
   const shadowsRef = useRef<HTMLDivElement>(null);
   const poolRef = useRef<HTMLDivElement>(null);
   const soleRefs = useRef<(HTMLDivElement | null)[]>([]);
-  const feetRef = useRef<(Foot | null)[]>([]); // per frame index
+  const feetRef = useRef<(Foot | null)[]>([]); // per frame index, after its transform
+  const rawFeetRef = useRef<(Foot | null)[]>([]); // as measured (transform pivot)
+  const meta = media.frameMeta ?? {};
   const loadedRef = useRef<Set<number>>(new Set());
   const fullRef = useRef(false); // all frames decoded and angle-mapped -> real turn
   const lastRef = useRef<{ a: number; moving: boolean; turning: boolean }>({ a: 0, moving: false, turning: false });
@@ -254,7 +185,14 @@ export const AthleteViews = forwardRef<
           stack.style.transform = shift;
         }
       }
-      if (markersRef.current) markersRef.current.style.transform = shift;
+      // Markers are stored on the untransformed photo: carry the settled
+      // frame's own transform so they stay on the body.
+      const mk0 = markersRef.current;
+      if (mk0) {
+        const fc = frameCss(meta[frames[base]]?.t, rawFeetRef.current[base] ?? meta[frames[base]]?.foot);
+        mk0.style.transformOrigin = fc.transformOrigin;
+        mk0.style.transform = fc.transform === "none" ? shift : `${shift} ${fc.transform}`;
+      }
       // Contact shadows (drawn in the photo's own coordinates, shifted with it):
       // a tight dark ellipse right under EACH sole, so every shoe that touches
       // the floor reads as planted, plus a soft pool around both feet. Taken
@@ -304,6 +242,7 @@ export const AthleteViews = forwardRef<
         mk.style.visibility = moving ? "hidden" : "visible";
       }
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [keyframes],
   );
 
@@ -315,7 +254,23 @@ export const AthleteViews = forwardRef<
   const ensureFoot = useCallback(
     async (i: number) => {
       if (feetRef.current[i]) return;
-      if (feetJsonRef.current === undefined) {
+      const fm = meta[frames[i]];
+      const setFoot = (f: Foot | null) => {
+        rawFeetRef.current[i] = f;
+        feetRef.current[i] = f ? transformFoot(f, fm?.t) : null;
+        // The transform pivots on the measured feet (same point the markers use).
+        const el = imgRefs.current[i];
+        if (el && fm?.t && f) {
+          const fc = frameCss(fm.t, f);
+          el.style.transformOrigin = fc.transformOrigin;
+          el.style.transform = fc.transform;
+        }
+      };
+      if (fm?.foot) {
+        setFoot(fm.foot);
+        return;
+      }
+      if (feetJsonRef.current === undefined && !fm?.foot) {
         feetJsonRef.current = null;
         try {
           const r = await fetch(`${base}/feet.json?v=2`, { cache: "force-cache" });
@@ -329,7 +284,7 @@ export const AthleteViews = forwardRef<
       }
       const fromJson = feetJsonRef.current?.[frames[i]];
       if (fromJson) {
-        feetRef.current[i] = fromJson;
+        setFoot(fromJson);
         return;
       }
       const img = new Image();
@@ -339,8 +294,9 @@ export const AthleteViews = forwardRef<
         img.onerror = () => res();
         img.src = url(i);
       });
-      if (img.naturalWidth) feetRef.current[i] = measureFoot(img);
+      if (img.naturalWidth) setFoot(measureFrame(img, 120));
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [base, frames, url],
   );
 
@@ -512,6 +468,7 @@ export const AthleteViews = forwardRef<
           const isView = viewIdx.includes(i);
           const src = isView || phase2 ? url(i) : undefined;
           const first = i === viewIdx[0];
+          const fc = frameCss(meta[f]?.t, meta[f]?.foot);
           return (
             // eslint-disable-next-line @next/next/no-img-element
             <img
@@ -524,7 +481,13 @@ export const AthleteViews = forwardRef<
               draggable={false}
               decoding="async"
               className="pointer-events-none absolute inset-0 h-full w-full object-contain"
-              style={{ opacity: first ? 1 : 0, visibility: first ? "visible" : "hidden", zIndex: first ? 1 : 0 }}
+              style={{
+                opacity: first ? 1 : 0,
+                visibility: first ? "visible" : "hidden",
+                zIndex: first ? 1 : 0,
+                transform: fc.transform,
+                transformOrigin: fc.transformOrigin,
+              }}
             />
           );
         })}

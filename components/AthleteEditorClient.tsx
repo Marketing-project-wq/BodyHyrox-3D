@@ -13,6 +13,9 @@ import { ConfirmButton } from "@/components/ConfirmButton";
 import { Athlete360Admin } from "@/components/Athlete360Admin";
 import { AthleteViewsPicker } from "@/components/AthleteViewsPicker";
 import { AthleteZonesPlacer } from "@/components/AthleteZonesPlacer";
+import { Admin360Studio } from "@/components/admin360/Admin360Studio";
+import type { FrameMetaMap, Media360Draft } from "@/lib/media360";
+import type { Media360VersionRow } from "@/lib/data";
 import type { HotspotInput, Media360Views } from "@/lib/views";
 import {
   updateAthlete,
@@ -62,6 +65,12 @@ export function AthleteEditorClient({
     autospin: boolean;
     crossfade: boolean;
     isPlaceholder: boolean;
+    frameMeta: FrameMetaMap;
+    draft: Media360Draft | null;
+    version: number;
+    publishedAt: string | null;
+    history: Media360VersionRow[];
+    draftUrls: Record<string, string>;
   };
   m: Dict;
 }) {
@@ -293,8 +302,26 @@ export function AthleteEditorClient({
             athleteId={athlete.id}
             currentFrames={media360.frames}
             isPlaceholder={media360.isPlaceholder}
-            initialAutospin={media360.autospin}
-            initialCrossfade={media360.crossfade}
+            m={m}
+          />
+        )}
+        {canEdit && (media360.frames > 0 || media360.draft) && (
+          <Admin360Studio
+            key={`${media360.version}:${media360.draft?.updatedAt ?? "none"}`}
+            athleteId={athlete.id}
+            live={{
+              baseUrl: media360.baseUrl,
+              frames: media360.frameNames,
+              frameMeta: media360.frameMeta,
+              views: media360.views,
+              viewsSaved: media360.viewsSaved,
+              hotspots: media360.hotspots,
+            }}
+            initialDraft={media360.draft}
+            initialUrls={media360.draftUrls}
+            version={media360.version}
+            publishedAt={media360.publishedAt}
+            history={media360.history}
             m={m}
           />
         )}

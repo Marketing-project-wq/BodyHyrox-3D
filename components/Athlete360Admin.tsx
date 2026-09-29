@@ -5,57 +5,26 @@ import { useRouter } from "next/navigation";
 import { UploadCloud, Check, RotateCw, X } from "lucide-react";
 import { SPONSOR_360_UPLOAD } from "@/lib/config";
 import { type Dict, fmt } from "@/lib/i18n";
-import { issueUpload, finalizeMedia } from "@/app/atlet/[id]/media-actions";
+import { saveDraft } from "@/app/atlet/[id]/media-actions";
+import { loadBackgroundRemover, measureBlob, preparePhoto, uploadDraftBlobs } from "@/lib/media360-upload";
+import type { Foot, FrameMetaMap } from "@/lib/media360";
 
 type Phase = "idle" | "uploading" | "done" | "error";
-
-/** Downscale a blob so cutout inference is fast and uploads stay small. */
-async function shrink(blob: Blob, maxPx: number): Promise<Blob> {
-  const url = URL.createObjectURL(blob);
-  try {
-    const img = await new Promise<HTMLImageElement>((res, rej) => {
-      const im = new Image();
-      im.onload = () => res(im);
-      im.onerror = rej;
-      im.src = url;
-    });
-    const scale = Math.min(1, maxPx / Math.max(img.width, img.height));
-    if (scale >= 1) return blob;
-    const canvas = document.createElement("canvas");
-    canvas.width = Math.round(img.width * scale);
-    canvas.height = Math.round(img.height * scale);
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return blob;
-    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-    return await new Promise<Blob>((res) => canvas.toBlob((b) => res(b || blob), "image/jpeg", 0.9));
-  } catch {
-    return blob;
-  } finally {
-    URL.revokeObjectURL(url);
-  }
-}
 
 export function Athlete360Admin({
   athleteId,
   currentFrames,
   isPlaceholder,
-  initialAutospin = true,
-  initialCrossfade = false,
   m,
 }: {
   athleteId: string;
   currentFrames: number;
   isPlaceholder: boolean;
-  initialAutospin?: boolean;
-  initialCrossfade?: boolean;
   m: Dict;
 }) {
   const router = useRouter();
   const { minFrames, maxFrames, maxFileMB, acceptMime } = SPONSOR_360_UPLOAD;
   const [files, setFiles] = useState<File[]>([]);
-  // The fixed 4-view viewer no longer rotates; keep the stored flags unchanged.
-  const autospin = initialAutospin;
-  const crossfade = initialCrossfade;
   const [cutout, setCutout] = useState(true);
   const [phase, setPhase] = useState<Phase>("idle");
   const [done, setDone] = useState(0);
@@ -129,6 +98,8 @@ export function Athlete360Admin({
     setFiles((prev) => prev.filter((_, i) => i !== idx));
   }
 
+  // The new set goes into the DRAFT (private); sponsors keep the published
+  // set until "Publish" in the studio below. Nothing is deleted here.
   async function upload() {
     setError(null);
     if (files.length < minFrames || files.length > maxFrames) {
@@ -139,43 +110,34 @@ export function Athlete360Admin({
     setDone(0);
     setCur(0);
     try {
-      let removeBackground: ((input: Blob) => Promise<Blob>) | null = null;
       if (cutout) {
         try {
-          // Runtime import that neither webpack nor TS resolves statically, so the
-          // CDN ESM loads in the browser and never enters the app bundle.
-          // eslint-disable-next-line @typescript-eslint/no-implied-eval, no-new-func
-          const cdnImport = new Function("u", "return import(u)") as (
-            u: string,
-          ) => Promise<{ removeBackground: (i: Blob) => Promise<Blob> }>;
-          const mod = await cdnImport("https://esm.sh/@imgly/background-removal@1");
-          removeBackground = mod.removeBackground;
+          await loadBackgroundRemover();
         } catch {
           throw new Error(m.m360_err_module);
         }
       }
-
-      const names = files.map((f) => (cutout ? f.name.replace(/\.[^.]+$/, "") + ".png" : f.name));
-      const slots = await issueUpload(athleteId, names);
-
+      const blobs: Blob[] = [];
+      const meta: FrameMetaMap = {};
+      const feet: (Foot | null)[] = [];
       for (let i = 0; i < files.length; i++) {
         setCur(i + 1);
-        let body: Blob = files[i];
-        let contentType = files[i].type || "application/octet-stream";
-        if (removeBackground) {
-          const small = await shrink(files[i], 1100); // faster inference + smaller upload
-          body = await removeBackground(small); // transparent PNG
-          contentType = "image/png";
-        }
-        const res = await fetch(slots[i].uploadUrl, {
-          method: "PUT",
-          headers: { "content-type": contentType, "x-upsert": "true" },
-          body,
-        });
-        if (!res.ok) throw new Error(fmt(m.m360_err_upload, { status: res.status, i: i + 1 }));
+        const b = await preparePhoto(files[i], cutout);
+        blobs.push(b);
+        feet.push(await measureBlob(b));
         setDone(i + 1);
       }
-      await finalizeMedia(athleteId, slots.map((s) => s.frame), autospin, crossfade);
+      const names = await uploadDraftBlobs(athleteId, blobs);
+      names.forEach((f, i) => {
+        if (feet[i]) meta[f] = { foot: feet[i]! };
+      });
+      await saveDraft(athleteId, {
+        frames: names.map((file) => ({ file, base: null, origin: null })),
+        meta,
+        views: null,
+        hotspots: [],
+        note: "upload",
+      });
       setPhase("done");
       setFiles([]);
       router.refresh();
