@@ -68,7 +68,7 @@ export function SponsorAccountsClient({
             setShowCreate((v) => !v);
             setNewPw(genPassword());
           }}
-          className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white hover:opacity-90"
+          className="min-h-11 rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white hover:opacity-90"
         >
           {showCreate ? m.sa_close : m.sa_add}
         </button>
@@ -121,19 +121,19 @@ export function SponsorAccountsClient({
               <button
                 type="button"
                 onClick={() => setNewPw(genPassword())}
-                className="shrink-0 rounded-lg border border-white/15 px-3 text-xs text-muted hover:bg-white/5"
+                className="min-h-11 shrink-0 rounded-lg border border-white/15 px-3 text-xs text-muted hover:bg-white/5"
               >
                 {m.sa_gen}
               </button>
             </div>
           </div>
-          <label className="flex items-center gap-2 text-sm text-muted sm:col-span-2">
+          <label className="flex min-h-11 items-center gap-2 text-sm text-muted sm:col-span-2">
             <input type="checkbox" name="must_change" defaultChecked className="accent-[#ff3b57]" />
             {m.sa_mustchange}
           </label>
           <div className="sm:col-span-2">
             <p className="mb-2 text-xs text-faint">{m.sa_create_hint}</p>
-            <button className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white hover:opacity-90">
+            <button className="min-h-11 rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white hover:opacity-90">
               {m.sa_create_btn}
             </button>
           </div>
@@ -175,7 +175,7 @@ export function SponsorAccountsClient({
                   {!a.emailVerified && (
                     <form action={verifySponsorEmail}>
                       <input type="hidden" name="brand_user_id" value={a.id} />
-                      <button className="rounded-lg border border-white/15 px-3 py-1.5 text-xs text-muted hover:bg-white/5">
+                      <button className="min-h-11 rounded-lg border border-white/15 px-3 py-1.5 text-xs text-muted hover:bg-white/5">
                         {m.sa_verify_manual}
                       </button>
                     </form>
@@ -185,14 +185,14 @@ export function SponsorAccountsClient({
                       setResetFor((v) => (v === a.id ? null : a.id));
                       setNewPw(genPassword());
                     }}
-                    className="rounded-lg border border-white/15 px-3 py-1.5 text-xs text-muted hover:bg-white/5"
+                    className="min-h-11 rounded-lg border border-white/15 px-3 py-1.5 text-xs text-muted hover:bg-white/5"
                   >
                     {m.sa_reset_pw}
                   </button>
                   <form action={setSponsorStatus}>
                     <input type="hidden" name="brand_user_id" value={a.id} />
                     <input type="hidden" name="status" value={a.status === "active" ? "inactive" : "active"} />
-                    <button className="rounded-lg border border-white/15 px-3 py-1.5 text-xs text-muted hover:bg-white/5">
+                    <button className="min-h-11 rounded-lg border border-white/15 px-3 py-1.5 text-xs text-muted hover:bg-white/5">
                       {a.status === "active" ? m.sa_deactivate : m.sa_activate}
                     </button>
                   </form>
@@ -203,11 +203,11 @@ export function SponsorAccountsClient({
                 <form action={resetSponsorPassword} className="mt-3 flex flex-wrap items-center gap-2 border-t border-white/10 pt-3">
                   <input type="hidden" name="brand_user_id" value={a.id} />
                   <input name="password" required minLength={6} defaultValue={newPw} className={input + " max-w-xs"} />
-                  <label className="flex items-center gap-1.5 text-xs text-muted">
+                  <label className="flex min-h-11 items-center gap-1.5 text-xs text-muted">
                     <input type="checkbox" name="must_change" defaultChecked className="accent-[#ff3b57]" />
                     {m.sa_must_change_short}
                   </label>
-                  <button className="rounded-lg bg-accent px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90">
+                  <button className="min-h-11 rounded-lg bg-accent px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90">
                     {m.sa_save_pw}
                   </button>
                 </form>

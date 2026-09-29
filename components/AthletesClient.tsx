@@ -108,7 +108,7 @@ export function AthletesClient({
           <button
             key={t.key}
             onClick={() => setGender(t.key)}
-            className={`rounded-full border px-3.5 py-1.5 text-sm transition-colors ${
+            className={`min-h-11 rounded-full border px-3.5 py-1.5 text-sm transition-colors ${
               gender === t.key ? "border-accent bg-accent-soft text-text" : "border-border text-muted hover:text-text"
             }`}
           >
@@ -127,7 +127,7 @@ export function AthletesClient({
           <option value="active">{m.active}</option>
           <option value="inactive">{m.inactive}</option>
         </select>
-        <label className="flex items-center gap-2 text-sm text-muted">
+        <label className="flex min-h-11 items-center gap-2 text-sm text-muted">
           <input
             type="checkbox"
             checked={onlyCustom}
@@ -158,7 +158,7 @@ export function AthletesClient({
               return (
                 <tr key={a.id} className="border-b border-border/60 last:border-0">
                   <td className="td">
-                    <Link href={`/admin/atlet/${a.id}`} className="group flex items-center gap-3">
+                    <Link href={`/admin/atlet/${a.id}`} className="group flex min-h-11 items-center gap-3">
                       <Avatar name={a.nama} />
                       <div>
                         <div className="flex items-center gap-2">
@@ -184,7 +184,7 @@ export function AthletesClient({
                         {canEdit && (
                           <Link
                             href={`/admin/atlet/${a.id}`}
-                            className="text-xs font-medium text-muted hover:text-text"
+                            className="inline-flex min-h-11 min-w-11 items-center justify-center text-xs font-medium text-muted hover:text-text"
                           >
                             {m.ae_manage}
                           </Link>

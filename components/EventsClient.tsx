@@ -41,7 +41,7 @@ export function EventsClient({
           <input name="venue" required placeholder={m.ev_formVenue} className="input" />
           <input name="event_date" required type="date" className="input" />
           <input name="registered" type="number" min={0} defaultValue={0} placeholder={m.ev_formRegistered} className="input" />
-          <label className="flex items-center gap-2 text-sm text-muted">
+          <label className="flex min-h-11 items-center gap-2 text-sm text-muted">
             <input type="checkbox" name="registration_open" value="true" defaultChecked /> {m.ev_regOpen}
           </label>
           <div className="sm:col-span-2">

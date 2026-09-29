@@ -152,14 +152,19 @@ export function FrameEditor({
           onPointerMove={moveDrag}
           onPointerUp={endDrag}
           onPointerCancel={endDrag}
-          className="pointer-events-auto absolute flex h-7 w-7 -translate-x-1/2 -translate-y-1/2 cursor-grab touch-none items-center justify-center rounded-full border-2 border-black text-[11px] font-bold text-black shadow active:cursor-grabbing"
+          // 44px touch area around the 28px dot (CLAUDE.md), centred on the contact point
+          className="pointer-events-auto absolute flex h-11 w-11 -translate-x-1/2 -translate-y-1/2 cursor-grab touch-none items-center justify-center active:cursor-grabbing"
           style={{
             left: `${(((s[0] + s[1]) / 2) * 100).toFixed(3)}%`,
             top: `${(s[2] * 100).toFixed(3)}%`,
-            background: soleLifted(s) ? "#ef4444" : "#facc15",
           }}
         >
-          {k + 1}
+          <span
+            className="flex h-7 w-7 items-center justify-center rounded-full border-2 border-black text-[11px] font-bold text-black shadow"
+            style={{ background: soleLifted(s) ? "#ef4444" : "#facc15" }}
+          >
+            {k + 1}
+          </span>
         </button>
       ))
     : null;
@@ -263,13 +268,13 @@ export function FrameEditor({
           <span className="ml-2 truncate font-mono text-xs text-white/50">{cur.file}</span>
         </div>
         <div className="flex items-center gap-1">
-          <button type="button" className="rounded-full p-2 hover:bg-white/10" onClick={() => onIndex((index - 1 + n) % n)} aria-label={m.st_prev}>
+          <button type="button" className="flex h-11 w-11 items-center justify-center rounded-full hover:bg-white/10" onClick={() => onIndex((index - 1 + n) % n)} aria-label={m.st_prev}>
             <ChevronLeft className="h-5 w-5" />
           </button>
-          <button type="button" className="rounded-full p-2 hover:bg-white/10" onClick={() => onIndex((index + 1) % n)} aria-label={m.st_next}>
+          <button type="button" className="flex h-11 w-11 items-center justify-center rounded-full hover:bg-white/10" onClick={() => onIndex((index + 1) % n)} aria-label={m.st_next}>
             <ChevronRight className="h-5 w-5" />
           </button>
-          <button type="button" className="rounded-full p-2 hover:bg-white/10" onClick={onClose} aria-label={m.st_close}>
+          <button type="button" className="flex h-11 w-11 items-center justify-center rounded-full hover:bg-white/10" onClick={onClose} aria-label={m.st_close}>
             <X className="h-5 w-5" />
           </button>
         </div>
@@ -299,7 +304,7 @@ export function FrameEditor({
             {slider(m.st_moveY, t.dy, -0.2, 0.2, 0.001, (v) => set({ dy: v }), (v) => `${pct(v).toFixed(1)}%`, pct, unpct)}
             {slider(m.st_scale, t.s, 0.8, 1.2, 0.001, (v) => set({ s: v }), (v) => `${pct(v).toFixed(1)}%`, pct, unpct)}
 
-            <label className="flex items-start gap-2 text-sm">
+            <label className="flex min-h-11 items-start gap-2 py-3 text-sm">
               <input type="checkbox" className="mt-0.5 accent-red-600" checked={t.lock !== false} onChange={(e) => set({ lock: e.target.checked ? undefined : false })} />
               <span>
                 {m.st_lockFeet}
@@ -333,12 +338,12 @@ export function FrameEditor({
                       {fmt(m.st_footN, { n: k + 1 })}
                     </span>
                     <span className="flex items-center gap-2">
-                      <label className="flex items-center gap-1.5 text-xs">
+                      <label className="flex min-h-11 items-center gap-1.5 text-xs">
                         <input type="checkbox" className="accent-red-600" checked={soleLifted(s)} onChange={(e) => toggleLifted(k, e.target.checked)} />
                         {m.st_lifted}
                       </label>
                       {soles.length > 1 && (
-                        <button type="button" onClick={() => removeFoot(k)} className="rounded p-1 text-muted hover:text-accent" aria-label={m.st_removeFoot} title={m.st_removeFoot}>
+                        <button type="button" onClick={() => removeFoot(k)} className="-my-1.5 flex h-11 w-11 items-center justify-center rounded text-muted hover:text-accent" aria-label={m.st_removeFoot} title={m.st_removeFoot}>
                           <Trash2 className="h-3.5 w-3.5" />
                         </button>
                       )}
@@ -361,18 +366,18 @@ export function FrameEditor({
             )}
 
             <div className="flex flex-col gap-2 border-t border-border pt-3 text-sm">
-              <label className="flex items-center gap-2">
+              <label className="flex min-h-11 items-center gap-2">
                 <input type="checkbox" className="accent-red-600" checked={onion} onChange={(e) => setOnion(e.target.checked)} />
                 <Layers className="h-4 w-4 text-muted" /> {m.st_onion}
               </label>
               {onion && (
                 <input type="range" min={0.1} max={0.8} step={0.05} value={onionOpacity} onChange={(e) => setOnionOpacity(Number(e.target.value))} className="accent-red-600" aria-label={m.st_onionOpacity} />
               )}
-              <label className="flex items-center gap-2">
+              <label className="flex min-h-11 items-center gap-2">
                 <input type="checkbox" className="accent-red-600" checked={guides} onChange={(e) => setGuides(e.target.checked)} />
                 <Ruler className="h-4 w-4 text-muted" /> {m.st_guides}
               </label>
-              <label className="flex items-center gap-2">
+              <label className="flex min-h-11 items-center gap-2">
                 <input type="checkbox" className="accent-red-600" checked={raw} onChange={(e) => setRaw(e.target.checked)} />
                 {m.st_showOriginal}
               </label>

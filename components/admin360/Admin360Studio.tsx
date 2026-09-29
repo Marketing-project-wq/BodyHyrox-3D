@@ -10,6 +10,7 @@ import {
   ChevronRight,
   Eye,
   History,
+  MoreHorizontal,
   Plus,
   Replace,
   RotateCw,
@@ -98,6 +99,8 @@ export function Admin360Studio({
   const [showFlip, setShowFlip] = useState(false);
   const [cutout, setCutout] = useState(true);
   const [dragFrom, setDragFrom] = useState<number | null>(null);
+  // Touch screens: a tile's actions open as a list of 44px rows (see tileActions).
+  const [actionsFor, setActionsFor] = useState<number | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const pendingPick = useRef<{ mode: "replace" | "insert"; index: number } | null>(null);
 
@@ -428,6 +431,41 @@ export function Admin360Studio({
   const aspect = dims.w / dims.h;
   const fmtTime = (iso?: string) => (iso ? new Date(iso).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }) : "");
 
+
+  // A gallery tile's actions: rendered as icon buttons (mouse) or as a touch list.
+  const tileActions = (i: number, hasPrev: boolean) => [
+    { key: "edit", label: m.st_edit, icon: <SlidersHorizontal className="h-3.5 w-3.5" />, run: () => setEditing(i), disabled: !!busy },
+    { key: "replace", label: m.st_replace, icon: <Replace className="h-3.5 w-3.5" />, run: () => pick("replace", i), disabled: !!busy },
+    { key: "restore", label: m.st_restore, icon: <Undo2 className="h-3.5 w-3.5" />, run: () => restoreAt(i), disabled: !!busy || !hasPrev },
+    { key: "delete", label: m.st_delete, icon: <Trash2 className="h-3.5 w-3.5" />, run: () => deleteAt(i), disabled: !!busy || n <= minFrames },
+    { key: "up", label: m.st_moveUp, icon: <ArrowUp className="h-3.5 w-3.5" />, run: () => move(i, i - 1), disabled: !!busy || i === 0 },
+    { key: "down", label: m.st_moveDown, icon: <ArrowDown className="h-3.5 w-3.5" />, run: () => move(i, i + 1), disabled: !!busy || i === n - 1 },
+    {
+      key: "before",
+      label: m.st_insertBefore,
+      icon: (
+        <>
+          <Plus className="h-3.5 w-3.5" />
+          <span className="text-[9px]">←</span>
+        </>
+      ),
+      run: () => pick("insert", i),
+      disabled: !!busy || n >= maxFrames,
+    },
+    {
+      key: "after",
+      label: m.st_insertAfter,
+      icon: (
+        <>
+          <Plus className="h-3.5 w-3.5" />
+          <span className="text-[9px]">→</span>
+        </>
+      ),
+      run: () => pick("insert", i + 1),
+      disabled: !!busy || n >= maxFrames,
+    },
+  ];
+
   return (
     <section className="card p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -494,7 +532,7 @@ export function Admin360Studio({
       )}
 
       <div className="mt-3 flex flex-wrap items-center gap-4 text-sm">
-        <label className="flex items-center gap-2 text-text">
+        <label className="flex min-h-11 items-center gap-2 text-text">
           <input type="checkbox" checked={cutout} onChange={(e) => setCutout(e.target.checked)} className="accent-red-600" />
           {m.st_cutoutReplace}
         </label>
@@ -568,33 +606,23 @@ export function Admin360Studio({
               <div className="truncate px-1.5 pt-1 font-mono text-[10px] text-faint" title={f.file}>
                 {f.file}
               </div>
-              <div className="grid grid-cols-4 gap-0.5 p-1">
-                <IconBtn label={m.st_edit} onClick={() => setEditing(i)} disabled={!!busy}>
-                  <SlidersHorizontal className="h-3.5 w-3.5" />
-                </IconBtn>
-                <IconBtn label={m.st_replace} onClick={() => pick("replace", i)} disabled={!!busy}>
-                  <Replace className="h-3.5 w-3.5" />
-                </IconBtn>
-                <IconBtn label={m.st_restore} onClick={() => restoreAt(i)} disabled={!!busy || !hasPrev}>
-                  <Undo2 className="h-3.5 w-3.5" />
-                </IconBtn>
-                <IconBtn label={m.st_delete} onClick={() => deleteAt(i)} disabled={!!busy || n <= minFrames}>
-                  <Trash2 className="h-3.5 w-3.5" />
-                </IconBtn>
-                <IconBtn label={m.st_moveUp} onClick={() => move(i, i - 1)} disabled={!!busy || i === 0}>
-                  <ArrowUp className="h-3.5 w-3.5" />
-                </IconBtn>
-                <IconBtn label={m.st_moveDown} onClick={() => move(i, i + 1)} disabled={!!busy || i === n - 1}>
-                  <ArrowDown className="h-3.5 w-3.5" />
-                </IconBtn>
-                <IconBtn label={m.st_insertBefore} onClick={() => pick("insert", i)} disabled={!!busy || n >= maxFrames}>
-                  <Plus className="h-3.5 w-3.5" />
-                  <span className="text-[9px]">←</span>
-                </IconBtn>
-                <IconBtn label={m.st_insertAfter} onClick={() => pick("insert", i + 1)} disabled={!!busy || n >= maxFrames}>
-                  <Plus className="h-3.5 w-3.5" />
-                  <span className="text-[9px]">→</span>
-                </IconBtn>
+              {/* Mouse: the 8 icon buttons. Touch: one 44px "⋯" button opening them as a list. */}
+              <div className="grid grid-cols-4 gap-0.5 p-1 [@media(pointer:coarse)]:hidden">
+                {tileActions(i, hasPrev).map((a) => (
+                  <IconBtn key={a.key} label={a.label} onClick={a.run} disabled={a.disabled}>
+                    {a.icon}
+                  </IconBtn>
+                ))}
+              </div>
+              <div className="hidden p-1 [@media(pointer:coarse)]:block">
+                <button
+                  type="button"
+                  onClick={() => setActionsFor(i)}
+                  aria-label={fmt(m.st_frameActions, { n: i + 1 })}
+                  className="flex min-h-11 w-full items-center justify-center rounded-md text-muted hover:bg-surface-2 hover:text-text"
+                >
+                  <MoreHorizontal className="h-5 w-5" />
+                </button>
               </div>
             </li>
           );
@@ -605,7 +633,7 @@ export function Admin360Studio({
       {/* ---- versions ---- */}
       {history.length > 0 && (
         <details className="mt-4 rounded-lg border border-border p-3">
-          <summary className="flex cursor-pointer items-center gap-2 text-sm font-semibold text-text">
+          <summary className="flex min-h-11 cursor-pointer items-center gap-2 text-sm font-semibold text-text">
             <History className="h-4 w-4" /> {m.st_versions}
           </summary>
           <ul className="mt-2 flex flex-col gap-1.5 text-sm">
@@ -626,6 +654,41 @@ export function Admin360Studio({
         </details>
       )}
 
+      {/* ---- tile actions (touch) ---- */}
+      {actionsFor != null && frames[actionsFor] && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 sm:items-center" role="dialog" aria-modal="true" onClick={() => setActionsFor(null)}>
+          <div
+            className="w-full max-w-sm rounded-t-2xl bg-surface p-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] sm:rounded-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-2">
+              <span className="text-sm font-semibold text-text">{fmt(m.st_frameActions, { n: actionsFor + 1 })}</span>
+              <button type="button" onClick={() => setActionsFor(null)} aria-label={m.st_close} className="flex h-11 w-11 items-center justify-center rounded-md text-muted hover:text-text">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <ul className="flex flex-col">
+              {tileActions(actionsFor, (meta[frames[actionsFor].file]?.prev ?? []).length > 0).map((a) => (
+                <li key={a.key}>
+                  <button
+                    type="button"
+                    disabled={a.disabled}
+                    onClick={() => {
+                      setActionsFor(null);
+                      a.run();
+                    }}
+                    className="flex min-h-11 w-full items-center gap-3 rounded-md px-3 text-left text-sm text-text hover:bg-surface-2 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    <span className="flex w-6 justify-center text-muted">{a.icon}</span>
+                    {a.label}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      )}
+
       {/* ---- big preview ---- */}
       {preview != null && frames[preview] && (
         <div className="safe-inset fixed inset-0 z-50 flex flex-col bg-black/90" role="dialog" aria-modal="true" onKeyDown={(e) => {
@@ -639,18 +702,18 @@ export function Admin360Studio({
               <span className="ml-2 font-mono text-xs text-white/50">{frames[preview].file}</span>
             </div>
             <div className="flex items-center gap-1">
-              <button type="button" className="rounded-full p-2 hover:bg-white/10" onClick={() => setZoom((z) => !z)} aria-label={m.st_zoom}>
+              <button type="button" className="flex h-11 w-11 items-center justify-center rounded-full hover:bg-white/10" onClick={() => setZoom((z) => !z)} aria-label={m.st_zoom}>
                 <ZoomIn className="h-5 w-5" />
               </button>
-              <button type="button" className="rounded-full p-2 hover:bg-white/10" onClick={() => setPreview((preview - 1 + n) % n)} aria-label={m.st_prev}>
+              <button type="button" className="flex h-11 w-11 items-center justify-center rounded-full hover:bg-white/10" onClick={() => setPreview((preview - 1 + n) % n)} aria-label={m.st_prev}>
                 <ChevronLeft className="h-5 w-5" />
               </button>
-              <button type="button" className="rounded-full p-2 hover:bg-white/10" onClick={() => setPreview((preview + 1) % n)} aria-label={m.st_next}>
+              <button type="button" className="flex h-11 w-11 items-center justify-center rounded-full hover:bg-white/10" onClick={() => setPreview((preview + 1) % n)} aria-label={m.st_next}>
                 <ChevronRight className="h-5 w-5" />
               </button>
               <button
                 type="button"
-                className="rounded-full p-2 hover:bg-white/10"
+                className="flex h-11 w-11 items-center justify-center rounded-full hover:bg-white/10"
                 onClick={() => {
                   setEditing(preview);
                   setPreview(null);
@@ -659,7 +722,7 @@ export function Admin360Studio({
               >
                 <SlidersHorizontal className="h-5 w-5" />
               </button>
-              <button type="button" className="rounded-full p-2 hover:bg-white/10" onClick={() => setPreview(null)} aria-label={m.st_close}>
+              <button type="button" className="flex h-11 w-11 items-center justify-center rounded-full hover:bg-white/10" onClick={() => setPreview(null)} aria-label={m.st_close}>
                 <X className="h-5 w-5" />
               </button>
             </div>

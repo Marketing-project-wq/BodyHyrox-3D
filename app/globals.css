@@ -105,15 +105,16 @@ body {
   }
 
   /* Dark sidebar nav item */
+  /* Admin touch targets are at least 44px (min-h-11) — CLAUDE.md. */
   .nav-item {
-    @apply flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-sidebar-text transition-colors hover:bg-white/5 hover:text-white;
+    @apply flex min-h-11 items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-sidebar-text transition-colors hover:bg-white/5 hover:text-white;
   }
   .nav-item-active {
     @apply bg-accent text-white hover:bg-accent hover:text-white;
   }
 
   .btn {
-    @apply inline-flex items-center justify-center gap-2 rounded-lg px-3.5 py-2 text-sm font-medium transition-colors;
+    @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-lg px-3.5 py-2 text-sm font-medium transition-colors;
   }
   .btn-primary {
     @apply bg-accent text-white hover:bg-[#c60f27];
@@ -123,7 +124,7 @@ body {
   }
 
   .input {
-    @apply w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text placeholder:text-faint focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/30;
+    @apply min-h-11 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text placeholder:text-faint focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/30;
   }
 
   .th {

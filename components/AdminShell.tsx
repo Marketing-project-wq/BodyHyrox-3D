@@ -68,7 +68,7 @@ export function AdminShell({
       >
         <div className="flex items-center justify-between px-5 py-4">
           <Logo imgClassName="h-6" />
-          <button className="text-sidebar-faint lg:hidden" onClick={() => setOpen(false)} aria-label="Menu">
+          <button className="-my-2 -mr-3 flex h-11 w-11 items-center justify-center text-sidebar-faint lg:hidden" onClick={() => setOpen(false)} aria-label="Menu">
             <X size={20} />
           </button>
         </div>
@@ -104,7 +104,7 @@ export function AdminShell({
         </nav>
 
         <div className="space-y-2 border-t border-white/10 p-3">
-          <LangToggle locale={locale} />
+          <LangToggle locale={locale} touch />
           <div className="flex items-center gap-3 px-2 py-1">
             <span className="flex h-9 w-9 items-center justify-center rounded-full bg-accent text-xs font-semibold text-white">
               {initials(session.nama)}
@@ -116,7 +116,7 @@ export function AdminShell({
               )}
             </div>
             <form action={logout}>
-              <button className="text-sidebar-faint transition-colors hover:text-accent" aria-label={m.logout} title={m.logout}>
+              <button className="-m-3 flex h-11 w-11 items-center justify-center text-sidebar-faint transition-colors hover:text-accent" aria-label={m.logout} title={m.logout}>
                 <LogOut size={18} />
               </button>
             </form>
@@ -130,7 +130,7 @@ export function AdminShell({
       {/* Main column (no topbar) */}
       <div className="lg:flex lg:h-full lg:flex-col lg:pl-[calc(250px+env(safe-area-inset-left))]">
         <div className="sticky top-0 z-20 flex items-center gap-3 border-b border-border bg-sidebar px-4 py-2.5 pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] pt-[max(0.625rem,env(safe-area-inset-top))] lg:hidden">
-          <button className="text-white" onClick={() => setOpen(true)} aria-label="Menu">
+          <button className="-my-2.5 -ml-3 flex h-11 w-11 items-center justify-center text-white" onClick={() => setOpen(true)} aria-label="Menu">
             <Menu size={22} />
           </button>
           <Logo imgClassName="h-5" />
