@@ -1,3 +1,5 @@
+// Server-only: holds / derives from the service role key; never bundle for the client.
+import "server-only";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 /**

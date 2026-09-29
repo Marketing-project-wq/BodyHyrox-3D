@@ -1,3 +1,5 @@
+// Server-only: holds / derives from the service role key; never bundle for the client.
+import "server-only";
 import crypto from "node:crypto";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";

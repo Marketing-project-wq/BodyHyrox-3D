@@ -5,7 +5,7 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { ChevronLeft, ChevronRight, RotateCcw } from "lucide-react";
 import type { PublicAthleteDetail } from "@/lib/data";
-import { STAGE_ARENA, STAGE_READOUT, VIEWER_360, VIEWER_VIEWS, stageFitVars, viewer360FrameStyle } from "@/lib/config";
+import { STAGE_ARENA, STAGE_READOUT, VIEWER_360, VIEWER_360_FRAME_CLASS, VIEWER_VIEWS, stageFitVars, viewer360FrameStyle } from "@/lib/config";
 import { VIEW_KEYS } from "@/lib/views";
 import { type Dict } from "@/lib/i18n";
 import { tGender } from "@/lib/i18n";
@@ -663,7 +663,7 @@ export function AthleteStageCard({
                 label={`${athlete.nama} — ${viewNames[view]}`}
               />
             ) : (
-              <div className="relative mx-auto" style={figureStyle}>
+              <div className={`relative mx-auto ${VIEWER_360_FRAME_CLASS}`} style={figureStyle}>
                 <div className="stage-contact" aria-hidden />
                 {athlete.photoUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
