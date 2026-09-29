@@ -590,7 +590,7 @@ export function AthleteStageCard({
             <div
               ref={platformRef}
               className="stagecard-platform"
-              style={{ bottom: `${VIEWER_360.feetLinePct}%` }}
+              style={{ bottom: `${VIEWER_360.feetLinePct}%`, ["--feet-forward" as string]: STAGE_ARENA.feetForward }}
               aria-hidden
             >
               <div className="stagecard-ring-outer" />

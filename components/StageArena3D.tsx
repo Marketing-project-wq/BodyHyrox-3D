@@ -87,7 +87,11 @@ function Rig({ handle, anchorRef, figureRef }: Pick<Props, "handle" | "anchorRef
       // angle, since it sits on the orbit axis) -> shift it onto the feet line.
       const o = new THREE.Vector3(0, 0, 0).project(cam);
       const ox = ((o.x + 1) / 2) * W;
-      const oy = ((1 - o.y) / 2) * H;
+      // Stand the feet A.feetForward of the way toward the platform's front
+      // edge: raise the centre by that share of the top face's half-depth.
+      const front = new THREE.Vector3(0, 0, A.platformRadiusM).project(cam);
+      const halfDepth = ((front.y - o.y) / -2) * H; // px, front edge below centre
+      const oy = ((1 - o.y) / 2) * H + A.feetForward * halfDepth;
       cam.setViewOffset(W, H, ox - (ar.left - c.left), oy - (ar.top - c.top), W, H);
       invalidate();
     };
@@ -167,10 +171,18 @@ function useGlowTexture() {
   }, []);
 }
 
-function Platform() {
+function Platform({ handle }: Pick<Props, "handle">) {
   const R = A.platformRadiusM;
   const glowTex = useGlowTexture();
   const poolTex = usePoolTexture();
+  // The feet stand A.feetForward toward the viewer (see Rig), so the light
+  // pool sits under them: on the camera-facing radius, whatever the angle.
+  const poolRef = useRef<THREE.Mesh>(null);
+  useFrame(() => {
+    const phi = A.orbitDirection * rad(handle.current.angleDeg);
+    const d = A.feetForward * R;
+    poolRef.current?.position.set(Math.sin(phi) * d, 0.002, Math.cos(phi) * d);
+  });
   return (
     <group>
       {/* Body + top face (hexagonal: 6 radial segments) */}
@@ -183,7 +195,7 @@ function Platform() {
         <meshBasicMaterial color={A.topFaceColor} />
       </mesh>
       {/* Spotlight pool under the feet (the athlete stands on a lit floor) */}
-      <mesh position={[0, 0.002, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+      <mesh ref={poolRef} position={[0, 0.002, A.feetForward * R]} rotation={[-Math.PI / 2, 0, 0]}>
         <circleGeometry args={[R * A.poolRadius, 48]} />
         <meshBasicMaterial
           map={poolTex}
@@ -398,7 +410,7 @@ export function StageArena3D({ handle, anchorRef, figureRef, onReady, onFail }: 
       >
         <Rig handle={handle} anchorRef={anchorRef} figureRef={figureRef} />
         <Floor />
-        <Platform />
+        <Platform handle={handle} />
         <Scenery />
       </Canvas>
     </ArenaBoundary>
