@@ -186,7 +186,7 @@ export const STAGE_ARENA = {
   fogNear: 6,
   fogFar: 17,
   /** Horizontal camera distance from the athlete (m). */
-  cameraDistanceM: 4.5,
+  cameraDistanceM: 3.2,
   /** How far above the floor the camera looks down on the platform (deg). */
   cameraElevationDeg: 16,
   athleteHeightM: 1.7,
