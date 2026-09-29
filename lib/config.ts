@@ -222,9 +222,12 @@ export const STAGE_ARENA = {
    * viewer, as a share of the top face's visible half-depth (0 = centre,
    * 1 = the front edge). A bit forward leaves lit floor visible behind the
    * shoes, which is what makes them read as standing on it. Always toward the
-   * viewer, so it holds at every orbit angle.
+   * viewer, so it holds at every orbit angle. 0.55 keeps both the front
+   * contact (>=16% of the top-face depth from the front edge) and the back
+   * contact (>=26% from the back edge) clear of the rims in all four views,
+   * measured with the two-contact (v3) feet.
    */
-  feetForward: 0.65,
+  feetForward: 0.55,
   /**
    * Platform top face: a visible (not black) surface, plus a soft spotlight
    * pool centred on the feet so the soles meet a lit floor instead of the dark
