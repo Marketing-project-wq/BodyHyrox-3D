@@ -21,6 +21,10 @@ export type Foot = {
   cx?: number;
   /** Upper-body lean (deg, + = head to the right of the hips) — admin alignment only. */
   lean?: number;
+  /** 3 = two-contact detection (current). Older feet are re-measured. */
+  v?: number;
+  /** Contact points placed by hand in the studio (never re-measured). */
+  manual?: boolean;
 };
 
 /**
@@ -89,7 +93,7 @@ export function transformFoot(foot: Foot, t: FrameTransform | undefined): Foot {
     back: Y(foot.back),
     left: X(foot.left),
     right: X(foot.right),
-    soles: foot.soles?.map(([x0, x1, b]) => [X(x0), X(x1), Y(b)]),
+    soles: foot.soles?.map(([x0, x1, b, ...rest]) => [X(x0), X(x1), Y(b), ...rest]),
     top: foot.top == null ? undefined : Y(foot.top),
     cx: foot.cx == null ? undefined : X(foot.cx),
     lean: foot.lean == null ? undefined : foot.lean + t.rot,
@@ -101,10 +105,13 @@ export function transformFoot(foot: Foot, t: FrameTransform | undefined): Foot {
  * Same rules as scripts/foot-baseline.py. Throws nothing; null when the image
  * can't be read (cross-origin without CORS) or has no opaque pixels.
  */
-export function measureFrame(img: HTMLImageElement, maxW = 160): Foot | null {
+export function measureFrame(img: HTMLImageElement, maxW = 0): Foot | null {
   try {
-    const W = Math.min(maxW, img.naturalWidth || maxW);
-    const H = Math.round((W * img.naturalHeight) / img.naturalWidth) || Math.round(W * 2.35);
+    // Full resolution by default so the numbers match the script exactly.
+    const nw = img.naturalWidth;
+    const W = maxW > 0 ? Math.min(maxW, nw) : nw;
+    const H = W === nw ? img.naturalHeight : Math.round((W * img.naturalHeight) / nw);
+    if (!W || !H) return null;
     const c = document.createElement("canvas");
     c.width = W;
     c.height = H;
@@ -112,92 +119,148 @@ export function measureFrame(img: HTMLImageElement, maxW = 160): Foot | null {
     if (!g) return null;
     g.drawImage(img, 0, 0, W, H);
     const d = g.getImageData(0, 0, W, H).data;
-    const op = (x: number, y: number) => d[(y * W + x) * 4 + 3] > 127;
-    const rowCount = (y: number, x0 = 0, x1 = W) => {
-      let n = 0;
-      for (let x = x0; x < x1; x++) if (op(x, y)) n++;
-      return n;
-    };
-    let toe = -1;
-    for (let y = H - 1; y >= 0; y--) if (rowCount(y) >= 2) { toe = y; break; } // ignore 1px specks
-    if (toe < 0) return null;
-    let top = 0;
-    for (let y = 0; y < toe; y++) if (rowCount(y) >= 2) { top = y; break; }
-    const band = Math.max(0, Math.round(toe - 0.1 * H));
-    let left = W, right = -1, sum = 0, cnt = 0;
-    for (let y = band; y <= toe; y++)
-      for (let x = 0; x < W; x++)
-        if (op(x, y)) { left = Math.min(left, x); right = Math.max(right, x); sum += x; cnt++; }
-    const fcx = cnt ? Math.round(sum / cnt) : W / 2;
-    const low = (x0: number, x1: number) => {
-      for (let y = toe; y >= band; y--) if (rowCount(y, x0, x1) >= 1) return y;
-      return toe;
-    };
-    const back = Math.min(low(left, fcx), low(fcx, right + 1));
-    const colBot: number[] = [];
-    for (let x = left; x <= right; x++) {
-      colBot[x] = -1;
-      for (let y = toe; y >= band; y--) if (op(x, y)) { colBot[x] = y; break; }
-    }
-    const runs: [number, number][] = [];
-    const bridge = Math.max(2, Math.round(0.02 * W));
-    let start = -1, end = -1, gap = 0;
-    for (let x = left; x <= right + 1; x++) {
-      if (x <= right && colBot[x] >= 0) {
-        if (start < 0) start = x;
-        end = x;
-        gap = 0;
-      } else if (start >= 0 && (++gap > bridge || x > right)) {
+    const m = new Uint8Array(W * H);
+    for (let i = 0; i < W * H; i++) m[i] = d[i * 4 + 3] >= 128 ? 1 : 0;
+    return measureMask(m, W, H);
+  } catch {
+    return null;
+  }
+}
+
+/** Shared feet-detection constants (mirror scripts/foot-baseline.py). */
+export const FEET = {
+  band: 0.1, // feet band above the toe (front soles, extents)
+  backBand: 0.2, // how far above the toe a hidden back shoe may be
+  contact: 0.012, // sole contact tolerance (share of height)
+  bridge: 0.02, // column gaps up to this share of width join one shoe
+  gap: 0.004, // min transparent gap under a hidden back shoe (share of height)
+  minBackW: 0.04, // min width of a hidden back shoe (share of width)
+} as const;
+
+/** Column runs where values[x] >= 0, joining gaps up to `bridge` columns. */
+function colRuns(values: Int32Array, lo: number, hi: number, bridge: number): [number, number][] {
+  const runs: [number, number][] = [];
+  let start = -1, end = -1, gap = 0;
+  for (let x = lo; x <= hi + 1; x++) {
+    if (x <= hi && values[x] >= 0) {
+      if (start < 0) start = x;
+      end = x;
+      gap = 0;
+    } else if (start >= 0) {
+      gap += 1;
+      if (gap > bridge || x > hi) {
         runs.push([start, end]);
         start = -1;
         gap = 0;
       }
     }
-    const soles = runs
-      .sort((p, q) => q[1] - q[0] - (p[1] - p[0]))
-      .slice(0, 2)
-      .sort((p, q) => p[0] - q[0])
-      .map(([x0, x1]) => {
-        let b = -1;
-        for (let x = x0; x <= x1; x++) b = Math.max(b, colBot[x]);
-        let n0 = x1, n1 = x0;
-        for (let x = x0; x <= x1; x++) if (colBot[x] >= b - 0.012 * H) { n0 = Math.min(n0, x); n1 = Math.max(n1, x); }
-        return [n0 / W, (n1 + 1) / W, (b + 1) / H];
-      });
-
-    // Body centre + upper-body lean: row centroids from the head to ~45% of
-    // the body height (torso; arms and legs move too much while turning).
-    const h = toe - top;
-    const y0 = top + Math.round(0.08 * h);
-    const y1 = top + Math.round(0.45 * h);
-    let sx = 0, sy = 0, sxx = 0, sxy = 0, n = 0, bodySum = 0, bodyCnt = 0;
-    for (let y = top; y <= toe; y++) {
-      let rs = 0, rc = 0;
-      for (let x = 0; x < W; x++) if (op(x, y)) { rs += x; rc++; }
-      if (!rc) continue;
-      bodySum += rs;
-      bodyCnt += rc;
-      if (y >= y0 && y <= y1) {
-        const cxr = rs / rc;
-        sx += y; sy += cxr; sxx += y * y; sxy += y * cxr; n++;
-      }
-    }
-    const slope = n > 2 ? (n * sxy - sx * sy) / (n * sxx - sx * sx || 1) : 0; // dx per dy (px)
-    const lean = (-Math.atan(slope) * 180) / Math.PI; // head right of hips = +
-    return {
-      toe: (toe + 1) / H,
-      back: (back + 1) / H,
-      left: left / W,
-      right: (right + 1) / W,
-      soles,
-      top: top / H,
-      cx: bodyCnt ? bodySum / bodyCnt / W : 0.5,
-      lean: Number.isFinite(lean) ? lean : 0,
-    };
-  } catch {
-    return null;
   }
+  return runs;
 }
+
+function soleOf(values: Int32Array, x0: number, x1: number, tol: number, W: number, H: number): number[] {
+  let b = -1;
+  for (let x = x0; x <= x1; x++) b = Math.max(b, values[x]);
+  let n0 = x1, n1 = x0;
+  for (let x = x0; x <= x1; x++) if (values[x] >= b - tol) { n0 = Math.min(n0, x); n1 = Math.max(n1, x); }
+  return [n0 / W, (n1 + 1) / W, (b + 1) / H];
+}
+
+/**
+ * Feet from an opaque mask (1 = alpha >= 128), row-major W x H. Same integer
+ * rules as scripts/foot-baseline.py measure_mask(): keep the two in sync.
+ */
+export function measureMask(m: Uint8Array, W: number, H: number): Foot | null {
+  const at = (x: number, y: number) => m[y * W + x] === 1;
+  const rowCount = new Int32Array(H);
+  for (let y = 0; y < H; y++) {
+    let n = 0;
+    for (let x = 0; x < W; x++) n += m[y * W + x];
+    rowCount[y] = n;
+  }
+  let toe = -1;
+  for (let y = H - 1; y >= 0; y--) if (rowCount[y] >= 2) { toe = y; break; } // ignore 1px specks
+  if (toe < 0) return null;
+  let top = 0;
+  for (let y = 0; y <= toe; y++) if (rowCount[y] >= 2) { top = y; break; }
+  const band = Math.max(0, toe - Math.round(FEET.band * H));
+  let left = W, right = -1;
+  for (let y = band; y <= toe; y++)
+    for (let x = 0; x < W; x++) if (at(x, y)) { if (x < left) left = x; if (x > right) right = x; }
+  const tol = Math.round(FEET.contact * H);
+  const bridge = Math.max(2, Math.round(FEET.bridge * W));
+
+  // Front contacts: the lowest opaque pixel per column in the feet band.
+  const colBot = new Int32Array(W).fill(-1);
+  for (let x = left; x <= right; x++)
+    for (let y = toe; y >= band; y--) if (at(x, y)) { colBot[x] = y; break; }
+  const soles = colRuns(colBot, left, right, bridge)
+    .sort((p, q) => q[1] - q[0] - (p[1] - p[0]))
+    .slice(0, 2)
+    .sort((p, q) => p[0] - q[0] || p[1] - q[1])
+    .map(([x0, x1]) => soleOf(colBot, x0, x1, tol, W, H));
+
+  // Hidden back shoe (side views): above the lowest run of a column, after a
+  // transparent gap, the next opaque pixel is the bottom of the shoe behind.
+  if (soles.length === 1) {
+    const lim = Math.max(0, toe - Math.round(FEET.backBand * H));
+    const gapMin = Math.max(2, Math.round(FEET.gap * H));
+    const upper = new Int32Array(W).fill(-1);
+    for (let x = 0; x < W; x++) {
+      let y = toe;
+      while (y >= lim && !at(x, y)) y--;
+      if (y < lim) continue;
+      while (y >= lim && at(x, y)) y--;
+      let gp = 0;
+      while (y >= lim && !at(x, y)) { gp++; y--; }
+      if (y >= lim && gp >= gapMin) upper[x] = y;
+    }
+    const minW = Math.round(FEET.minBackW * W);
+    const uruns = colRuns(upper, 0, W - 1, bridge).filter(([a, b]) => b - a + 1 >= minW);
+    if (uruns.length) {
+      let best = uruns[0];
+      for (const r of uruns) if (r[1] - r[0] > best[1] - best[0]) best = r;
+      soles.push(soleOf(upper, best[0], best[1], tol, W, H));
+      soles.sort((p, q) => p[0] - q[0]);
+    }
+  }
+
+  // Body centre (all opaque pixels) + upper-body lean: row centroids from the
+  // head to ~45% of the body height (torso; arms and legs move while turning).
+  const h = toe - top;
+  const y0 = top + Math.round(0.08 * h);
+  const y1 = top + Math.round(0.45 * h);
+  let sx = 0, sy = 0, sxx = 0, sxy = 0, n = 0, bodySum = 0, bodyCnt = 0;
+  for (let y = 0; y < H; y++) {
+    if (!rowCount[y]) continue;
+    let rs = 0;
+    for (let x = 0; x < W; x++) if (m[y * W + x]) rs += x;
+    bodySum += rs;
+    bodyCnt += rowCount[y];
+    if (y >= y0 && y <= y1) {
+      const cxr = rs / rowCount[y];
+      sx += y; sy += cxr; sxx += y * y; sxy += y * cxr; n++;
+    }
+  }
+  const slope = n > 2 ? (n * sxy - sx * sy) / (n * sxx - sx * sx || 1) : 0; // dx per dy (px)
+  const lean = (-Math.atan(slope) * 180) / Math.PI; // head right of hips = +
+  return {
+    toe: (toe + 1) / H,
+    back: Math.min(...soles.map((s) => s[2])),
+    left: left / W,
+    right: (right + 1) / W,
+    soles,
+    top: top / H,
+    cx: bodyCnt ? bodySum / bodyCnt / W : 0.5,
+    lean: Number.isFinite(lean) ? lean : 0,
+    v: 3,
+  };
+}
+
+/** Feet measured with the current algorithm (or placed by hand) — otherwise re-measure. */
+export const footIsCurrent = (f: Foot | null | undefined): f is Foot => !!f && (f.v === 3 || f.manual === true);
+/** Sole entry: [x0, x1, bottom, lifted?] — lifted = 1 (set by hand in the studio). */
+export const soleLifted = (s: number[]) => s[3] === 1;
 
 export function loadImage(src: string, crossOrigin = true): Promise<HTMLImageElement> {
   return new Promise((res, rej) => {

@@ -60,7 +60,12 @@ export function AthleteStageCard({
   const [view, setView] = useState(0);
   const viewRef = useRef(0);
   const ticksRef = useRef<SVGGElement>(null);
-  const arenaHandle = useRef<ArenaHandle>({ angleDeg: 0, invalidate: null, setDpr: null });
+  const arenaHandle = useRef<ArenaHandle>({ angleDeg: 0, invalidate: null, setDpr: null, groundHit: null, outline: null });
+  // ?debug=feet: draw the platform top face and each foot's contact point.
+  const [debugFeet, setDebugFeet] = useState(false);
+  useEffect(() => {
+    setDebugFeet(new URLSearchParams(window.location.search).get("debug") === "feet");
+  }, []);
   const platformRef = useRef<HTMLDivElement>(null);
   const figureRef = useRef<HTMLDivElement>(null);
   const [arenaWanted, setArenaWanted] = useState(false);
@@ -634,6 +639,8 @@ export function AthleteStageCard({
                 onTap={onTap}
                 onFocusChange={onFocusChange}
                 onReady={() => setPhotosReady(true)}
+                arena={arenaOn ? arenaHandle : undefined}
+                debug={debugFeet}
                 m={m}
                 label={`${athlete.nama} — ${viewNames[view]}`}
               />

@@ -17,6 +17,8 @@ export type StageLayer = {
   /** CSS filter for onion-skin tinting. */
   filter?: string;
   hidden?: boolean;
+  /** Drawn in the photo's own (untransformed) coordinates, moving with it. */
+  overlay?: ReactNode;
 };
 
 /**
@@ -98,6 +100,15 @@ export function FrameStage({
               className="absolute inset-0 h-full w-full object-contain"
               style={{ transform: fc.transform, transformOrigin: fc.transformOrigin }}
             />
+            {l.overlay && (
+              <div
+                data-stage-overlay
+                className="absolute inset-0"
+                style={{ transform: fc.transform, transformOrigin: fc.transformOrigin }}
+              >
+                {l.overlay}
+              </div>
+            )}
           </div>
         );
       })}

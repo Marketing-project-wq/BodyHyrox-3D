@@ -16,7 +16,40 @@ export type ArenaHandle = {
   invalidate: (() => void) | null;
   /** Adaptive quality: lower the canvas pixel ratio on slow devices. */
   setDpr: ((dpr: number) => void) | null;
+  /**
+   * Where a screen point (client px) lands on the floor at the current angle:
+   * inside the platform's top face or not, and its perspective scale relative
+   * to the feet point (< 1 = further back, so a contact shadow there is smaller).
+   */
+  groundHit: ((clientX: number, clientY: number) => { inside: boolean; scale: number } | null) | null;
+  /** The platform top face outline in client px (debug overlay). */
+  outline: (() => [number, number][]) | null;
 };
+
+/** Top face of the hexagon platform in world space (matches <Platform/>). */
+function topFaceVertices(): THREE.Vector3[] {
+  const r = A.platformRadiusM * 0.97;
+  return Array.from({ length: 6 }, (_, k) => {
+    const a = Math.PI / 2 + (k * Math.PI) / 3;
+    return new THREE.Vector3(Math.cos(a) * r, 0, -Math.sin(a) * r);
+  });
+}
+
+/** Point (on y = 0) inside the convex top face, at least `margin` m from its edges. */
+function insideTopFace(p: THREE.Vector3, verts: THREE.Vector3[], margin: number): boolean {
+  let sign = 0;
+  for (let k = 0; k < verts.length; k++) {
+    const a = verts[k];
+    const b = verts[(k + 1) % verts.length];
+    const ex = b.x - a.x;
+    const ez = b.z - a.z;
+    const len = Math.hypot(ex, ez);
+    const cross = (ex * (p.z - a.z) - ez * (p.x - a.x)) / len; // signed distance to the edge
+    if (!sign) sign = Math.sign(cross) || 1;
+    if (cross * sign < margin) return false;
+  }
+  return true;
+}
 
 type Props = {
   handle: MutableRefObject<ArenaHandle>;
@@ -54,11 +87,49 @@ function Rig({ handle, anchorRef, figureRef }: Pick<Props, "handle" | "anchorRef
     const h = handle.current;
     h.invalidate = invalidate;
     h.setDpr = setDpr;
+    const verts = topFaceVertices();
+    const ray = new THREE.Raycaster();
+    const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+    const hit = new THREE.Vector3();
+    const ndc = new THREE.Vector2();
+    // The camera for the angle the card just painted (useFrame may not have
+    // run yet this frame).
+    const sync = () => {
+      const phi = A.orbitDirection * rad(h.angleDeg);
+      cam.position.set(Math.sin(phi) * d, camY, Math.cos(phi) * d);
+      cam.lookAt(0, lookY, 0);
+      cam.updateMatrixWorld();
+      return phi;
+    };
+    h.groundHit = (x, y) => {
+      const c = gl.domElement.getBoundingClientRect();
+      if (!c.width || !c.height) return null;
+      const phi = sync();
+      ndc.set(((x - c.left) / c.width) * 2 - 1, -((y - c.top) / c.height) * 2 + 1);
+      ray.setFromCamera(ndc, cam);
+      if (!ray.ray.intersectPlane(plane, hit)) return null;
+      const f = A.feetForward * A.platformRadiusM; // the feet point (see fit)
+      const feet = new THREE.Vector3(Math.sin(phi) * f, 0, Math.cos(phi) * f);
+      return {
+        inside: insideTopFace(hit, verts, A.contactMarginM),
+        scale: cam.position.distanceTo(feet) / cam.position.distanceTo(hit),
+      };
+    };
+    h.outline = () => {
+      const c = gl.domElement.getBoundingClientRect();
+      sync();
+      return verts.map((v) => {
+        const q = v.clone().project(cam);
+        return [c.left + ((q.x + 1) / 2) * c.width, c.top + ((1 - q.y) / 2) * c.height] as [number, number];
+      });
+    };
     return () => {
       h.invalidate = null;
       h.setDpr = null;
+      h.groundHit = null;
+      h.outline = null;
     };
-  }, [handle, invalidate, setDpr]);
+  }, [handle, invalidate, setDpr, cam, gl, d, camY, lookY]);
 
   const lastAnchorRef = useRef({ x: NaN, y: NaN, h: NaN });
   const fitRef = useRef<() => void>(() => {});

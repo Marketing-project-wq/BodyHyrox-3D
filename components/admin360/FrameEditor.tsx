@@ -1,12 +1,54 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight, Wand2, RotateCcw, X, Layers, Ruler } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { ChevronLeft, ChevronRight, Wand2, RotateCcw, X, Layers, Ruler, Footprints, Plus, Trash2 } from "lucide-react";
 import { type Dict, fmt } from "@/lib/i18n";
-import { IDENTITY, autoAlign, transformFoot, type Foot, type FrameTransform } from "@/lib/media360";
+import { IDENTITY, autoAlign, pivotOf, soleLifted, transformFoot, type Foot, type FrameTransform } from "@/lib/media360";
 import { FrameStage, placeFrame } from "./FrameStage";
 
-export type EditorFrame = { file: string; src: string | undefined; foot: Foot | null; t?: FrameTransform };
+export type EditorFrame = {
+  file: string;
+  src: string | undefined;
+  /** Feet in use (hand-placed or measured). */
+  foot: Foot | null;
+  /** Fresh automatic measurement (for "back to automatic"). */
+  autoFoot?: Foot | null;
+  t?: FrameTransform;
+};
+
+/** Feet with the given soles, marked hand-placed; toe/back follow the soles. */
+function withSoles(base: Foot, soles: number[][], settle: boolean): Foot {
+  const out: Foot = { ...base, soles, manual: true, v: 3 };
+  if (settle && soles.length) {
+    out.toe = Math.max(...soles.map((s) => s[2]));
+    out.back = Math.min(...soles.map((s) => s[2]));
+  }
+  return out;
+}
+
+/**
+ * Screen point -> the photo's own coordinates (fractions), undoing the frame
+ * transform (translate, rotate, scale around the feet) that the stage applies.
+ */
+function toPhoto(clientX: number, clientY: number, layer: DOMRect, t: FrameTransform | undefined, foot: Foot): [number, number] {
+  const w = layer.width;
+  const h = layer.height;
+  let x = clientX - layer.left;
+  let y = clientY - layer.top;
+  if (t) {
+    const p = pivotOf(foot);
+    const px = p.x * w;
+    const py = p.y * h;
+    x -= px + t.dx * w;
+    y -= py + t.dy * h;
+    const a = (-t.rot * Math.PI) / 180;
+    const rx = (x * Math.cos(a) - y * Math.sin(a)) / t.s;
+    const ry = (x * Math.sin(a) + y * Math.cos(a)) / t.s;
+    x = px + rx;
+    y = py + ry;
+  }
+  return [Math.min(1, Math.max(0, x / w)), Math.min(1, Math.max(0, y / h))];
+}
 
 const median = (a: number[]) => {
   const s = [...a].sort((p, q) => p - q);
@@ -24,6 +66,7 @@ export function FrameEditor({
   aspect,
   onIndex,
   onChange,
+  onFootChange,
   onClose,
   m,
 }: {
@@ -32,6 +75,8 @@ export function FrameEditor({
   aspect: number;
   onIndex: (i: number) => void;
   onChange: (file: string, t: FrameTransform) => void;
+  /** Contact points placed by hand; null = back to automatic detection. */
+  onFootChange?: (file: string, foot: Foot | null) => void;
   onClose: () => void;
   m: Dict;
 }) {
@@ -46,6 +91,78 @@ export function FrameEditor({
   const [raw, setRaw] = useState(false);
 
   const set = (patch: Partial<FrameTransform>) => onChange(cur.file, { ...t, ...patch });
+
+  // ---- contact points (one per foot), dragged on the photo ----
+  // While dragging only the soles move; toe/back (and so the photo's anchor)
+  // settle on release, so the photo doesn't slide under the finger.
+  const [dragFoot, setDragFoot] = useState<Foot | null>(null);
+  const drag = useRef<{ k: number; layer: DOMRect } | null>(null);
+  const shownFoot = dragFoot ?? cur.foot;
+  const soles = shownFoot?.soles ?? [];
+  const commitSoles = (next: number[][], settle = true) => {
+    if (!cur.foot || !onFootChange) return;
+    onFootChange(cur.file, withSoles(cur.foot, next, settle));
+  };
+  const startDrag = (k: number) => (e: React.PointerEvent<HTMLButtonElement>) => {
+    const layer = (e.currentTarget.closest("[data-stage-overlay]")?.parentElement as HTMLElement | null)?.getBoundingClientRect();
+    if (!layer || !cur.foot) return;
+    e.preventDefault();
+    e.currentTarget.setPointerCapture(e.pointerId);
+    drag.current = { k, layer };
+    setDragFoot(cur.foot);
+  };
+  const moveDrag = (e: React.PointerEvent<HTMLButtonElement>) => {
+    const d = drag.current;
+    if (!d || !dragFoot) return;
+    const [x, y] = toPhoto(e.clientX, e.clientY, d.layer, raw ? undefined : t, dragFoot);
+    const next = (dragFoot.soles ?? []).map((s, i) => {
+      if (i !== d.k) return s;
+      const half = (s[1] - s[0]) / 2;
+      return [x - half, x + half, y, ...s.slice(3)];
+    });
+    setDragFoot(withSoles(dragFoot, next, false));
+  };
+  const endDrag = () => {
+    if (drag.current && dragFoot?.soles) commitSoles(dragFoot.soles);
+    drag.current = null;
+    setDragFoot(null);
+  };
+  useEffect(() => {
+    setDragFoot(null);
+    drag.current = null;
+  }, [cur.file]);
+  const toggleLifted = (k: number, lifted: boolean) =>
+    commitSoles(soles.map((s, i) => (i === k ? [s[0], s[1], s[2], lifted ? 1 : 0] : s)));
+  const addFoot = () => {
+    const s = soles[0];
+    if (!s) return;
+    const w = s[1] - s[0];
+    const x = s[0] > 0.5 ? s[0] - 0.12 - w : s[1] + 0.12;
+    commitSoles([...soles, [x, x + w, Math.max(0, s[2] - 0.05), 0]].sort((p, q) => p[0] - q[0]));
+  };
+  const removeFoot = (k: number) => commitSoles(soles.filter((_, i) => i !== k));
+  const handles = onFootChange && shownFoot
+    ? soles.map((s, k) => (
+        <button
+          key={k}
+          type="button"
+          aria-label={fmt(m.st_footN, { n: k + 1 })}
+          title={fmt(m.st_footN, { n: k + 1 })}
+          onPointerDown={startDrag(k)}
+          onPointerMove={moveDrag}
+          onPointerUp={endDrag}
+          onPointerCancel={endDrag}
+          className="pointer-events-auto absolute flex h-7 w-7 -translate-x-1/2 -translate-y-1/2 cursor-grab touch-none items-center justify-center rounded-full border-2 border-black text-[11px] font-bold text-black shadow active:cursor-grabbing"
+          style={{
+            left: `${(((s[0] + s[1]) / 2) * 100).toFixed(3)}%`,
+            top: `${(s[2] * 100).toFixed(3)}%`,
+            background: soleLifted(s) ? "#ef4444" : "#facc15",
+          }}
+        >
+          {k + 1}
+        </button>
+      ))
+    : null;
 
   // Neighbours as they appear on stage (their own transforms applied).
   const neighbours = useMemo(
@@ -170,7 +287,7 @@ export function FrameEditor({
             layers={[
               { key: "p", src: prev.src, foot: prev.foot, t: prev.t, opacity: onionOpacity, filter: "sepia(1) hue-rotate(160deg) saturate(3)", hidden: !onion || prev.file === cur.file },
               { key: "n", src: next.src, foot: next.foot, t: next.t, opacity: onionOpacity, filter: "sepia(1) hue-rotate(-50deg) saturate(3)", hidden: !onion || next.file === cur.file || next.file === prev.file },
-              { key: "c", src: cur.src, foot: cur.foot, t },
+              { key: "c", src: cur.src, foot: shownFoot, t, overlay: handles },
             ]}
           />
         </div>
@@ -199,6 +316,49 @@ export function FrameEditor({
               </button>
             </div>
             <p className="text-xs text-faint">{m.st_autoHint}</p>
+
+            {onFootChange && cur.foot && (
+              <div className="flex flex-col gap-2 border-t border-border pt-3 text-sm">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="flex items-center gap-2 font-semibold">
+                    <Footprints className="h-4 w-4 text-muted" /> {m.st_contacts}
+                  </span>
+                  {cur.foot.manual && <span className="rounded bg-sky-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-sky-700">{m.st_manual}</span>}
+                </div>
+                <p className="text-xs text-faint">{m.st_contactsHint}</p>
+                {soles.map((s, k) => (
+                  <div key={k} className="flex items-center justify-between gap-2 rounded-md bg-surface-2 px-2 py-1.5">
+                    <span className="flex items-center gap-2">
+                      <span className="inline-block h-3 w-3 rounded-full border border-black" style={{ background: soleLifted(s) ? "#ef4444" : "#facc15" }} />
+                      {fmt(m.st_footN, { n: k + 1 })}
+                    </span>
+                    <span className="flex items-center gap-2">
+                      <label className="flex items-center gap-1.5 text-xs">
+                        <input type="checkbox" className="accent-red-600" checked={soleLifted(s)} onChange={(e) => toggleLifted(k, e.target.checked)} />
+                        {m.st_lifted}
+                      </label>
+                      {soles.length > 1 && (
+                        <button type="button" onClick={() => removeFoot(k)} className="rounded p-1 text-muted hover:text-accent" aria-label={m.st_removeFoot} title={m.st_removeFoot}>
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                    </span>
+                  </div>
+                ))}
+                <div className="flex flex-wrap gap-2">
+                  {soles.length < 2 && (
+                    <button type="button" onClick={addFoot} className="btn">
+                      <Plus className="h-4 w-4" /> {m.st_addFoot}
+                    </button>
+                  )}
+                  {cur.foot.manual && (
+                    <button type="button" onClick={() => onFootChange(cur.file, null)} className="btn">
+                      <RotateCcw className="h-4 w-4" /> {m.st_autoFeet}
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
 
             <div className="flex flex-col gap-2 border-t border-border pt-3 text-sm">
               <label className="flex items-center gap-2">

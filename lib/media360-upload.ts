@@ -54,7 +54,7 @@ export async function preparePhoto(file: Blob, cutout: boolean): Promise<Blob> {
 export async function measureBlob(blob: Blob): Promise<Foot | null> {
   const url = URL.createObjectURL(blob);
   try {
-    return measureFrame(await loadImage(url, false), 480);
+    return measureFrame(await loadImage(url, false));
   } catch {
     return null;
   } finally {
