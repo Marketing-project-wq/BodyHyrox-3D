@@ -188,13 +188,21 @@ export const STAGE_ARENA = {
   /** Horizontal camera distance from the athlete (m). */
   cameraDistanceM: 4.5,
   /** How far above the floor the camera looks down on the platform (deg). */
-  cameraElevationDeg: 8,
+  cameraElevationDeg: 11,
   athleteHeightM: 1.7,
   /** Share of the photo frame height the athlete's body fills (normalized frames). */
   athleteFrameFill: 0.9,
   /** Camera turns opposite to the figure's frame order (matches the ticks). */
   orbitDirection: -1,
   platformRadiusM: 0.62,
+  /**
+   * Where the feet stand on the platform top, from its centre toward the
+   * viewer, as a share of the top face's visible half-depth (0 = centre,
+   * 1 = the front edge). A bit forward leaves lit floor visible behind the
+   * shoes, which is what makes them read as standing on it. Always toward the
+   * viewer, so it holds at every orbit angle.
+   */
+  feetForward: 0.45,
   /**
    * Platform top face: a visible (not black) surface, plus a soft spotlight
    * pool centred on the feet so the soles meet a lit floor instead of the dark
@@ -203,7 +211,7 @@ export const STAGE_ARENA = {
    */
   topFaceColor: "#3a1520",
   poolColor: "#ffd0da",
-  poolRadius: 0.62,
+  poolRadius: 0.5,
   poolOpacity: 0.65,
   minSceneryRadiusM: 6,
   pillars: 10,

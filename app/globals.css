@@ -247,7 +247,8 @@ body {
   left: 0;
   top: 0;
   pointer-events: none;
-  transform: translate(-50%, -50%);
+  /* Centre raised so the feet stand --feet-forward toward the front edge (as in the 3D arena). */
+  transform: translate(-50%, calc(-50% - var(--feet-forward, 0) * 50%));
   border-radius: 50%;
 }
 .stagecard-ring-outer {
@@ -277,7 +278,7 @@ body {
   height: auto;
   overflow: visible;
   pointer-events: none;
-  transform: translate(-50%, -50%);
+  transform: translate(-50%, calc(-50% - var(--feet-forward, 0) * 50%));
   /* Far (top) side dimmer than the near side: reads as a tilted floor. */
   -webkit-mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.35), #000 70%);
   mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.35), #000 70%);
