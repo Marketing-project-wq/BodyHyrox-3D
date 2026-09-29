@@ -4,7 +4,8 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Check, RotateCw } from "lucide-react";
 import { VIEW_KEYS, type Media360Views, type ViewKey } from "@/lib/views";
-import { type Dict } from "@/lib/i18n";
+import { type Dict, errorMessage } from "@/lib/i18n";
+import { unwrap } from "@/lib/action-result";
 import { setMediaViews } from "@/app/atlet/[id]/media-actions";
 
 /**
@@ -45,11 +46,11 @@ export function AthleteViewsPicker({
     setError(null);
     start(async () => {
       try {
-        await setMediaViews(athleteId, pick);
+        unwrap(await setMediaViews(athleteId, pick));
         setOk(true);
         router.refresh();
       } catch (e) {
-        setError(e instanceof Error ? e.message : String(e));
+        setError(errorMessage(m, e));
       }
     });
   };

@@ -5,6 +5,7 @@ export type Locale = "en" | "id";
 export const LOCALES: Locale[] = ["en", "id"];
 export const DEFAULT_LOCALE: Locale = "en";
 export const LOCALE_COOKIE = "smb_lang";
+import { ActionFailure, errorCodeOf } from "./action-result";
 
 const en = {
   // sidebar / nav
@@ -598,6 +599,34 @@ const en = {
   rq_confirmReject: "Reject this request from {company}?",
   rq_none: "No requests.",
   rq_note: "Note",
+  // Server action error codes (lib/action-result.ts)
+  err_unknown: "Something went wrong. Please try again.",
+  err_forbidden: "You don't have permission for this action.",
+  err_missing_input: "Some required information is missing.",
+  err_athlete_not_found: "Athlete not found.",
+  err_event_not_found: "Event not found.",
+  err_race_not_found: "Race entry not found.",
+  err_zone_not_found: "Zone not found.",
+  err_brand_not_found: "Brand not found.",
+  err_transaction_not_found: "Transaction not found.",
+  err_already_refunded: "This transaction was already refunded.",
+  err_zone_taken: "This zone is sponsored. Cancel or refund its transaction before turning it off.",
+  err_zone_not_athlete: "That zone doesn't belong to this athlete.",
+  err_zone_unavailable: "That zone is no longer available.",
+  err_request_not_found: "Request not found.",
+  err_request_not_pending: "This request was already reviewed.",
+  err_media_missing: "This athlete has no 360 media yet.",
+  err_draft_invalid: "The draft is not valid. Reload the page and try again.",
+  err_draft_too_large: "The draft is too large.",
+  err_frame_count: "Wrong number of frames (8–36 allowed).",
+  err_frame_name_invalid: "Invalid or duplicate frame name.",
+  err_frame_source_invalid: "Invalid frame source.",
+  err_frame_missing: "A frame file could not be found or copied. Try again.",
+  err_nothing_to_publish: "There are no changes to publish.",
+  err_version_not_found: "That version was not found.",
+  err_zones_invalid: "The zone points are not valid.",
+  err_views_invalid: "The viewer sides are not valid.",
+  err_upload_failed: "Upload failed. Check the connection and try again.",
 } as const;
 
 export type Dict = Record<keyof typeof en, string>;
@@ -1184,6 +1213,34 @@ const id: Dict = {
   rq_confirmReject: "Tolak pengajuan dari {company} ini?",
   rq_none: "Belum ada pengajuan.",
   rq_note: "Catatan",
+  // Kode error server action (lib/action-result.ts)
+  err_unknown: "Terjadi kesalahan. Silakan coba lagi.",
+  err_forbidden: "Anda tidak memiliki izin untuk aksi ini.",
+  err_missing_input: "Ada data wajib yang belum diisi.",
+  err_athlete_not_found: "Atlet tidak ditemukan.",
+  err_event_not_found: "Event tidak ditemukan.",
+  err_race_not_found: "Data race tidak ditemukan.",
+  err_zone_not_found: "Zona tidak ditemukan.",
+  err_brand_not_found: "Brand tidak ditemukan.",
+  err_transaction_not_found: "Transaksi tidak ditemukan.",
+  err_already_refunded: "Transaksi ini sudah di-refund.",
+  err_zone_taken: "Zona sudah terisi sponsor. Batalkan/refund transaksinya dulu sebelum menonaktifkan.",
+  err_zone_not_athlete: "Zona itu bukan milik atlet ini.",
+  err_zone_unavailable: "Zona itu sudah tidak tersedia.",
+  err_request_not_found: "Pengajuan tidak ditemukan.",
+  err_request_not_pending: "Pengajuan ini sudah diproses.",
+  err_media_missing: "Atlet ini belum punya media 360.",
+  err_draft_invalid: "Draft tidak valid. Muat ulang halaman lalu coba lagi.",
+  err_draft_too_large: "Draft terlalu besar.",
+  err_frame_count: "Jumlah frame tidak sesuai (8–36).",
+  err_frame_name_invalid: "Nama frame tidak valid atau ganda.",
+  err_frame_source_invalid: "Sumber frame tidak valid.",
+  err_frame_missing: "Ada file frame yang tidak ditemukan atau gagal disalin. Coba lagi.",
+  err_nothing_to_publish: "Tidak ada perubahan untuk dipublish.",
+  err_version_not_found: "Versi tidak ditemukan.",
+  err_zones_invalid: "Titik zona tidak valid.",
+  err_views_invalid: "Sisi viewer tidak valid.",
+  err_upload_failed: "Upload gagal. Periksa koneksi lalu coba lagi.",
 };
 
 export const messages: Record<Locale, Dict> = { en, id };
@@ -1193,6 +1250,23 @@ export function getDict(locale: Locale): Dict {
 }
 
 /** Simple {placeholder} interpolation. */
+/**
+ * Text for anything caught on the client: a server action failure code is
+ * translated; a client-side error that already carries a translated message
+ * (e.g. m360_err_module) keeps it; anything else gets the generic message.
+ */
+export function errorMessage(m: Dict, e: unknown): string {
+  const code = errorCodeOf(e);
+  if (code !== "unknown" || e instanceof ActionFailure) return errorText(m, code);
+  return e instanceof Error && e.message ? e.message : errorText(m, "unknown");
+}
+
+/** Translated text for a server action error code. */
+export function errorText(m: Dict, code: unknown): string {
+  const key = `err_${typeof code === "string" ? code : "unknown"}` as keyof Dict;
+  return (m[key] as string | undefined) ?? m.err_unknown;
+}
+
 export function fmt(tpl: string, vars: Record<string, string | number>): string {
   return tpl.replace(/\{(\w+)\}/g, (_, k) => (vars[k] != null ? String(vars[k]) : `{${k}}`));
 }
