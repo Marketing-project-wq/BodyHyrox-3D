@@ -674,13 +674,13 @@ export function AthleteStageCard({
                 aria-label={m.view_prev}
                 className="group flex h-11 w-11 shrink-0 items-center justify-center max-[359px]:hidden"
               >
-                <span className="flex h-8 w-8 items-center justify-center rounded-full border border-white/15 bg-black/50 text-white/80 backdrop-blur transition-colors group-hover:border-white/40 group-hover:text-white">
+                <span className="flex h-8 w-8 items-center justify-center rounded-full border border-white/15 bg-black/50 text-white/80 backdrop-blur [@media(pointer:coarse)]:bg-black/65 [@media(pointer:coarse)]:backdrop-blur-none transition-colors group-hover:border-white/40 group-hover:text-white">
                   <ChevronLeft size={16} />
                 </span>
               </button>
               {/* Tabs: 44px tall touch targets; the pill track stays slim (drawn behind). */}
               <div role="tablist" aria-label={m.view_tabs} className="relative flex px-0.5">
-                <span aria-hidden className="absolute inset-x-0 top-1/2 h-[30px] -translate-y-1/2 rounded-full border border-white/10 bg-black/50 backdrop-blur" />
+                <span aria-hidden className="absolute inset-x-0 top-1/2 h-[30px] -translate-y-1/2 rounded-full border border-white/10 bg-black/50 backdrop-blur [@media(pointer:coarse)]:bg-black/65 [@media(pointer:coarse)]:backdrop-blur-none" />
                 {VIEW_KEYS.map((k, i) => (
                   <button
                     key={k}
@@ -708,7 +708,7 @@ export function AthleteStageCard({
                 aria-label={m.view_next}
                 className="group flex h-11 w-11 shrink-0 items-center justify-center max-[359px]:hidden"
               >
-                <span className="flex h-8 w-8 items-center justify-center rounded-full border border-white/15 bg-black/50 text-white/80 backdrop-blur transition-colors group-hover:border-white/40 group-hover:text-white">
+                <span className="flex h-8 w-8 items-center justify-center rounded-full border border-white/15 bg-black/50 text-white/80 backdrop-blur [@media(pointer:coarse)]:bg-black/65 [@media(pointer:coarse)]:backdrop-blur-none transition-colors group-hover:border-white/40 group-hover:text-white">
                   <ChevronRight size={16} />
                 </span>
               </button>
@@ -732,7 +732,7 @@ export function AthleteStageCard({
         <Link
           href={`/atlet/${prev.id}`}
           aria-label={`${m.sc_prev}: ${prev.nama}`}
-          className="absolute left-3 top-1/2 z-30 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-white/15 bg-black/40 text-white/80 backdrop-blur transition-colors hover:border-white/40 hover:text-white sm:left-5"
+          className="absolute left-3 top-1/2 z-30 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-white/15 bg-black/40 text-white/80 backdrop-blur [@media(pointer:coarse)]:bg-black/60 [@media(pointer:coarse)]:backdrop-blur-none transition-colors hover:border-white/40 hover:text-white sm:left-5"
         >
           <ChevronLeft size={20} />
         </Link>
@@ -741,7 +741,7 @@ export function AthleteStageCard({
         <Link
           href={`/atlet/${next.id}`}
           aria-label={`${m.sc_next}: ${next.nama}`}
-          className="absolute right-3 top-1/2 z-30 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-white/15 bg-black/40 text-white/80 backdrop-blur transition-colors hover:border-white/40 hover:text-white sm:right-5"
+          className="absolute right-3 top-1/2 z-30 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-white/15 bg-black/40 text-white/80 backdrop-blur [@media(pointer:coarse)]:bg-black/60 [@media(pointer:coarse)]:backdrop-blur-none transition-colors hover:border-white/40 hover:text-white sm:right-5"
         >
           <ChevronRight size={20} />
         </Link>
