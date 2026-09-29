@@ -9,6 +9,8 @@ Guidance for Claude (and anyone else) working in this repo.
 - Never run Supabase migrations or change RLS/storage policies yourself. If a
   change needs them, write the SQL separately in the plan; the owner executes
   it after approval.
+- Never merge to main or deploy without the owner's explicit approval. Open the
+  PR, report verification results, and wait.
 - Break larger work into small stages that can be reviewed one at a time.
 - After every UI change, report a checklist: desktop ✓ / iOS ✓ / Android ✓,
   plus anything that still needs a manual check on a real device.
