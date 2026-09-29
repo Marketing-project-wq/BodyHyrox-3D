@@ -673,8 +673,7 @@ export function Admin360Studio({
               <FrameStage
                 aspect={aspect}
                 guides
-                className="border border-white/10"
-                style={{ height: "min(82vh, 1000px)" }}
+                className="h-[min(82vh,1000px)] border border-white/10 supports-[height:1svh]:h-[min(82svh,1000px)]"
                 layers={[{ key: "c", src: srcOf(frames[preview]), foot: footOf(frames[preview].file), t: meta[frames[preview].file]?.t }]}
               />
             )}

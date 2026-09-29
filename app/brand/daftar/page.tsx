@@ -30,7 +30,7 @@ export default function BrandRegisterPage({
         : null;
 
   return (
-    <div className="safe-x min-h-[100dvh] bg-[#0b0b0d] text-[#f3f3f4]">
+    <div className="safe-x min-h-screen supports-[height:1dvh]:min-h-[100dvh] bg-[#0b0b0d] text-[#f3f3f4]">
       <PublicHeader locale={locale} back={{ href: "/atlet", label: m.pub_back }} />
       <main className="mx-auto max-w-md px-5 py-14">
         <h1 className="font-condensed text-3xl font-bold uppercase">{m.br_register_title}</h1>

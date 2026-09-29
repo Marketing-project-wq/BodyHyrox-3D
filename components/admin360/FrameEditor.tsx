@@ -283,7 +283,7 @@ export function FrameEditor({
             headY={guideHead}
             targetX={guideX}
             noTransform={raw}
-            className="h-[56svh] border border-white/10 lg:h-[min(78vh,900px)]"
+            className="h-[56vh] border border-white/10 supports-[height:1svh]:h-[56svh] lg:h-[min(78vh,900px)] lg:supports-[height:1svh]:h-[min(78svh,900px)]"
             layers={[
               { key: "p", src: prev.src, foot: prev.foot, t: prev.t, opacity: onionOpacity, filter: "sepia(1) hue-rotate(160deg) saturate(3)", hidden: !onion || prev.file === cur.file },
               { key: "n", src: next.src, foot: next.foot, t: next.t, opacity: onionOpacity, filter: "sepia(1) hue-rotate(-50deg) saturate(3)", hidden: !onion || next.file === cur.file || next.file === prev.file },

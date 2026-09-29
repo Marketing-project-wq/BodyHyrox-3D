@@ -59,7 +59,7 @@ export function AdminShell({
   const roleLabel = tRole(m, session.role);
 
   return (
-    <div className="bg-bg lg:h-[100dvh] lg:overflow-hidden">
+    <div className="bg-bg lg:h-screen lg:overflow-hidden lg:supports-[height:1dvh]:h-[100dvh]">
       {/* Sidebar */}
       <aside
         className={`fixed inset-y-0 left-0 z-40 flex w-[calc(250px+env(safe-area-inset-left))] flex-col bg-sidebar pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] pt-[env(safe-area-inset-top)] text-sidebar-text transition-transform lg:translate-x-0 ${
