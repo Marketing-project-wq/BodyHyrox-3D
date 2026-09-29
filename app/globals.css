@@ -369,6 +369,20 @@ body {
   background: radial-gradient(50% 50% at 50% 50%, rgba(0, 0, 0, 0.72), rgba(0, 0, 0, 0.38) 55%, transparent 100%);
 }
 
+/* Below lg the athlete photo also fits the phone screen (STAGE_FIT in
+   lib/config.ts): pick the budget for the current padding set. lg+ never sets
+   --stage-fit-max, so desktop keeps its size. */
+@media (max-width: 639.98px) {
+  .stagecard-fit {
+    --stage-fit-max: var(--stage-fit-xs);
+  }
+}
+@media (min-width: 640px) and (max-width: 1023.98px) {
+  .stagecard-fit {
+    --stage-fit-max: var(--stage-fit-sm);
+  }
+}
+
 /* Stage view readout (name + angle + hint). Font scales with the stage column
    (container query units) so long names ("BELAKANG") always fit. */
 .stagecard-readout {
