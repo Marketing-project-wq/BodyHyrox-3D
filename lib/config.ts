@@ -195,6 +195,16 @@ export const STAGE_ARENA = {
   /** Camera turns opposite to the figure's frame order (matches the ticks). */
   orbitDirection: -1,
   platformRadiusM: 0.62,
+  /**
+   * Platform top face: a visible (not black) surface, plus a soft spotlight
+   * pool centred on the feet so the soles meet a lit floor instead of the dark
+   * backdrop (that contrast is what makes the athlete read as standing on it).
+   * poolRadius is a share of the platform radius; poolOpacity 0..1.
+   */
+  topFaceColor: "#3a1520",
+  poolColor: "#ffd0da",
+  poolRadius: 0.62,
+  poolOpacity: 0.65,
   minSceneryRadiusM: 6,
   pillars: 10,
   /** Neon light frames around the stage (evenly spaced). */
@@ -237,11 +247,11 @@ export const STAGE_ARENA = {
    * wider shadow on the floor). The soft pool spans both soles,
    * poolShadowHeight tall.
    */
-  soleShadowWidth: 1.35,
-  soleShadowHeight: 0.014,
+  soleShadowWidth: 1.5,
+  soleShadowHeight: 0.02,
   soleShadowRise: 0.002,
   raisedFootLift: 0.025,
-  poolShadowHeight: 0.03,
+  poolShadowHeight: 0.045,
   /**
    * Ignore frame-rate samples for this long after the stage starts (images and
    * fonts are still decoding then), and only switch the arena off after this
