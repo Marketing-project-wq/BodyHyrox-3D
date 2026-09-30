@@ -11,9 +11,13 @@ Guidance for Claude (and anyone else) working in this repo.
   it after approval.
 - Never merge to main or deploy without the owner's explicit approval. Open the
   PR, report verification results, and wait.
+  Merge approval is valid only when the owner explicitly writes
+  'merge PR #<number>'. General instructions (continue, agree, until deployed)
+  are never merge approval. When in doubt, ask.
 - Break larger work into small stages that can be reviewed one at a time.
-- After every UI change, report a checklist: desktop ✓ / iOS ✓ / Android ✓,
-  plus anything that still needs a manual check on a real device.
+- After every UI change, report the checklist from "Verify before shipping"
+  (desktop Windows / Mac Safari / Mac Chrome / iPad / iPhone / Android), plus
+  anything that still needs a manual check on a real device.
 
 ## Cross-device rules
 
@@ -77,9 +81,26 @@ landscape**. Treat these as requirements, not nice-to-haves.
   the spotlight, the zone markers, the buttons or the view tabs.
 
 ### Verify before shipping
-- Screenshot the change at desktop (1440×900) and phone (390×844) sizes, plus
-  a narrow phone (360) and phone landscape (844×390) for layout changes; add a
-  tablet (768 or 1024) for admin pages.
+- Verify and mock up every change on ALL of these device groups, not only
+  phones:
+  - Desktop Windows / Chrome: 1440×900 and 1903×950.
+  - Mac (Safari and Chrome): 1280×800, 1440×900 and 1512×982 at DPR 2
+    (Retina).
+  - iPad portrait: 768×1024 and 820×1180. These are below `lg`, so they use
+    the phone layout: it must use the space well and not look like a
+    stretched phone.
+  - iPad landscape: 1024×768 and 1180×820 (desktop layout).
+  - Phone: 390×664, 390×844, 360×640, 430×932 and 844×390 (landscape).
+- Sharpness: athlete frames must stay sharp on Retina (DPR 2) and large
+  desktop screens while respecting the per-device memory limits; state the
+  frame resolution and bitmap cache limits chosen for phone, tablet and
+  desktop/Mac.
+- Safari (Mac, iPad, iPhone) must be checked with the WebKit engine (e.g.
+  Playwright `webkit`), not only Chromium. Say which engine and which DPR
+  were used, and any limits of the test setup.
+- Every PR report carries the checklist: desktop Windows ✓ / Mac Safari ✓ /
+  Mac Chrome ✓ / iPad ✓ / iPhone ✓ / Android ✓, plus the list of things the
+  owner must still check on a real device.
 - For the athlete stage: all four views (Front/Right/Back/Left) plus one
   frame mid-rotation, on desktop and phone. Use `?debug=feet` on the athlete
   page to check the platform top face and each foot's contact point.
