@@ -154,3 +154,101 @@ export function followReplacedFrames(d: Media360Draft) {
     }));
   }
 }
+
+/**
+ * The sides and zone markers the live page gets when `draft` is published
+ * over `live` (markers keyed by frame NUMBER of the new set). Pure: used by
+ * publishDraft and by the pre-publish check, so both see the same result.
+ * `viewsInvalid`: a side set in the draft points at a frame the draft lacks.
+ */
+export function publishedSides(
+  live: { frames: string[]; views: Record<string, string> | null; hotspots: StoredHotspot[] | null },
+  draft: Pick<Media360Draft, "frames" | "views" | "hotspots">,
+): { views: Record<string, string> | null; hotspots: StoredHotspot[]; viewsInvalid: boolean } {
+  const frames = draft.frames.map((f) => f.file);
+  const newIndexOfLive = new Map<string, number>();
+  draft.frames.forEach((f, j) => {
+    if (f.origin && !newIndexOfLive.has(f.origin)) newIndexOfLive.set(f.origin, j);
+  });
+  let views: Record<string, string> | null;
+  let viewsInvalid = false;
+  if (draft.views !== undefined) {
+    if (draft.views && !VIEW_KEYS.every((k) => frames.includes(draft.views![k]))) viewsInvalid = true;
+    views = draft.views ?? null;
+  } else if (live.views) {
+    const mapped: Record<string, string> = {};
+    for (const k of VIEW_KEYS) {
+      const j = newIndexOfLive.get(live.views[k]);
+      if (j != null) mapped[k] = frames[j];
+    }
+    views = VIEW_KEYS.every((k) => mapped[k]) ? mapped : null;
+  } else views = null;
+
+  let hotspots: StoredHotspot[];
+  if (draft.hotspots !== undefined) {
+    // Draft markers are keyed by frame file (legacy drafts: frame numbers).
+    hotspots = hotspotsToFrameNumbers(draft.hotspots, frames);
+  } else {
+    hotspots = (live.hotspots ?? []).map((h) => {
+      const points: Record<string, Point> = {};
+      for (const [k, v] of Object.entries(h.points ?? {})) {
+        const j = newIndexOfLive.get(live.frames[Number(k) - 1]);
+        if (j != null) points[String(j + 1)] = v;
+      }
+      return { athlete_zone_id: h.athlete_zone_id, label: h.label ?? "", points };
+    });
+  }
+  hotspots = hotspots.filter((h) => Object.keys(h.points ?? {}).length > 0);
+  return { views, hotspots, viewsInvalid };
+}
+
+export type MarkerCount = { zones: number; points: number };
+
+/** Zones with at least one marker, and all markers. */
+export function countMarkers(hotspots: { points?: Record<string, unknown> | null }[] | null | undefined): MarkerCount {
+  let zones = 0;
+  let points = 0;
+  for (const h of hotspots ?? []) {
+    const n = Object.keys(h?.points ?? {}).length;
+    if (n > 0) {
+      zones++;
+      points += n;
+    }
+  }
+  return { zones, points };
+}
+
+/** True when publishing would leave fewer zones or markers than the reference. */
+export function losesMarkers(planned: MarkerCount, ref: MarkerCount | null): boolean {
+  return !!ref && (planned.zones < ref.zones || planned.points < ref.points);
+}
+
+/**
+ * Markers of a reference set (live, or the last version that had markers)
+ * copied onto a brand-new set side by side: a marker on the reference's
+ * Front frame goes onto the new Front frame, and so on. Markers on frames
+ * that are not one of the 4 sides can't be placed and are counted as
+ * dropped. Result is keyed by the new FILE (draft format).
+ */
+export function carryMarkersBySide(
+  ref: { frames: string[]; views: Media360Views; hotspots: StoredHotspot[] },
+  newViews: Media360Views,
+): { hotspots: StoredHotspot[]; carried: MarkerCount; dropped: number } {
+  const sideOfNo = new Map<string, (typeof VIEW_KEYS)[number]>();
+  for (const k of VIEW_KEYS) {
+    const i = ref.frames.indexOf(ref.views[k]);
+    if (i >= 0 && !sideOfNo.has(String(i + 1))) sideOfNo.set(String(i + 1), k);
+  }
+  let dropped = 0;
+  const hotspots: StoredHotspot[] = [];
+  for (const h of ref.hotspots) {
+    const points: Record<string, Point> = {};
+    for (const [no, p] of Object.entries(h.points ?? {})) {
+      const side = sideOfNo.get(no);
+      if (side && p) points[newViews[side]] = { x: Number(p.x), y: Number(p.y) };
+      else dropped++;
+    }
+    if (Object.keys(points).length) hotspots.push({ athlete_zone_id: h.athlete_zone_id, label: h.label ?? "", points });
+  }
+  return { hotspots, carried: countMarkers(hotspots), dropped };
+}

@@ -6,7 +6,8 @@ import { Check, RotateCw, UploadCloud, Video } from "lucide-react";
 import { VIDEO_360 } from "@/lib/config";
 import { type Dict, errorMessage, fmt } from "@/lib/i18n";
 import { unwrap } from "@/lib/action-result";
-import { saveDraft } from "@/app/atlet/[id]/media-actions";
+import { markerSource, saveDraft } from "@/app/atlet/[id]/media-actions";
+import { carryMarkersBySide, type MarkerCount } from "@/lib/media360-sides";
 import { measureBlob, prepareBackgroundRemover, preparePhoto, uploadDraftBlobs } from "@/lib/media360-upload";
 import { fitVideoFrames, grabFrame, openVideo, pickTimes, sidesOf } from "@/lib/media360-video";
 import type { Foot, FrameMetaMap } from "@/lib/media360";
@@ -38,6 +39,7 @@ export function Athlete360VideoAdmin({
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [made, setMade] = useState(0);
+  const [carried, setCarried] = useState<{ count: MarkerCount; dropped: number; version: number } | null>(null);
 
   const preview = useMemo(() => (file ? URL.createObjectURL(file) : null), [file]);
   useEffect(() => () => {
@@ -79,6 +81,11 @@ export function Athlete360VideoAdmin({
     let vid: Awaited<ReturnType<typeof openVideo>> | null = null;
     try {
       setStep("analyse");
+      setCarried(null);
+      // Zone markers to carry over (live set, or the last version with
+      // markers). Fetched first: if this fails nothing is processed, so a
+      // draft without the markers is never created.
+      const source = unwrap(await markerSource(athleteId)).ref;
       // The AI model (first time ~100 MB) downloads while the turn is measured.
       let modelShare = 0;
       const model = prepareBackgroundRemover((f) => {
@@ -126,16 +133,21 @@ export function Athlete360VideoAdmin({
       names.forEach((f, i) => {
         if (fitted[i]) meta[f] = { foot: fitted[i]! };
       });
+      // Markers go onto the same side of the new set (Front → Front, …);
+      // the admin checks their positions in the draft before publishing.
+      const sides = sidesOf(names);
+      const carry = source ? carryMarkersBySide(source, sides) : null;
       unwrap(
         await saveDraft(athleteId, {
           frames: names.map((f) => ({ file: f, base: null, origin: null })),
           meta,
-          views: sidesOf(names),
-          hotspots: [],
+          views: sides,
+          hotspots: carry?.hotspots ?? [],
           note: "video",
         }),
       );
       setMade(names.length);
+      if (carry && source) setCarried({ count: carry.carried, dropped: carry.dropped, version: source.version });
       setStep("done");
       setFile(null);
       router.refresh();
@@ -215,7 +227,17 @@ export function Athlete360VideoAdmin({
       {error && <p className="mt-3 rounded-lg bg-accent-soft px-3 py-2 text-sm text-accent">{error}</p>}
       {step === "done" && (
         <p className="mt-3 flex items-center gap-1.5 rounded-lg bg-[#12b76a]/10 px-3 py-2 text-sm text-[#0f9d63]">
-          <Check className="h-4 w-4 shrink-0" /> {fmt(m.vid_done, { n: made })}
+          <Check className="h-4 w-4 shrink-0" />
+          <span>
+            {fmt(m.vid_done, { n: made })}
+            {carried && carried.count.points > 0 && (
+              <>
+                {" "}
+                {fmt(m.vid_markersCarried, { zones: carried.count.zones, points: carried.count.points, v: carried.version })}
+                {carried.dropped > 0 && ` ${fmt(m.vid_markersDropped, { n: carried.dropped })}`}
+              </>
+            )}
+          </span>
         </p>
       )}
 
