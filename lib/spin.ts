@@ -43,13 +43,14 @@ export function decayVelocity(v: number, dtSec: number, tauMs: number, minDegPer
 
 /**
  * Crossfade amount of the upper frame for a position t (0..1) between two
- * frames: `share` of the step is spent blending (smoothstep), centred, so each
- * frame is shown alone for (1 - share) / 2 of the step on its side.
+ * frames: `share` of the step is spent blending, centred, so each frame is
+ * shown alone for (1 - share) / 2 of the step on its side. `curve`: linear
+ * (follows the angle exactly) or smooth (smoothstep).
  */
-export function blendAmount(t: number, share: number): number {
+export function blendAmount(t: number, share: number, curve: "linear" | "smooth" = "smooth"): number {
   const s = Math.min(1, Math.max(0.001, share));
   const u = Math.min(1, Math.max(0, (t - (1 - s) / 2) / s));
-  return u * u * (3 - 2 * u);
+  return curve === "linear" ? u : u * u * (3 - 2 * u);
 }
 
 /**
