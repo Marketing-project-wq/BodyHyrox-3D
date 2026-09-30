@@ -25,18 +25,26 @@ export async function shrink(blob: Blob, maxPx: number): Promise<Blob> {
   }
 }
 
-type RemoveBg = (input: Blob) => Promise<Blob>;
-let removeBgPromise: Promise<RemoveBg> | null = null;
+type RemoverConfig = {
+  device?: "cpu" | "gpu";
+  fetchArgs?: RequestInit;
+  progress?: (key: string, current: number, total: number) => void;
+};
+type RemoverModule = {
+  removeBackground: (input: Blob, config?: RemoverConfig) => Promise<Blob>;
+  preload?: (config?: RemoverConfig) => Promise<void>;
+};
+let removeBgPromise: Promise<RemoverModule> | null = null;
 
 /**
  * The in-browser background remover (@imgly/background-removal from a CDN,
  * loaded once; never enters the app bundle). Throws if it can't load.
  */
-export function loadBackgroundRemover(): Promise<RemoveBg> {
+export function loadBackgroundRemover(): Promise<RemoverModule> {
   if (!removeBgPromise) {
     // eslint-disable-next-line @typescript-eslint/no-implied-eval, no-new-func
-    const cdnImport = new Function("u", "return import(u)") as (u: string) => Promise<{ removeBackground: RemoveBg }>;
-    removeBgPromise = cdnImport("https://esm.sh/@imgly/background-removal@1").then((m) => m.removeBackground);
+    const cdnImport = new Function("u", "return import(u)") as (u: string) => Promise<RemoverModule>;
+    removeBgPromise = cdnImport("https://esm.sh/@imgly/background-removal@1");
     removeBgPromise.catch(() => {
       removeBgPromise = null;
     });
@@ -44,12 +52,83 @@ export function loadBackgroundRemover(): Promise<RemoveBg> {
   return removeBgPromise;
 }
 
+// The module downloads its AI model (~100 MB, staticimgly.com) on first use
+// and caches the result per config, a failed download too. Each retry uses a
+// different config (so a new download), and the config that worked is used
+// for every later cut-out. "gpu" runs on WebGPU when the browser has it
+// (much faster) and falls back to the CPU by itself when it doesn't.
+const MODEL_ATTEMPTS: RemoverConfig[] = [
+  { device: "gpu" },
+  { device: "cpu" },
+  { device: "cpu", fetchArgs: { cache: "reload" } },
+  { device: "cpu", fetchArgs: { cache: "no-store" } },
+];
+let modelConfig: RemoverConfig | null = null;
+let modelPromise: Promise<RemoverConfig> | null = null;
+let modelListener: ((fraction: number) => void) | undefined;
+
+/**
+ * Download the AI model before the first cut-out (retries, progress 0..1).
+ * Throws ActionFailure("bg_model_failed") when every attempt failed.
+ */
+export function prepareBackgroundRemover(onProgress?: (fraction: number) => void): Promise<RemoverConfig> {
+  modelListener = onProgress;
+  if (modelConfig) {
+    onProgress?.(1);
+    return Promise.resolve(modelConfig);
+  }
+  if (!modelPromise) {
+    modelPromise = (async () => {
+      let mod: RemoverModule;
+      try {
+        mod = await loadBackgroundRemover();
+      } catch {
+        throw new ActionFailure("bg_model_failed");
+      }
+      for (const base of MODEL_ATTEMPTS) {
+        const loaded: Record<string, [number, number]> = {};
+        const config: RemoverConfig = {
+          ...base,
+          progress: (key, current, total) => {
+            if (!key.startsWith("fetch:") || !total) return;
+            loaded[key] = [current, total];
+            const all = Object.values(loaded);
+            modelListener?.(all.reduce((a, [c]) => a + c, 0) / all.reduce((a, [, t]) => a + t, 0));
+          },
+        };
+        try {
+          if (mod.preload) await mod.preload(config);
+          else await mod.removeBackground(await tinyImage(), config);
+          modelConfig = config;
+          modelListener?.(1);
+          return config;
+        } catch {
+          /* next attempt */
+        }
+      }
+      throw new ActionFailure("bg_model_failed");
+    })();
+    modelPromise.catch(() => {
+      modelPromise = null;
+    });
+  }
+  return modelPromise;
+}
+
+async function tinyImage(): Promise<Blob> {
+  const c = document.createElement("canvas");
+  c.width = 8;
+  c.height = 8;
+  return await new Promise<Blob>((res, rej) => c.toBlob((b) => (b ? res(b) : rej(new Error("canvas"))), "image/png"));
+}
+
 /** Photo -> upload-ready blob (transparent PNG when cutout is on). */
 export async function preparePhoto(file: Blob, cutout: boolean): Promise<Blob> {
   if (!cutout) return file;
-  const removeBackground = await loadBackgroundRemover();
+  const config = await prepareBackgroundRemover();
+  const { removeBackground } = await loadBackgroundRemover();
   const small = await shrink(file, 1100); // faster inference + smaller upload
-  return await removeBackground(small);
+  return await removeBackground(small, config);
 }
 
 export async function measureBlob(blob: Blob): Promise<Foot | null> {
@@ -148,12 +227,20 @@ export async function uploadDraftBlobs(
 ): Promise<string[]> {
   const { slots } = unwrap(await issueDraftUploads(athleteId, blobs.map((b, i) => `f${i}.${extOf(b)}`)));
   for (let i = 0; i < blobs.length; i++) {
-    const res = await fetch(slots[i].uploadUrl, {
-      method: "PUT",
-      headers: { "content-type": blobs[i].type || "application/octet-stream", "x-upsert": "true" },
-      body: blobs[i],
-    });
-    if (!res.ok) throw new ActionFailure("upload_failed");
+    let ok = false;
+    for (let attempt = 0; attempt < 2 && !ok; attempt++) {
+      try {
+        const res = await fetch(slots[i].uploadUrl, {
+          method: "PUT",
+          headers: { "content-type": blobs[i].type || "application/octet-stream", "x-upsert": "true" },
+          body: blobs[i],
+        });
+        ok = res.ok;
+      } catch {
+        /* network error: one more try */
+      }
+    }
+    if (!ok) throw new ActionFailure("upload_failed");
     onProgress?.(i + 1);
   }
   return slots.map((s) => s.file);

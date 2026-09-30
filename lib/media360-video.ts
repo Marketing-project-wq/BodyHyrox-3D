@@ -57,13 +57,9 @@ function seek(v: HTMLVideoElement, t: number): Promise<void> {
       v.removeEventListener("seeked", onSeeked);
       res();
     };
-    const onSeeked = () => {
-      const rvfc = (v as HTMLVideoElement & { requestVideoFrameCallback?: (cb: () => void) => number }).requestVideoFrameCallback;
-      if (rvfc) {
-        rvfc.call(v, finish);
-        setTimeout(finish, 150);
-      } else finish();
-    };
+    // The frame at the new time is ready to draw when "seeked" fires (a
+    // hidden, detached <video> never runs requestVideoFrameCallback).
+    const onSeeked = () => finish();
     if (Math.abs(v.currentTime - target) < 1e-4 && v.readyState >= 2) return finish();
     v.addEventListener("seeked", onSeeked);
     v.currentTime = target;
