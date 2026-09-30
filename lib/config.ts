@@ -162,6 +162,13 @@ export const STAGE_READOUT = {
   textShadowOpacity: 0.9,
   /** Hint text opacity (white). */
   hintOpacity: 0.6,
+  /** Glow radius of the text shadow (px). */
+  textGlowPx: 10,
+  /**
+   * Below lg the readout sits on the arena right above the athlete's head:
+   * no dark backing box there, only a slightly stronger text shadow.
+   */
+  compact: { scrimOpacity: 0, textShadowOpacity: 0.95, textGlowPx: 14 },
 };
 
 /**
@@ -425,6 +432,12 @@ export function stageMotionVars(): Record<string, string> {
  * uses this.
  */
 export const STAGE_FIT = {
+  /**
+   * Off: below lg the athlete keeps its full size (VIEWER_360 caps) and the
+   * stage comes right after the name (see AthleteStageCard), instead of
+   * shrinking the photo to fit the screen. Kept so it can be switched back on.
+   */
+  enabled: false,
   /** Sticky public header height without the top safe-area inset. */
   headerPx: 57,
   /** The header's own top padding, replaced by the safe-area inset when larger. */
@@ -451,6 +464,7 @@ export const STAGE_FIT = {
  */
 export function stageFitVars(): Record<string, string> {
   const F = STAGE_FIT;
+  if (!F.enabled) return {};
   const budget = (unit: "svh" | "vh", topPad: number, below: number) =>
     `max(${F.minFigurePx}px, calc(100${unit} - (${F.headerPx - F.headerPadTopPx}px + max(${F.headerPadTopPx}px, env(safe-area-inset-top, 0px)) + ${topPad}px + ${F.bottomStackPx}px + ${below}px + ${F.toolbarAllowancePx}px + env(safe-area-inset-bottom, 0px))))`;
   return {
