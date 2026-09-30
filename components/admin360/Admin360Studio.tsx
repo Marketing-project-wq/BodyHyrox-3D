@@ -18,10 +18,11 @@ import {
   Trash2,
   Undo2,
   UploadCloud,
+  Wand2,
   X,
   ZoomIn,
 } from "lucide-react";
-import { SPONSOR_360_UPLOAD } from "@/lib/config";
+import { SET_NORMALIZE, SPONSOR_360_UPLOAD } from "@/lib/config";
 import { VIEW_KEYS, type Media360Views, type HotspotInput, type ViewKey } from "@/lib/views";
 import { type Dict, errorMessage, fmt } from "@/lib/i18n";
 import { unwrap } from "@/lib/action-result";
@@ -38,7 +39,7 @@ import {
   type FrameTransform,
   type Media360Draft,
 } from "@/lib/media360";
-import { loadBackgroundRemover, measureBlob, preparePhoto, uploadDraftBlobs } from "@/lib/media360-upload";
+import { commonSize, inspectImage, loadBackgroundRemover, measureBlob, preparePhoto, uploadDraftBlobs } from "@/lib/media360-upload";
 import { discardDraft, publishDraft, restoreVersion, saveDraft, signDraftFiles } from "@/app/atlet/[id]/media-actions";
 import type { Media360VersionRow } from "@/lib/data";
 import { FrameStage } from "./FrameStage";
@@ -306,6 +307,102 @@ export function Admin360Studio({
     }
   };
 
+  // ---- normalize the existing set (draft only) ----
+  // Every frame that doesn't match the set yet is redrawn onto the common
+  // canvas with the median body height / centre / ground line and uploaded
+  // to the draft, exactly like a replaced photo: the old file becomes its
+  // backup (Undo replace), the slot keeps its origin, so sides and zone
+  // markers stay on the same frame. Frames with a hand-made alignment or
+  // contact points, and frames without a cut-out, are left as they are.
+  const normalizeSet = async () => {
+    if (!window.confirm(m.st_normalizeConfirm)) return;
+    setError(null);
+    setNotice(null);
+    const snap = frames.slice();
+    const total = snap.length;
+    try {
+      const info: Awaited<ReturnType<typeof inspectImage>>[] = [];
+      for (let i = 0; i < total; i++) {
+        setBusy(fmt(m.st_busyNormalizeMeasure, { done: i + 1, total }));
+        const src = srcOf(snap[i]);
+        info.push(src ? await inspectImage(src) : null);
+      }
+      const measurable = (k: number) => {
+        const ft = info[k]?.foot;
+        return !!ft && ft.top != null && ft.cx != null;
+      };
+      const size = commonSize(info.filter((x, k) => x && measurable(k)));
+      const ref = setReference(info.map((x, k) => (measurable(k) ? x!.foot : null)));
+      if (!size || !ref) throw new Error(m.st_normalizeNoRef);
+      const { lineTolerance, centreTolerance } = SET_NORMALIZE;
+      let fit = 0;
+      let adjusted = 0;
+      let none = 0;
+      const todo: number[] = [];
+      snap.forEach((f, k) => {
+        const x = info[k];
+        if (!x || !measurable(k)) return void none++;
+        if (!isIdentity(meta[f.file]?.t) || meta[f.file]?.foot?.manual) return void adjusted++;
+        const ft = x.foot!;
+        const same =
+          x.w === size.w &&
+          x.h === size.h &&
+          Math.abs(ft.toe - ref.toe) <= lineTolerance &&
+          Math.abs(ft.top! - ref.top) <= lineTolerance &&
+          Math.abs(ft.cx! - ref.cx) <= centreTolerance;
+        if (same) fit++;
+        else todo.push(k);
+      });
+      const skipped = fmt(m.st_normalizeSkipped, { fit, adjusted, none });
+      if (!todo.length) {
+        setNotice(`${m.st_normalizeNothing} ${skipped}`);
+        return;
+      }
+      const blobs: Blob[] = [];
+      const feetOut: (Foot | null)[] = [];
+      for (let j = 0; j < todo.length; j++) {
+        setBusy(fmt(m.st_busyNormalize, { done: j + 1, total: todo.length }));
+        const res = await fetch(srcOf(snap[todo[j]])!);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const norm = await normalizeToSet(await res.blob(), size.w, size.h, ref);
+        blobs.push(norm);
+        feetOut.push(await measureBlob(norm));
+      }
+      setBusy(m.st_busyUpload);
+      const names = await uploadDraftBlobs(athleteId, blobs);
+      const signed = unwrap(await signDraftFiles(athleteId, names)).urls;
+      setUrls((u) => ({ ...u, ...signed }));
+      setFeet((prev) => {
+        const next = { ...prev };
+        names.forEach((name, j) => {
+          if (feetOut[j]) next[name] = feetOut[j];
+        });
+        return next;
+      });
+      mutate((d) => {
+        names.forEach((name, j) => {
+          const oldFile = snap[todo[j]].file;
+          const at = d.frames.findIndex((x) => x.file === oldFile);
+          if (at < 0) return;
+          const old = d.frames[at];
+          d.frames[at] = { file: name, base: null, origin: old.origin };
+          d.meta[name] = {
+            ...(feetOut[j] ? { foot: feetOut[j]! } : {}),
+            prev: [...(d.meta[old.file]?.prev ?? []), { file: old.file, base: old.base }],
+          };
+          // A draft with its own sides (bulk upload / restored version) names
+          // files: point them at the new file of the same slot.
+          if (d.views) for (const k of VIEW_KEYS) if (d.views[k] === old.file) d.views[k] = name;
+        });
+      });
+      setNotice(`${fmt(m.st_normalized, { n: names.length })} ${skipped}`);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(null);
+    }
+  };
+
   const restoreAt = async (i: number) => {
     const cur = frames[i];
     const prevList = meta[cur.file]?.prev ?? [];
@@ -555,6 +652,9 @@ export function Admin360Studio({
           <input type="checkbox" checked={cutout} onChange={(e) => setCutout(e.target.checked)} className="accent-red-600" />
           {m.st_cutoutReplace}
         </label>
+        <button type="button" onClick={normalizeSet} disabled={!!busy || n === 0} title={m.st_normalizeHint} className="btn disabled:opacity-50">
+          <Wand2 className="h-4 w-4" /> {m.st_normalize}
+        </button>
         <button type="button" onClick={() => setShowFlip((v) => !v)} className="btn">
           <Eye className="h-4 w-4" /> {showFlip ? m.st_hideFlip : m.st_showFlip}
         </button>

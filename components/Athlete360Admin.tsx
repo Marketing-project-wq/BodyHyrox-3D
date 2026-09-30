@@ -7,8 +7,8 @@ import { SPONSOR_360_UPLOAD } from "@/lib/config";
 import { type Dict, fmt, errorMessage } from "@/lib/i18n";
 import { unwrap } from "@/lib/action-result";
 import { saveDraft } from "@/app/atlet/[id]/media-actions";
-import { loadBackgroundRemover, measureBlob, preparePhoto, uploadDraftBlobs } from "@/lib/media360-upload";
-import type { Foot, FrameMetaMap } from "@/lib/media360";
+import { loadBackgroundRemover, normalizeBlobs, preparePhoto, uploadDraftBlobs } from "@/lib/media360-upload";
+import type { FrameMetaMap } from "@/lib/media360";
 
 type Phase = "idle" | "uploading" | "done" | "error";
 
@@ -30,6 +30,7 @@ export function Athlete360Admin({
   const [phase, setPhase] = useState<Phase>("idle");
   const [done, setDone] = useState(0);
   const [cur, setCur] = useState(0);
+  const [fitting, setFitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [expanding, setExpanding] = useState(false);
 
@@ -110,6 +111,7 @@ export function Athlete360Admin({
     setPhase("uploading");
     setDone(0);
     setCur(0);
+    setFitting(false);
     try {
       if (cutout) {
         try {
@@ -118,16 +120,18 @@ export function Athlete360Admin({
           throw new Error(m.m360_err_module);
         }
       }
-      const blobs: Blob[] = [];
+      const prepared: Blob[] = [];
       const meta: FrameMetaMap = {};
-      const feet: (Foot | null)[] = [];
       for (let i = 0; i < files.length; i++) {
         setCur(i + 1);
-        const b = await preparePhoto(files[i], cutout);
-        blobs.push(b);
-        feet.push(await measureBlob(b));
+        prepared.push(await preparePhoto(files[i], cutout));
         setDone(i + 1);
       }
+      // One canvas size, body height, centre and ground line for the whole
+      // set (WebP), like a single replaced photo in the studio.
+      setFitting(true);
+      setCur(0);
+      const { blobs, feet } = await normalizeBlobs(prepared, (k) => setCur(k));
       const names = await uploadDraftBlobs(athleteId, blobs);
       names.forEach((f, i) => {
         if (feet[i]) meta[f] = { foot: feet[i]! };
@@ -238,7 +242,7 @@ export function Athlete360Admin({
       <div className="mt-4 flex items-center gap-3">
         <button onClick={upload} disabled={busy || expanding || files.length === 0} className="btn btn-primary disabled:cursor-not-allowed disabled:opacity-50">
           {busy ? <RotateCw className="h-4 w-4 animate-spin" /> : <UploadCloud className="h-4 w-4" />}
-          {busy ? fmt(cutout ? m.m360_processing : m.m360_uploading, { done: cur, total: files.length }) : m.m360_submit}
+          {busy ? fmt(fitting ? m.m360_fitting : cutout ? m.m360_processing : m.m360_uploading, { done: cur, total: files.length }) : m.m360_submit}
         </button>
         {busy && (
           <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-surface-2">

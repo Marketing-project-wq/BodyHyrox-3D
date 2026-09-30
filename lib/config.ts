@@ -344,6 +344,18 @@ export const SPONSOR_360_UPLOAD = {
 } as const;
 
 /**
+ * "Normalize existing set" in the studio: a frame counts as already fitted
+ * (and is left as is) when its canvas matches the set, its ground line and
+ * head line are within `lineTolerance` of the set median (fraction of the
+ * height) and its body centre within `centreTolerance` (fraction of the
+ * width; wider because the measured centre shifts with the pose).
+ */
+export const SET_NORMALIZE = {
+  lineTolerance: 0.006,
+  centreTolerance: 0.08,
+} as const;
+
+/**
  * Ambient motion of the neon stage (durations in seconds, intensity 0..1).
  * Kept slow/subtle ("halus & elegan"); all animation is CSS and is disabled
  * under `prefers-reduced-motion`. Exposed as CSS variables by <AthleteStage>
