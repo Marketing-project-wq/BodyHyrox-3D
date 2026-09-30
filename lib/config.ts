@@ -311,6 +311,29 @@ export const VIEWER_VIDEO = {
   maxDropShare: 0.2,
 };
 
+/**
+ * Turn videos shipped with the site (public/media/...), per athlete id, used
+ * while the database can't hold one yet (video column + Storage). The data's
+ * own video (media.video) always wins. `video` has the shape of
+ * media.video: { sources: [{ file, type }], poster, fps, frames, duration }.
+ */
+export const STAGE_VIDEO_BUNDLED: Record<string, { baseUrl: string; video: unknown }> = {
+  // Calysta: from her turn video (AI background removal, scripts/video360,
+  // INTERP=3, FIT=frame): one turn, 720 frames, 24 s. VP9 alpha only for now
+  // (Chrome, Edge, Android); Safari / iPhone keep the frames until an HEVC
+  // file (made on a Mac) is added as a second source.
+  "f328e4e0-98c2-483d-b9ae-4be7fd6bf635": {
+    baseUrl: "/media/atlet-360/calysta-video",
+    video: {
+      sources: [{ file: "athlete-vp9.webm", type: 'video/webm; codecs="vp9"' }],
+      poster: "poster.webp",
+      fps: 30,
+      frames: 720,
+      duration: 24,
+    },
+  },
+};
+
 export const STAGE_ARENA = {
   color: "#ff2d55",
   background: "#0d0809",

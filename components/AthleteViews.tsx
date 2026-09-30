@@ -4,8 +4,8 @@ import { forwardRef, useCallback, useEffect, useImperativeHandle, useLayoutEffec
 import { useRouter } from "next/navigation";
 import type { Media360 } from "@/lib/data";
 import { VIEW_ANGLES, VIEW_KEYS, frameAngles } from "@/lib/views";
-import { STAGE_ARENA, VIEWER_360, VIEWER_360_FRAME_CLASS, VIEWER_SPIN, VIEWER_VIDEO, VIEWER_VIEWS, viewer360FrameStyle } from "@/lib/config";
-import { alphaLooksRight, isHevc, sourceOrder, timeForAngle, videoAngle, type StageVideoSource } from "@/lib/stage-video";
+import { STAGE_ARENA, STAGE_VIDEO_BUNDLED, VIEWER_360, VIEWER_360_FRAME_CLASS, VIEWER_SPIN, VIEWER_VIDEO, VIEWER_VIEWS, viewer360FrameStyle } from "@/lib/config";
+import { alphaLooksRight, isHevc, parseStageVideo, sourceOrder, timeForAngle, videoAngle, type StageVideoSource } from "@/lib/stage-video";
 import { blendAmount, bracket, loadOrder, nearestSide, norm360 } from "@/lib/spin";
 import { FrameCache } from "@/lib/frame-cache";
 import { type Dict } from "@/lib/i18n";
@@ -479,7 +479,11 @@ export const AthleteViews = forwardRef<
   // States: off (no video / not loaded yet), ready (source chosen, paused),
   // starting (seeked + playing, waiting for its first frame), on (showing),
   // failed (no usable source, autoplay refused, reduced motion, Save-Data).
-  const stageVideo = media.video;
+  // The data's own video wins; else a video shipped with the site for this
+  // athlete (STAGE_VIDEO_BUNDLED), until the database can hold one.
+  const bundled = STAGE_VIDEO_BUNDLED[athleteId];
+  const stageVideo = useMemo(() => media.video ?? (bundled ? parseStageVideo(bundled.video) : null), [media.video, bundled]);
+  const videoBase = media.video || !bundled ? base : bundled.baseUrl.replace(/\/$/, "");
   const videoElRef = useRef<HTMLVideoElement>(null);
   const vid = useRef({
     state: "off" as "off" | "ready" | "starting" | "on" | "failed",
@@ -546,7 +550,7 @@ export const AthleteViews = forwardRef<
     v.srcIdx = i;
     v.verified = false;
     v.state = "ready";
-    el.src = `${base}/${v.srcs[i].file}`;
+    el.src = `${videoBase}/${v.srcs[i].file}`;
     el.preload = "auto";
     el.load();
     showVideoDebug();
@@ -710,7 +714,7 @@ export const AthleteViews = forwardRef<
       showVideo(false);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready, stageVideo, base]);
+  }, [ready, stageVideo, videoBase]);
 
   useImperativeHandle(ref, () => ({ render: paint, video: videoTick }), [paint, videoTick]);
 
