@@ -47,7 +47,7 @@ const mixFoot = (p: Foot, q: Foot, t: number): Foot => ({
 
 /**
  * Athlete, painted from one orbit angle on two stacked canvases: the nearest
- * frame below, the next one fading in on top (VIEWER_SPIN.crossfadeShare).
+ * frame below, the next one fading in on top (VIEWER_SPIN.crossfade*).
  * Frames load progressively (the four sides first, then spread evenly round
  * the turn) and every loaded frame is used right away, so the turn gets
  * smoother while it loads. Only a few frames are decoded at a time (see
@@ -120,6 +120,15 @@ export const AthleteViews = forwardRef<
   // Two canvases: [0] = the frame below (opaque), [1] = the one fading in.
   const canvasRefs = useRef<(HTMLCanvasElement | null)[]>([null, null]);
   const layerFrame = useRef<number[]>([-1, -1]); // frame drawn on each canvas
+  // True cross-dissolve needs mix-blend-mode: plus-lighter (checked once on the client).
+  const [dissolveOn, setDissolveOn] = useState(false);
+  const dissolveRef = useRef(false);
+  useEffect(() => {
+    const ok = VIEWER_SPIN.crossfadeDissolve && typeof CSS !== "undefined" && CSS.supports("mix-blend-mode", "plus-lighter");
+    dissolveRef.current = ok;
+    setDissolveOn(ok);
+  }, []);
+  const crispRef = useRef({ k: 0, t: 0 }); // 0 = follow the angle, 1 = nearest frame (at rest)
   const cacheRef = useRef<FrameCache | null>(null);
   const repaintRaf = useRef(0);
   const stackRef = useRef<HTMLDivElement>(null);
@@ -228,9 +237,9 @@ export const AthleteViews = forwardRef<
       const fullTurn = !!angles && kf.length > 4;
       const br = bracket(A, kf);
       const t = Math.min(1, Math.max(0, br.t));
-      // Upper frame's share: a centred blend (crisp frames at both ends), or the
-      // whole step between the 4 side photos of the fallback.
-      let a = br.hi === br.lo ? 0 : angles ? blendAmount(t, VIEWER_SPIN.crossfadeShare) : t;
+      // Upper frame's share: a blend over (part of) the step following the
+      // angle, or the whole step between the 4 side photos of the fallback.
+      let a = br.hi === br.lo ? 0 : angles ? blendAmount(t, VIEWER_SPIN.crossfadeShare, VIEWER_SPIN.crossfadeCurve) : t;
       let base = br.lo;
       if (a >= 1) {
         base = br.hi; // past the blend: the next frame alone
@@ -238,6 +247,17 @@ export const AthleteViews = forwardRef<
       }
       const lo = { i: base };
       const hi = { i: br.hi };
+      // At rest the picture settles on the nearer of the two frames (eased over
+      // restCrispMs, repainting until done); moving, it follows the angle.
+      const dissolve = dissolveRef.current;
+      const cr = crispRef.current;
+      const wantCrisp = !moving && dissolve && VIEWER_SPIN.restCrispMs > 0 ? 1 : 0;
+      const dtc = cr.t ? Math.min(0.1, (now - cr.t) / 1000) : 0;
+      cr.t = now;
+      cr.k += (wantCrisp - cr.k) * (1 - Math.exp((-dtc * 1000) / Math.max(1, VIEWER_SPIN.restCrispMs / 3)));
+      if (Math.abs(wantCrisp - cr.k) < 0.01) cr.k = wantCrisp;
+      else schedulePaint();
+      a += ((a < 0.5 ? 0 : 1) - a) * cr.k;
       // Draw: the frame below on canvas 0, the one fading in on canvas 1. A
       // frame not decoded yet keeps the previous picture for a moment.
       const cache = cacheRef.current;
@@ -266,7 +286,9 @@ export const AthleteViews = forwardRef<
         }
         const c0 = canvasRefs.current[0];
         const c1 = canvasRefs.current[1];
-        if (c0) c0.style.opacity = "1";
+        // Dissolve: the frame below fades out as the next fades in (their sum
+        // is the whole athlete where the poses overlap); else it stays opaque.
+        if (c0) c0.style.opacity = dissolve && hiOk ? String(1 - a) : "1";
         if (c1) c1.style.opacity = hiOk ? String(a) : "0";
         // ?debug=feet / perf: decoded frames (memory) and decode / draw counters.
         if ((debugOn.current || perfOn.current) && rootRef.current) rootRef.current.dataset.decoded = `${cache.decodedCount}/${cache.limit}`;
@@ -810,7 +832,7 @@ export const AthleteViews = forwardRef<
         ))}
       </div>
 
-      <div ref={stackRef} role="img" aria-label={describe(0)} className="absolute inset-0" style={{ transformOrigin: "50% 100%" }}>
+      <div ref={stackRef} role="img" aria-label={describe(0)} className="absolute inset-0" style={{ transformOrigin: "50% 100%", isolation: "isolate" }}>
         {[0, 1].map((k) => (
           <canvas
             key={k}
@@ -819,7 +841,7 @@ export const AthleteViews = forwardRef<
             }}
             aria-hidden
             className="pointer-events-none absolute inset-0 h-full w-full"
-            style={{ opacity: k === 0 ? 1 : 0, zIndex: k + 1 }}
+            style={{ opacity: k === 0 ? 1 : 0, zIndex: k + 1, mixBlendMode: k === 1 && dissolveOn ? ("plus-lighter" as never) : undefined }}
           />
         ))}
       </div>

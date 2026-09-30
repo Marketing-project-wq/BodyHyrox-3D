@@ -210,8 +210,18 @@ export const VIEWER_VIEWS = {
 /**
  * Free rotation of the athlete (any angle, not only the 4 sides).
  * - crossfadeShare: share of the step between two frames spent blending them
- *   (1 = blend over the whole step; lower = each frame stays crisp longer and
- *   the two poses overlap for less time, so a stepping athlete never ghosts).
+ *   (1 = blend over the whole step, so the pose melts continuously from one
+ *   frame into the next; lower = each frame stays crisp longer and the pose
+ *   changes in a shorter burst).
+ * - crossfadeCurve: "linear" = the blend follows the exact (decimal) angle;
+ *   "smooth" = eased (lingers on each frame, faster in between).
+ * - crossfadeDissolve: the frame below fades out while the next fades in
+ *   (plus-lighter), so parts only one pose has (an arm, a leg) fade instead of
+ *   popping away at the end of the step. Browsers without plus-lighter keep
+ *   the frame below opaque.
+ * - restCrispMs: at rest (paused, after a drag) the picture settles on the
+ *   nearest frame over about this long, so a still athlete is never a double
+ *   exposure (0 = keep the blend at rest).
  * - inertiaTauMs / inertiaMin/MaxDegPerSec: a released drag keeps turning and
  *   slows down (exponential, time constant tauMs) until it stops.
  * - wheelDegPerPx: horizontal trackpad / wheel turn (deg per px of deltaX).
@@ -237,7 +247,10 @@ export const VIEWER_VIEWS = {
  *   visitor's Pause stops it.
  */
 export const VIEWER_SPIN = {
-  crossfadeShare: 0.5,
+  crossfadeShare: 1,
+  crossfadeCurve: "linear" as "linear" | "smooth",
+  crossfadeDissolve: true,
+  restCrispMs: 220,
   inertiaTauMs: 280,
   inertiaMinDegPerSec: 4,
   inertiaMaxDegPerSec: 540,

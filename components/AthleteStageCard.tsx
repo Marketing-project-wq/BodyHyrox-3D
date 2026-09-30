@@ -157,7 +157,7 @@ export function AthleteStageCard({
       } else if (inertiaRef.current) {
         viewAngleRef.current += inertiaRef.current * dt;
         inertiaRef.current = decayVelocity(inertiaRef.current, dt, VIEWER_SPIN.inertiaTauMs, VIEWER_SPIN.inertiaMinDegPerSec);
-        moving = true;
+        moving = inertiaRef.current !== 0; // the last inertia step is already "at rest" (the loop stops after it)
       } else if (tw) {
         const t = Math.min(1, (now - tw.t0) / tw.dur);
         const e = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2; // easeInOutCubic
