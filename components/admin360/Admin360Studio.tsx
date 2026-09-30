@@ -40,7 +40,7 @@ import {
   type Media360Draft,
 } from "@/lib/media360";
 import { commonSize, inspectImage, loadBackgroundRemover, measureBlob, preparePhoto, uploadDraftBlobs } from "@/lib/media360-upload";
-import { discardDraft, publishDraft, restoreVersion, saveDraft, signDraftFiles } from "@/app/atlet/[id]/media-actions";
+import { checkPublish, discardDraft, publishDraft, restoreVersion, saveDraft, signDraftFiles } from "@/app/atlet/[id]/media-actions";
 import type { Media360VersionRow } from "@/lib/data";
 import { FrameStage } from "./FrameStage";
 import { draftHotspotsByFile } from "@/lib/media360-sides";
@@ -491,7 +491,27 @@ export function Admin360Studio({
     try {
       if (!latest.current) latest.current = { frames: clone(liveFrames), meta: clone(live.frameMeta) };
       await flush();
-      const r = unwrap(await publishDraft(athleteId));
+      // Zone markers: never lose them without a separate, explicit OK. The
+      // server refuses too (markers_lost) unless acceptMarkerLoss is sent.
+      const check = unwrap(await checkPublish(athleteId));
+      let acceptMarkerLoss = false;
+      if (check.loss && check.ref) {
+        const vars = {
+          v: check.ref.version,
+          refZones: check.ref.zones,
+          refPoints: check.ref.points,
+          zones: check.draft.zones,
+          points: check.draft.points,
+          lostZones: Math.max(0, check.ref.zones - check.draft.zones),
+          lostPoints: Math.max(0, check.ref.points - check.draft.points),
+        };
+        if (!window.confirm(fmt(check.ref.live ? m.st_markerLossLive : m.st_markerLossHistory, vars))) {
+          setError(fmt(m.st_markerLossStopped, vars));
+          return;
+        }
+        acceptMarkerLoss = true;
+      }
+      const r = unwrap(await publishDraft(athleteId, { acceptMarkerLoss }));
       latest.current = null;
       setDraft(null);
       setSave({ state: "idle" });

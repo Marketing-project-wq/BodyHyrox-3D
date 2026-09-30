@@ -36,6 +36,7 @@ export const ERROR_CODES = [
   "views_invalid",
   "upload_failed",
   "bg_model_failed",
+  "markers_lost",
 ] as const;
 export type ErrorCode = (typeof ERROR_CODES)[number];
 

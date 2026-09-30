@@ -472,7 +472,7 @@ const en = {
   vid_hint: "Upload one video of the athlete turning a full circle; it becomes a {n}-frame 360° set (background removed, feet on the platform line). It goes into the draft below: sponsors see it after you publish.",
   vid_tip1: "Start and end facing the camera; one full turn, a steady camera, a plain background.",
   vid_tip2: "Processing runs in this browser; the first time it also downloads an AI model (about 100 MB). Keep this tab open.",
-  vid_tip3: "After publishing, check the sides and place the zone markers again.",
+  vid_tip3: "Zone markers are copied onto the same sides of the new set (in the draft); check and adjust them before publishing.",
   vid_pick: "Choose a video",
   vid_pick_sub: "MP4, MOV or WebM · max {mb} MB · max {s} seconds",
   vid_reverse: "Reverse the turn direction",
@@ -485,6 +485,8 @@ const en = {
   vid_uploading: "Uploading {done}/{total}…",
   vid_keepOpen: "Keep this tab open until it's done.",
   vid_done: "Done: {n} frames are in the draft. Check the rotation in the studio below, then the sides and zone markers, then Publish.",
+  vid_markersCarried: "{zones} zones / {points} zone markers from version {v} were copied onto the same sides of the new set: check their positions in the zone markers section before publishing.",
+  vid_markersDropped: "{n} marker(s) were not on one of the 4 sides and could not be copied.",
   vid_replaceDraft: "There is an unpublished draft. Replace it with the frames from this video?",
   vid_err_type: "Choose an MP4, MOV or WebM video.",
   vid_err_big: "{name} is larger than {mb} MB.",
@@ -512,6 +514,9 @@ const en = {
   st_lostViews: "No frame is linked to: {views}. Pick the sides again after publishing (until then evenly spaced frames are used).",
   st_lostDraftViews: "The draft's side(s) {views} point at a frame that is no longer in the draft. Pick them again in \"Viewer sides\" before publishing.",
   st_lostMarkers: "{n} zone marker(s) will be removed because their frame is no longer in the draft: {zones}. Use \"Replace this photo\" (not add + delete) to keep them.",
+  st_markerLossLive: "STOP: this publish removes zone markers from the live page.\n\nLive now (version {v}): {refZones} zones, {refPoints} markers.\nAfter publishing: {zones} zones, {points} markers. {lostZones} zone(s) / {lostPoints} marker(s) disappear for sponsors.\n\nBetter: place the markers in the draft first (zone markers section below). Publish anyway?",
+  st_markerLossHistory: "STOP: the live page has no zone markers now, but version {v} had {refZones} zones / {refPoints} markers.\n\nAfter publishing: {zones} zones, {points} markers. {lostZones} zone(s) / {lostPoints} marker(s) stay missing for sponsors.\n\nBetter: place the markers in the draft first (zone markers section below). Publish anyway?",
+  st_markerLossStopped: "Not published: {lostZones} zone(s) / {lostPoints} marker(s) would be missing. Place them in the draft (zone markers section), then publish.",
   st_relinked: "The new photo at position {n} took over this frame's sides and zone markers (the deleted photo is its backup).",
   st_resetNote: "This draft brings its own sides and zone markers (new upload or restored version) — check them after publishing.",
   st_cutoutReplace: "Remove background automatically when replacing/adding a photo",
@@ -667,6 +672,7 @@ const en = {
   err_views_invalid: "The viewer sides are not valid.",
   err_upload_failed: "Upload failed. Check the connection and try again.",
   err_bg_model_failed: "The AI model for removing the background (about 100 MB, from staticimgly.com) could not be downloaded. Check the connection, turn off ad blockers or VPN for this site, reload the page and try again.",
+  err_markers_lost: "Publishing would remove zone markers from the live page. Check the zone markers in the draft first, or confirm the removal.",
 } as const;
 
 export type Dict = Record<keyof typeof en, string>;
@@ -1126,7 +1132,7 @@ const id: Dict = {
   vid_hint: "Unggah satu video atlet berputar satu putaran penuh; video dijadikan set 360° berisi {n} frame (background dihapus, kaki di garis platform). Hasilnya masuk ke draft di bawah: sponsor melihatnya setelah kamu klik Publish.",
   vid_tip1: "Mulai dan selesai menghadap kamera; satu putaran penuh, kamera diam, latar polos.",
   vid_tip2: "Proses berjalan di browser ini; pertama kali juga mengunduh model AI (sekitar 100 MB). Jangan tutup tab ini.",
-  vid_tip3: "Setelah publish, cek sisi dan tempatkan ulang titik zona.",
+  vid_tip3: "Titik zona disalin ke sisi yang sama di set baru (di draft); cek dan rapikan sebelum publish.",
   vid_pick: "Pilih video",
   vid_pick_sub: "MP4, MOV atau WebM · maks {mb} MB · maks {s} detik",
   vid_reverse: "Balik arah putaran",
@@ -1139,6 +1145,8 @@ const id: Dict = {
   vid_uploading: "Mengunggah {done}/{total}…",
   vid_keepOpen: "Jangan tutup tab ini sampai selesai.",
   vid_done: "Selesai: {n} frame masuk ke draft. Cek putarannya di studio di bawah, lalu sisi dan titik zona, lalu Publish.",
+  vid_markersCarried: "{zones} zona / {points} titik zona dari versi {v} disalin ke sisi yang sama di set baru: cek posisinya di bagian titik zona sebelum publish.",
+  vid_markersDropped: "{n} titik tidak berada di salah satu dari 4 sisi dan tidak bisa disalin.",
   vid_replaceDraft: "Ada draft yang belum dipublish. Ganti dengan frame dari video ini?",
   vid_err_type: "Pilih video MP4, MOV atau WebM.",
   vid_err_big: "{name} lebih besar dari {mb} MB.",
@@ -1166,6 +1174,9 @@ const id: Dict = {
   st_lostViews: "Tidak ada frame untuk: {views}. Pilih ulang sisi setelah publish (sementara dipakai frame berjarak rata).",
   st_lostDraftViews: "Sisi {views} di draft menunjuk frame yang sudah tidak ada di draft. Pilih ulang di \"Sisi tampilan\" sebelum Publish.",
   st_lostMarkers: "{n} titik zona akan terhapus karena frame-nya sudah tidak ada di draft: {zones}. Pakai \"Ganti foto ini\" (bukan tambah + hapus) supaya titik tetap ada.",
+  st_markerLossLive: "STOP: publish ini menghapus titik zona dari halaman live.\n\nLive sekarang (versi {v}): {refZones} zona, {refPoints} titik.\nSetelah publish: {zones} zona, {points} titik. {lostZones} zona / {lostPoints} titik hilang untuk sponsor.\n\nLebih baik: tempatkan dulu titiknya di draft (bagian titik zona di bawah). Tetap publish?",
+  st_markerLossHistory: "STOP: halaman live sekarang tidak punya titik zona, padahal versi {v} punya {refZones} zona / {refPoints} titik.\n\nSetelah publish: {zones} zona, {points} titik. {lostZones} zona / {lostPoints} titik tetap hilang untuk sponsor.\n\nLebih baik: tempatkan dulu titiknya di draft (bagian titik zona di bawah). Tetap publish?",
+  st_markerLossStopped: "Tidak dipublish: {lostZones} zona / {lostPoints} titik akan hilang. Tempatkan titiknya di draft (bagian titik zona), lalu publish.",
   st_relinked: "Foto baru di posisi {n} mengambil alih sisi dan titik zona frame ini (foto yang dihapus jadi backup-nya).",
   st_resetNote: "Draft ini membawa pilihan sisi dan titik zona sendiri (upload baru atau versi yang dikembalikan) — cek lagi setelah publish.",
   st_cutoutReplace: "Hapus background otomatis saat mengganti/menambah foto",
@@ -1321,6 +1332,7 @@ const id: Dict = {
   err_views_invalid: "Sisi viewer tidak valid.",
   err_upload_failed: "Upload gagal. Periksa koneksi lalu coba lagi.",
   err_bg_model_failed: "Model AI penghapus background (sekitar 100 MB, dari staticimgly.com) gagal diunduh. Periksa koneksi, matikan ad blocker atau VPN untuk situs ini, muat ulang halaman lalu coba lagi.",
+  err_markers_lost: "Publish akan menghapus titik zona dari halaman live. Cek dulu titik zona di draft, atau konfirmasi penghapusannya.",
 };
 
 export const messages: Record<Locale, Dict> = { en, id };

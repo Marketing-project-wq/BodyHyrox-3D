@@ -6,9 +6,19 @@ import { requireSession, requirePermission } from "@/lib/auth";
 import type { ActionResult } from "@/lib/action-result";
 import { fail, run } from "@/lib/action-error";
 import { SPONSOR_360_UPLOAD } from "@/lib/config";
-import { VIEW_KEYS, type ViewKey } from "@/lib/views";
+import { VIEW_KEYS, resolveViews, type ViewKey } from "@/lib/views";
 import type { DraftFrame, Foot, FrameMeta, FrameMetaMap, Media360Draft } from "@/lib/media360";
-import { draftFromLive, draftHotspotsByFile, followReplacedFrames, hotspotsToFrameNumbers, type SideHotspot } from "@/lib/media360-sides";
+import {
+  countMarkers,
+  draftFromLive,
+  draftHotspotsByFile,
+  followReplacedFrames,
+  losesMarkers,
+  publishedSides,
+  type MarkerCount,
+  type SideHotspot,
+  type StoredHotspot,
+} from "@/lib/media360-sides";
 import { randomUUID } from "crypto";
 import { readFile } from "fs/promises";
 import path from "path";
@@ -291,13 +301,105 @@ type Row = {
   version: number;
 };
 
+type MarkerRef = MarkerCount & {
+  version: number;
+  live: boolean;
+  frames: string[];
+  views: Record<string, string> | null;
+  hotspots: StoredHotspot[];
+};
+
+/**
+ * The markers a publish must not silently lose: the live set's, or when the
+ * live set has none, those of the most recent version in the history that
+ * had any. null = there never were markers.
+ */
+async function markerReference(athleteId: string, row: Pick<Row, "frames" | "views" | "hotspots" | "version">): Promise<MarkerRef | null> {
+  const live = countMarkers(row.hotspots);
+  if (live.points > 0) {
+    return { ...live, version: row.version, live: true, frames: row.frames ?? [], views: row.views, hotspots: row.hotspots ?? [] };
+  }
+  const { data, error } = await db()
+    .from("smb_athlete_media_360_history")
+    .select("version,snapshot")
+    .eq("athlete_id", athleteId)
+    .order("version", { ascending: false })
+    .limit(30);
+  if (error) throw new Error(error.message);
+  for (const h of (data ?? []) as { version: number; snapshot: { frames?: string[]; views?: Record<string, string> | null; hotspots?: StoredHotspot[] } }[]) {
+    const c = countMarkers(h.snapshot?.hotspots);
+    if (c.points > 0) {
+      return { ...c, version: h.version, live: false, frames: h.snapshot.frames ?? [], views: h.snapshot.views ?? null, hotspots: h.snapshot.hotspots ?? [] };
+    }
+  }
+  return null;
+}
+
+/**
+ * Admin only. What Publish would do to the zone markers: markers of the
+ * draft as it would go live, and the reference (live set, or the last
+ * version with markers). `loss` = fewer zones or markers than the reference.
+ */
+export async function checkPublish(athleteId: string): Promise<
+  ActionResult<{ draft: MarkerCount; ref: (MarkerCount & { version: number; live: boolean }) | null; loss: boolean }>
+> {
+  return run(async () => {
+    await requireEditor();
+    const { data: row, error } = await db()
+      .from("smb_athlete_media_360")
+      .select("base_url,frames,frame_meta,views,hotspots,draft,version")
+      .eq("athlete_id", athleteId)
+      .maybeSingle<Row>();
+    if (error) throw new Error(error.message);
+    if (!row?.draft) fail("nothing_to_publish");
+    const planned = publishedSides(row!, cleanDraft(athleteId, row!.draft));
+    if (planned.viewsInvalid) fail("views_invalid");
+    const draft = countMarkers(planned.hotspots);
+    const ref = await markerReference(athleteId, row!);
+    return {
+      ok: true,
+      draft,
+      ref: ref ? { zones: ref.zones, points: ref.points, version: ref.version, live: ref.live } : null,
+      loss: losesMarkers(draft, ref),
+    };
+  });
+}
+
+/**
+ * Admin only. The markers a brand-new set (video import) should start from:
+ * the live set's, or the last version that had markers, with its frames and
+ * sides so they can be carried over side by side. null = no markers anywhere.
+ */
+export async function markerSource(athleteId: string): Promise<
+  ActionResult<{ ref: { version: number; live: boolean; frames: string[]; views: Record<ViewKey, string>; hotspots: StoredHotspot[] } | null }>
+> {
+  return run(async () => {
+    await requireEditor();
+    if (!athleteId) fail("missing_input");
+    const { data: row, error } = await db()
+      .from("smb_athlete_media_360")
+      .select("frames,views,hotspots,version")
+      .eq("athlete_id", athleteId)
+      .maybeSingle<Pick<Row, "frames" | "views" | "hotspots" | "version">>();
+    if (error) throw new Error(error.message);
+    if (!row) return { ok: true, ref: null };
+    const ref = await markerReference(athleteId, row);
+    const views = ref ? resolveViews(ref.frames, ref.views) : null;
+    if (!ref || !views) return { ok: true, ref: null };
+    return { ok: true, ref: { version: ref.version, live: ref.live, frames: ref.frames, views, hotspots: ref.hotspots } };
+  });
+}
+
 /**
  * Admin only. Publishes the draft: copies every frame into the athlete's
  * public folder (new unique names, so no cache ever serves an old photo),
  * carries zone markers + sides over to the new frame order, snapshots the
  * previous version (restorable) and switches the viewer atomically.
  */
-export async function publishDraft(athleteId: string): Promise<ActionResult<{ version: number }>> {
+export async function publishDraft(
+  athleteId: string,
+  opts?: { acceptMarkerLoss?: boolean },
+): Promise<ActionResult<{ version: number }>> {
   return run(async () => {
     const s = await requireEditor();
     const { data: row, error: rErr } = await db()
@@ -312,6 +414,15 @@ export async function publishDraft(athleteId: string): Promise<ActionResult<{ ve
     if (n < SPONSOR_360_UPLOAD.minFrames || n > SPONSOR_360_UPLOAD.maxFrames) {
       fail("frame_count");
     }
+
+    // 0. Sides + zone markers follow each slot's origin (or the draft's own).
+    //    Never publish fewer zones / markers than the live set (or the last
+    //    version that had markers) unless the admin confirmed it.
+    const planned = publishedSides(row!, draft);
+    if (planned.viewsInvalid) fail("views_invalid");
+    const ref = await markerReference(athleteId, row!);
+    if (!opts?.acceptMarkerLoss && losesMarkers(countMarkers(planned.hotspots), ref)) fail("markers_lost");
+    const { views, hotspots } = planned;
 
     // 1. Every frame into the public folder.
     const target = publicBase(athleteId);
@@ -343,43 +454,6 @@ export async function publishDraft(athleteId: string): Promise<ActionResult<{ ve
       const prev = (m.prev ?? []).filter((p) => p.base !== null);
       frameMeta[file] = { ...(m.t ? { t: m.t } : {}), ...(m.foot ? { foot: m.foot } : {}), ...(prev.length ? { prev } : {}) };
     }
-
-    // 3. Sides + zone markers follow each slot's origin.
-    const live = row.frames ?? [];
-    const newIndexOfLive = new Map<string, number>();
-    draft.frames.forEach((f, j) => {
-      if (f.origin && !newIndexOfLive.has(f.origin)) newIndexOfLive.set(f.origin, j);
-    });
-    let views: Record<string, string> | null;
-    if (draft.views !== undefined) {
-      // A side set in the draft must point at a frame of the draft: never drop
-      // the sides silently (e.g. after its frame was deleted), ask to re-pick.
-      if (draft.views && !VIEW_KEYS.every((k) => frames.includes(draft.views![k]))) fail("views_invalid");
-      views = draft.views ?? null;
-    } else if (row.views) {
-      const mapped: Record<string, string> = {};
-      for (const k of VIEW_KEYS) {
-        const j = newIndexOfLive.get(row.views[k]);
-        if (j != null) mapped[k] = frames[j];
-      }
-      views = VIEW_KEYS.every((k) => mapped[k]) ? mapped : null;
-    } else views = null;
-
-    let hotspots: Row["hotspots"];
-    if (draft.hotspots !== undefined) {
-      // Draft markers are keyed by frame file (legacy drafts: frame numbers).
-      hotspots = hotspotsToFrameNumbers(draft.hotspots, frames);
-    } else {
-      hotspots = (row.hotspots ?? []).map((h) => {
-        const points: Record<string, { x: number; y: number }> = {};
-        for (const [k, v] of Object.entries(h.points ?? {})) {
-          const j = newIndexOfLive.get(live[Number(k) - 1]);
-          if (j != null) points[String(j + 1)] = v;
-        }
-        return { athlete_zone_id: h.athlete_zone_id, label: h.label ?? "", points };
-      });
-    }
-    hotspots = hotspots.filter((h) => Object.keys(h.points ?? {}).length > 0);
 
     const { data: out, error } = await db().rpc("smb_publish_athlete_media_360", {
       p_athlete_id: athleteId,
