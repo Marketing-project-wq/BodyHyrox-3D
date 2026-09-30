@@ -224,7 +224,9 @@ export const VIEWER_VIEWS = {
  *   class; everything else stays compressed (Blob).
  * - loadConcurrency: frames downloaded at once (the 4 sides first, then the
  *   others spread evenly around the turn).
- * - prefetch: frames decoded ahead in the direction of the turn.
+ * - prefetch: frames decoded on each side while at rest; while turning,
+ *   `prefetchAhead` in the direction of the turn and 1 behind.
+ * - fastTurn*: see below.
  */
 export const VIEWER_SPIN = {
   crossfadeShare: 0.5,
@@ -240,6 +242,15 @@ export const VIEWER_SPIN = {
   cacheFrames: { phone: 12, tablet: 16, desktop: 32 },
   loadConcurrency: 3,
   prefetch: 3,
+  prefetchAhead: 6,
+  /**
+   * Fast turns (tabs, a quick flick) faster than fastTurnDegPerSec use at
+   * most fastTurnFrames frames spread round the circle, so a slow phone
+   * doesn't have to decode every frame of a large (72-frame) set in a
+   * second; slow turns and rest use them all. Sets up to this size: no change.
+   */
+  fastTurnDegPerSec: 120,
+  fastTurnFrames: 24,
 };
 
 export const STAGE_ARENA = {

@@ -39,6 +39,8 @@ export class FrameCache {
   private gen = 0;
   private disposed = false;
   readonly limit: number;
+  /** Decode counters (?debug=perf). */
+  readonly stats = { decodes: 0, decodeMsTotal: 0, decodeMsMax: 0 };
 
   constructor(private urls: string[], limit?: number) {
     this.sources = new Array(urls.length).fill(undefined);
@@ -80,6 +82,11 @@ export class FrameCache {
     return !!this.sources[i];
   }
 
+  /** Is frame i decoded (without touching the LRU order)? */
+  has(i: number): boolean {
+    return this.bitmaps.has(i);
+  }
+
   /** Decoded bitmap if ready (marks it recently used). */
   get(i: number): ImageBitmap | undefined {
     const b = this.bitmaps.get(i);
@@ -118,7 +125,12 @@ export class FrameCache {
     const src = this.sources[i];
     if (!src) return Promise.resolve(null);
     const gen = this.gen;
+    const t0 = performance.now();
     const p = this.decode(src).then((bmp) => {
+      const ms = performance.now() - t0;
+      this.stats.decodes++;
+      this.stats.decodeMsTotal += ms;
+      this.stats.decodeMsMax = Math.max(this.stats.decodeMsMax, ms);
       if (this.decoding.get(i) === p) this.decoding.delete(i);
       if (!bmp) return null;
       if (this.disposed || gen !== this.gen) {

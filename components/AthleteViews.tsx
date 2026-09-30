@@ -75,6 +75,10 @@ export const AthleteViews = forwardRef<
     arena?: MutableRefObject<ArenaHandle>;
     /** ?debug=feet: draw the platform top face and each foot's contact point. */
     debug?: boolean;
+    /** ?debug=perf: decode / draw counters on the element (data-perf). */
+    debugPerf?: boolean;
+    /** Accessible name of the athlete picture at an angle (updated at rest only). */
+    describe: (angleDeg: number) => string;
     /** A zone card opened (touch) or closed: the stage holds its idle spin meanwhile. */
     onZoneCardChange?: (open: boolean) => void;
     /** Mouse over / off the athlete. */
@@ -85,7 +89,7 @@ export const AthleteViews = forwardRef<
     onFocusChange?: (focused: boolean) => void;
   } & DragCallbacks
 >(function AthleteViews(
-  { athleteId, media, view, m, label, onKeyTurn, onTogglePlay, onWheelTurn, onReady, onHoverChange, onTap, onFocusChange, onDragStart, onDragMove, onDragEnd, arena, debug, onZoneCardChange },
+  { athleteId, media, view, m, label, onKeyTurn, onTogglePlay, onWheelTurn, onReady, onHoverChange, onTap, onFocusChange, onDragStart, onDragMove, onDragEnd, arena, debug, debugPerf, describe, onZoneCardChange },
   ref,
 ) {
   const rootRef = useRef<HTMLDivElement>(null);
@@ -94,6 +98,14 @@ export const AthleteViews = forwardRef<
   arenaRef.current = arena;
   const debugOn = useRef(!!debug);
   debugOn.current = !!debug;
+  const perfOn = useRef(!!debugPerf);
+  perfOn.current = !!debugPerf;
+  const perf = useRef({ paints: 0, misses: 0 });
+  const prevAngleRef = useRef(0);
+  const speedRef = useRef({ a: 0, t: 0, v: 0 }); // turn speed (deg/s), smoothed
+  const describeRef = useRef(describe);
+  describeRef.current = describe;
+  const imgLabelRef = useRef("");
   // Set below; paint() closes an open zone card when the stage starts moving.
   const closeCardRef = useRef<() => void>(() => {});
   const router = useRouter();
@@ -199,7 +211,20 @@ export const AthleteViews = forwardRef<
         boxRef.current = box;
       }
       const A = norm360(angleDeg);
-      const kf = keyframes();
+      // Turn speed; fast turns use an evenly spread subset of a large set.
+      const now = performance.now();
+      const sp = speedRef.current;
+      const dt = (now - sp.t) / 1000;
+      if (dt > 0 && dt < 0.25) sp.v = sp.v * 0.6 + (Math.abs(angleDeg - sp.a) / dt) * 0.4;
+      else if (dt >= 0.25) sp.v = 0;
+      sp.a = angleDeg;
+      sp.t = now;
+      const allKf = keyframes();
+      const stride = Math.ceil(allKf.length / VIEWER_SPIN.fastTurnFrames);
+      const kf =
+        moving && stride > 1 && sp.v > VIEWER_SPIN.fastTurnDegPerSec
+          ? allKf.filter((k, j) => j % stride === 0 || viewIdxRef.current.includes(k.i))
+          : allKf;
       const fullTurn = !!angles && kf.length > 4;
       const br = bracket(A, kf);
       const t = Math.min(1, Math.max(0, br.t));
@@ -220,19 +245,44 @@ export const AthleteViews = forwardRef<
       const showHi = base === br.lo && a > EPS && br.hi !== br.lo;
       if (cache) {
         cache.pin(showHi ? [base, br.hi] : [base]);
-        drawLayer(0, base);
+        let loOk = drawLayer(0, base);
         const hiOk = showHi && drawLayer(1, br.hi);
+        perf.current.paints++;
+        if (!loOk || (showHi && !hiOk)) perf.current.misses++;
+        // Not decoded yet (a fast turn on a slow phone): show the decoded
+        // frame nearest to this angle rather than the stale previous one.
+        if (!loOk) {
+          let best = -1;
+          let bestD = Infinity;
+          for (const k of allKf) {
+            if (!cache.has(k.i)) continue;
+            const dd = Math.abs(((k.a - A + 540) % 360) - 180);
+            if (dd < bestD) {
+              bestD = dd;
+              best = k.i;
+            }
+          }
+          if (best >= 0) loOk = drawLayer(0, best);
+        }
         const c0 = canvasRefs.current[0];
         const c1 = canvasRefs.current[1];
         if (c0) c0.style.opacity = "1";
         if (c1) c1.style.opacity = hiOk ? String(a) : "0";
-        // ?debug=feet also shows how many frames are decoded (memory check).
-        if (debugOn.current && rootRef.current) rootRef.current.dataset.decoded = `${cache.decodedCount}/${cache.limit}`;
-        // Decode the next frames on both sides ahead of the turn.
-        const at = kf.findIndex((k) => k.i === base);
-        for (let d = 1; at >= 0 && d <= VIEWER_SPIN.prefetch; d++) {
-          cache.request(kf[(at + d) % kf.length].i);
-          cache.request(kf[(at - d + kf.length * 4) % kf.length].i);
+        // ?debug=feet / perf: decoded frames (memory) and decode / draw counters.
+        if ((debugOn.current || perfOn.current) && rootRef.current) rootRef.current.dataset.decoded = `${cache.decodedCount}/${cache.limit}`;
+        if (perfOn.current && rootRef.current) rootRef.current.dataset.perf = JSON.stringify({ ...cache.stats, ...perf.current });
+        // Decode ahead: while turning, further in the direction of the turn
+        // (and 1 behind); at rest, a few on both sides.
+        const at = kf.findIndex((k) => k.i === br.lo);
+        const dA = angleDeg - prevAngleRef.current;
+        prevAngleRef.current = angleDeg;
+        const dir = moving && Math.abs(dA) > 1e-3 ? Math.sign(dA) : 0;
+        const ahead = dir ? VIEWER_SPIN.prefetchAhead : VIEWER_SPIN.prefetch;
+        const behind = dir ? 1 : VIEWER_SPIN.prefetch;
+        const at2 = (d: number) => kf[(((at + d) % kf.length) + kf.length) % kf.length].i;
+        for (let d = 1; at >= 0 && d <= Math.max(ahead, behind); d++) {
+          if (d <= ahead) cache.request(at2(dir >= 0 ? d : -d));
+          if (d <= behind) cache.request(at2(dir >= 0 ? -d : d));
         }
       }
       // Feet on the platform: shift the photo (and its zone markers) so the
@@ -366,6 +416,16 @@ export const AthleteViews = forwardRef<
       if (mk) {
         mk.style.opacity = showMk ? "1" : "0";
         mk.style.visibility = showMk ? "visible" : "hidden";
+      }
+      // Accessible name of the picture: only updated at rest, so a screen
+      // reader is never flooded while it turns.
+      const st = stackRef.current;
+      if (st && !moving) {
+        const lbl = describeRef.current(angleDeg);
+        if (lbl !== imgLabelRef.current) {
+          imgLabelRef.current = lbl;
+          st.setAttribute("aria-label", lbl);
+        }
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -542,9 +602,11 @@ export const AthleteViews = forwardRef<
     const root = rootRef.current;
     if (!root) return;
     const onWheel = (e: WheelEvent) => {
-      if (!ready || Math.abs(e.deltaX) <= Math.abs(e.deltaY)) return;
-      e.preventDefault(); // also keeps Mac browsers from swiping back a page
-      onWheelTurnRef.current?.(e.deltaMode === 1 ? e.deltaX * 16 : e.deltaX);
+      if (Math.abs(e.deltaX) <= Math.abs(e.deltaY)) return; // vertical: the page scrolls
+      // Horizontal over the stage: ours. Cancelling it also stops Mac browsers
+      // from turning the two-finger swipe into back / forward navigation.
+      e.preventDefault();
+      if (ready) onWheelTurnRef.current?.(e.deltaMode === 1 ? e.deltaX * 16 : e.deltaX);
     };
     root.addEventListener("wheel", onWheel, { passive: false });
     return () => root.removeEventListener("wheel", onWheel);
@@ -693,7 +755,7 @@ export const AthleteViews = forwardRef<
     <div
       ref={rootRef}
       className={`relative mx-auto select-none outline-none focus-visible:ring-2 focus-visible:ring-[#ff2d55]/70 ${VIEWER_360_FRAME_CLASS}`}
-      style={{ ...viewer360FrameStyle(), touchAction: "pan-y" }}
+      style={{ ...viewer360FrameStyle(), touchAction: "pan-y", overscrollBehaviorX: "contain" }}
       tabIndex={0}
       role="group"
       aria-label={label}
@@ -710,6 +772,9 @@ export const AthleteViews = forwardRef<
       onFocus={() => onFocusChange?.(true)}
       onBlur={() => onFocusChange?.(false)}
       onKeyDown={(e) => {
+        // Only while the stage itself has focus (a zone marker inside keeps its
+        // own keys; elsewhere the page keeps Space / arrows for scrolling).
+        if (e.target !== e.currentTarget || e.altKey || e.ctrlKey || e.metaKey) return;
         if (e.key === "ArrowRight") {
           e.preventDefault();
           onKeyTurn(VIEWER_SPIN.keyStepDeg);
@@ -745,7 +810,7 @@ export const AthleteViews = forwardRef<
         ))}
       </div>
 
-      <div ref={stackRef} className="absolute inset-0" style={{ transformOrigin: "50% 100%" }}>
+      <div ref={stackRef} role="img" aria-label={describe(0)} className="absolute inset-0" style={{ transformOrigin: "50% 100%" }}>
         {[0, 1].map((k) => (
           <canvas
             key={k}

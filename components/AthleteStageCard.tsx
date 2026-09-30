@@ -8,7 +8,7 @@ import type { PublicAthleteDetail } from "@/lib/data";
 import { STAGE_ARENA, STAGE_READOUT, VIEWER_360, VIEWER_360_FRAME_CLASS, VIEWER_SPIN, VIEWER_VIEWS, stageFitVars, viewer360FrameStyle } from "@/lib/config";
 import { decayVelocity, degreeLabel, nearestSide, nextSideTarget, sideTarget } from "@/lib/spin";
 import { VIEW_KEYS } from "@/lib/views";
-import { type Dict } from "@/lib/i18n";
+import { type Dict, fmt } from "@/lib/i18n";
 import { tGender } from "@/lib/i18n";
 import { initials } from "@/lib/format";
 import { AthleteViews, type AthleteViewsHandle } from "@/components/AthleteViews";
@@ -66,10 +66,12 @@ export function AthleteStageCard({
   // ?debug=viewport: viewport / toolbar measuring overlay (both: debug=feet,viewport).
   const [debugFeet, setDebugFeet] = useState(false);
   const [debugViewport, setDebugViewport] = useState(false);
+  const [debugPerf, setDebugPerf] = useState(false);
   useEffect(() => {
     const debug = (new URLSearchParams(window.location.search).get("debug") ?? "").split(",");
     setDebugFeet(debug.includes("feet"));
     setDebugViewport(debug.includes("viewport"));
+    setDebugPerf(debug.includes("perf"));
   }, []);
   const platformRef = useRef<HTMLDivElement>(null);
   const figureRef = useRef<HTMLDivElement>(null);
@@ -96,6 +98,9 @@ export function AthleteStageCard({
   const [playing, setPlayingState] = useState(true);
   const playingRef = useRef(true);
   const degRef = useRef<HTMLDivElement>(null);
+  // Screen readers hear the side + degrees only when the athlete comes to rest.
+  const liveRef = useRef<HTMLSpanElement>(null);
+  const wasMovingRef = useRef(false);
   const sideNameRef = useRef<HTMLDivElement>(null);
   const autoAngleRef = useRef(0);
   const autoFactorRef = useRef(0); // 0..1 eased speed factor
@@ -195,6 +200,8 @@ export function AthleteStageCard({
       const halfRate = qualityRef.current.level >= 2 && !moving;
       frameParityRef.current ^= 1;
       if (!halfRate || frameParityRef.current === 0) h.invalidate?.();
+      if (wasMovingRef.current && !moving && liveRef.current) liveRef.current.textContent = `${viewNames[near.side]}, ${label}`;
+      wasMovingRef.current = moving;
       const lv = lastViewPaintRef.current;
       if (!lv || lv.a !== env || lv.moving !== moving) {
         viewsRef.current?.render(env, moving, turning);
@@ -432,13 +439,9 @@ export function AthleteStageCard({
     },
     [holdNow, resumeLater],
   );
-  const onFocusChange = useCallback(
-    (focused: boolean) => {
-      if (focused) holdNow("focus");
-      else resumeLater("focus", STAGE_ARENA.autoRotateResumeMs);
-    },
-    [holdNow, resumeLater],
-  );
+  // Keyboard focus on the athlete no longer holds the spin: keyboard users
+  // pause / play with Space (a focus hold made Space→Play look broken).
+  const onFocusChange = useCallback(() => {}, []);
   // Drag: the angle follows the finger / pointer (right = toward Kanan); on
   // release it keeps turning a little and slows down (inertia), then stays
   // exactly there: no snapping to a side, and Pause.
@@ -628,7 +631,7 @@ export function AthleteStageCard({
           {has360 && (
             <div
               className="stagecard-readout pointer-events-none z-20"
-              aria-live="polite"
+              aria-hidden
               style={
                 {
                   "--ro-scrim-full": STAGE_READOUT.scrimOpacity,
@@ -708,8 +711,10 @@ export function AthleteStageCard({
                 onZoneCardChange={onZoneCardChange}
                 arena={arenaOn ? arenaHandle : undefined}
                 debug={debugFeet}
+                debugPerf={debugPerf}
+                describe={(a) => fmt(m.sc_stageImg, { name: athlete.nama, side: viewNames[nearestSide(a).side], deg: degreeLabel(a) })}
                 m={m}
-                label={`${athlete.nama} — ${viewNames[view]}. ${m.sc_keysHint}`}
+                label={`${athlete.nama}. ${m.sc_keysHint}`}
               />
             ) : (
               <div className={`relative mx-auto ${VIEWER_360_FRAME_CLASS}`} style={figureStyle}>
@@ -748,7 +753,8 @@ export function AthleteStageCard({
               <button
                 type="button"
                 onClick={togglePlay}
-                aria-label={playing ? m.sc_pause : m.sc_play}
+                aria-label={m.sc_autoRotate}
+                aria-pressed={playing}
                 title={playing ? m.sc_pause : m.sc_play}
                 className="group flex h-11 w-11 shrink-0 items-center justify-center"
               >
@@ -839,6 +845,7 @@ export function AthleteStageCard({
       <span className="sr-only">
         <RotateCcw size={12} /> {m.sc_dragOnly}
       </span>
+      <span ref={liveRef} className="sr-only" aria-live="polite" />
       {debugViewport && <ViewportDebug sectionRef={sectionRef} />}
     </section>
   );
