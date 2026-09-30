@@ -35,6 +35,7 @@ export const ERROR_CODES = [
   "zones_invalid",
   "views_invalid",
   "upload_failed",
+  "bg_model_failed",
 ] as const;
 export type ErrorCode = (typeof ERROR_CODES)[number];
 

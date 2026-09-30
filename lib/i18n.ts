@@ -471,7 +471,7 @@ const en = {
   vid_current: "Live now: {n} frames.",
   vid_hint: "Upload one video of the athlete turning a full circle; it becomes a {n}-frame 360° set (background removed, feet on the platform line). It goes into the draft below: sponsors see it after you publish.",
   vid_tip1: "Start and end facing the camera; one full turn, a steady camera, a plain background.",
-  vid_tip2: "Processing runs in this browser (about 1–3 minutes on a laptop); keep this tab open.",
+  vid_tip2: "Processing runs in this browser; the first time it also downloads an AI model (about 100 MB). Keep this tab open.",
   vid_tip3: "After publishing, check the sides and place the zone markers again.",
   vid_pick: "Choose a video",
   vid_pick_sub: "MP4, MOV or WebM · max {mb} MB · max {s} seconds",
@@ -479,6 +479,7 @@ const en = {
   vid_reverseHint: "Turn this on if “Right” in the studio preview shows the athlete's other side.",
   vid_submit: "Process video",
   vid_analysing: "Measuring the turn… {pct}%",
+  vid_model: "Downloading the AI model (first time only)… {pct}%",
   vid_cutting: "Removing background {done}/{total}…",
   vid_fitting: "Fitting frames to the platform…",
   vid_uploading: "Uploading {done}/{total}…",
@@ -665,6 +666,7 @@ const en = {
   err_zones_invalid: "The zone points are not valid.",
   err_views_invalid: "The viewer sides are not valid.",
   err_upload_failed: "Upload failed. Check the connection and try again.",
+  err_bg_model_failed: "The AI model for removing the background (about 100 MB, from staticimgly.com) could not be downloaded. Check the connection, turn off ad blockers or VPN for this site, reload the page and try again.",
 } as const;
 
 export type Dict = Record<keyof typeof en, string>;
@@ -1123,7 +1125,7 @@ const id: Dict = {
   vid_current: "Tayang sekarang: {n} frame.",
   vid_hint: "Unggah satu video atlet berputar satu putaran penuh; video dijadikan set 360° berisi {n} frame (background dihapus, kaki di garis platform). Hasilnya masuk ke draft di bawah: sponsor melihatnya setelah kamu klik Publish.",
   vid_tip1: "Mulai dan selesai menghadap kamera; satu putaran penuh, kamera diam, latar polos.",
-  vid_tip2: "Proses berjalan di browser ini (sekitar 1–3 menit di laptop); jangan tutup tab ini.",
+  vid_tip2: "Proses berjalan di browser ini; pertama kali juga mengunduh model AI (sekitar 100 MB). Jangan tutup tab ini.",
   vid_tip3: "Setelah publish, cek sisi dan tempatkan ulang titik zona.",
   vid_pick: "Pilih video",
   vid_pick_sub: "MP4, MOV atau WebM · maks {mb} MB · maks {s} detik",
@@ -1131,6 +1133,7 @@ const id: Dict = {
   vid_reverseHint: "Nyalakan kalau “Kanan” di pratinjau studio menampilkan sisi atlet yang sebaliknya.",
   vid_submit: "Proses video",
   vid_analysing: "Mengukur putaran… {pct}%",
+  vid_model: "Mengunduh model AI (hanya pertama kali)… {pct}%",
   vid_cutting: "Menghapus background {done}/{total}…",
   vid_fitting: "Menyelaraskan frame ke platform…",
   vid_uploading: "Mengunggah {done}/{total}…",
@@ -1317,6 +1320,7 @@ const id: Dict = {
   err_zones_invalid: "Titik zona tidak valid.",
   err_views_invalid: "Sisi viewer tidak valid.",
   err_upload_failed: "Upload gagal. Periksa koneksi lalu coba lagi.",
+  err_bg_model_failed: "Model AI penghapus background (sekitar 100 MB, dari staticimgly.com) gagal diunduh. Periksa koneksi, matikan ad blocker atau VPN untuk situs ini, muat ulang halaman lalu coba lagi.",
 };
 
 export const messages: Record<Locale, Dict> = { en, id };

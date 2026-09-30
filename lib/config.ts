@@ -383,7 +383,7 @@ export const VIDEO_360 = {
   acceptMime: ["video/mp4", "video/quicktime", "video/webm"] as const,
   canvas: { w: 476, h: 1120 },
   fit: { top: 0.066, toe: 0.964, cx: 0.5 },
-  analysisFps: 30,
+  analysisFps: 15,
   maxSamples: 360,
   thumbW: 96,
   holdRelative: 0.3,

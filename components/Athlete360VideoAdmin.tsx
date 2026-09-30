@@ -7,11 +7,11 @@ import { VIDEO_360 } from "@/lib/config";
 import { type Dict, errorMessage, fmt } from "@/lib/i18n";
 import { unwrap } from "@/lib/action-result";
 import { saveDraft } from "@/app/atlet/[id]/media-actions";
-import { loadBackgroundRemover, measureBlob, preparePhoto, uploadDraftBlobs } from "@/lib/media360-upload";
+import { measureBlob, prepareBackgroundRemover, preparePhoto, uploadDraftBlobs } from "@/lib/media360-upload";
 import { fitVideoFrames, grabFrame, openVideo, pickTimes, sidesOf } from "@/lib/media360-video";
 import type { Foot, FrameMetaMap } from "@/lib/media360";
 
-type Step = "idle" | "analyse" | "cutout" | "fit" | "upload" | "done" | "error";
+type Step = "idle" | "analyse" | "model" | "cutout" | "fit" | "upload" | "done" | "error";
 
 /**
  * Admin: build the 360 set from ONE video of the athlete turning a full
@@ -44,7 +44,7 @@ export function Athlete360VideoAdmin({
     if (preview) URL.revokeObjectURL(preview);
   }, [preview]);
 
-  const busy = step === "analyse" || step === "cutout" || step === "fit" || step === "upload";
+  const busy = step === "analyse" || step === "model" || step === "cutout" || step === "fit" || step === "upload";
   useEffect(() => {
     if (!busy) return;
     const onUnload = (e: BeforeUnloadEvent) => {
@@ -79,11 +79,12 @@ export function Athlete360VideoAdmin({
     let vid: Awaited<ReturnType<typeof openVideo>> | null = null;
     try {
       setStep("analyse");
-      try {
-        await loadBackgroundRemover();
-      } catch {
-        throw new Error(m.vid_err_module);
-      }
+      // The AI model (first time ~100 MB) downloads while the turn is measured.
+      let modelShare = 0;
+      const model = prepareBackgroundRemover((f) => {
+        modelShare = f;
+      });
+      model.catch(() => {}); // awaited below
       try {
         vid = await openVideo(file);
       } catch {
@@ -93,6 +94,11 @@ export function Athlete360VideoAdmin({
       let times = await pickTimes(vid.video, count, (f) => setProgress(f));
       // Keep frame 1 (facing the camera), turn the other way round.
       if (reverse) times = [times[0], ...times.slice(1).reverse()];
+
+      setStep("model");
+      setProgress(modelShare);
+      const ready = prepareBackgroundRemover((f) => setProgress(f));
+      await ready;
 
       setStep("cutout");
       setProgress(0);
@@ -145,7 +151,9 @@ export function Athlete360VideoAdmin({
   const label =
     step === "analyse"
       ? fmt(m.vid_analysing, { pct })
-      : step === "cutout"
+      : step === "model"
+        ? fmt(m.vid_model, { pct })
+        : step === "cutout"
         ? fmt(m.vid_cutting, { done: Math.round(progress * count), total: count })
         : step === "fit"
           ? m.vid_fitting
