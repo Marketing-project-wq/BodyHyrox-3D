@@ -445,6 +445,18 @@ export const VIDEO_360 = {
   background: 60,
   shoulderBand: [0.18, 0.3] as const,
   profileDepth: 0.8,
+  /**
+   * Timeline (admin): thumbnails in the strip, the step of ±1 frame (the
+   * browser doesn't report a video's frame rate; 30 fps is the common
+   * phone rate) and the shortest standing-still moment shown as a band (s).
+   * Still = the change between thumbnails, rolling median over `stillWindow`
+   * samples, below `stillRelative` x its 75th percentile (see stillBands).
+   */
+  timelineThumbs: 12,
+  timelineFps: 30,
+  stillMinSec: 0.4,
+  stillWindow: 5,
+  stillRelative: 0.35,
 };
 
 /**

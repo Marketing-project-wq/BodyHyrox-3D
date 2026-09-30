@@ -47,7 +47,7 @@ export async function openVideo(file: Blob): Promise<OpenVideo> {
 }
 
 /** Seek and wait until the frame at `t` can be drawn. */
-function seek(v: HTMLVideoElement, t: number): Promise<void> {
+export function seek(v: HTMLVideoElement, t: number): Promise<void> {
   const target = Math.min(Math.max(0, t), Math.max(0, v.duration - 0.001));
   return new Promise((res) => {
     let done = false;
@@ -68,19 +68,32 @@ function seek(v: HTMLVideoElement, t: number): Promise<void> {
 }
 
 /**
- * Times of `count` frames evenly spaced along the turn (frame 1 = the start,
- * facing the camera).
- *
- * The angle is estimated from small thumbnails:
- * - the two side profiles are where the silhouette is narrowest across the
- *   shoulders (anchored at 90° and 270°);
- * - between the anchors the angle follows the accumulated change between
- *   thumbnails, where moments of standing still (and duplicated frames) add
- *   nothing, so a turn that speeds up, slows down or pauses is still evenly
- *   sampled.
- * Without two clear profiles the accumulated change alone is used.
+ * How the athlete turns through the video, measured on small thumbnails:
+ * - `diffs`: change from the previous thumbnail; below `hold` counts as
+ *   standing still (and duplicated frames);
+ * - `cum`: the accumulated change without the still moments, so a turn that
+ *   speeds up, slows down or pauses still maps evenly onto angles;
+ * - `pair`: the two side profiles (silhouette narrowest across the
+ *   shoulders), anchored at 90° and 270°; null without two clear profiles.
+ * With `thumbs` > 0 it also keeps that many small JPEG thumbnails, evenly
+ * spread over the video (the timeline strip).
  */
-export async function pickTimes(v: HTMLVideoElement, count: number, onProgress?: (fraction: number) => void): Promise<number[]> {
+export type TurnAnalysis = {
+  duration: number;
+  times: number[];
+  diffs: number[];
+  hold: number;
+  cum: number[];
+  total: number;
+  pair: [number, number] | null;
+  thumbs: { t: number; url: string }[];
+};
+
+export async function analyzeTurn(
+  v: HTMLVideoElement,
+  onProgress?: (fraction: number) => void,
+  opts: { thumbs?: number } = {},
+): Promise<TurnAnalysis> {
   const { analysisFps, maxSamples, thumbW, holdRelative, background, shoulderBand, profileDepth } = VIDEO_360;
   const dur = v.duration;
   const step = Math.max(1 / analysisFps, dur / maxSamples);
@@ -94,6 +107,8 @@ export async function pickTimes(v: HTMLVideoElement, count: number, onProgress?:
   const times: number[] = [];
   const diffs: number[] = [];
   const widths: number[] = [];
+  const thumbs: { t: number; url: string }[] = [];
+  const nThumbs = opts.thumbs ?? 0;
   let prev: Float32Array | null = null;
   for (let t = 0; t < dur; t += step) {
     await seek(v, t);
@@ -110,6 +125,7 @@ export async function pickTimes(v: HTMLVideoElement, count: number, onProgress?:
     times.push(t);
     diffs.push(d);
     widths.push(shoulderWidth(px, W, H, background, shoulderBand));
+    if (nThumbs > 0 && thumbs.length < nThumbs && t >= (dur * thumbs.length) / nThumbs) thumbs.push({ t, url: c.toDataURL("image/jpeg", 0.7) });
     onProgress?.(Math.min(1, t / dur));
   }
   const n = times.length;
@@ -123,7 +139,6 @@ export async function pickTimes(v: HTMLVideoElement, count: number, onProgress?:
     if (i > 0 && diffs[i] >= hold) total += diffs[i];
     cum.push(total);
   }
-  if (total <= 0) return Array.from({ length: count }, (_, j) => (dur * j) / count);
 
   // Side profiles: the two narrowest views, at least a quarter turn apart.
   const sm = widths.map((_, i) => {
@@ -141,22 +156,105 @@ export async function pickTimes(v: HTMLVideoElement, count: number, onProgress?:
         best = sm[a] + sm[b];
         pair = [a, b];
       }
+  return { duration: dur, times, diffs, hold, cum, total, pair, thumbs };
+}
 
-  const angle = (i: number): number => {
-    if (!pair) return (360 * cum[i]) / total;
-    const [p1, p2] = pair;
-    if (i <= p1) return (90 * cum[i]) / cum[p1];
-    if (i <= p2) return 90 + (180 * (cum[i] - cum[p1])) / (cum[p2] - cum[p1]);
-    return 270 + (90 * (cum[i] - cum[p2])) / (total - cum[p2]);
-  };
+/** Estimated angle (0..360) of the athlete at sample i. */
+export function angleAtSample(a: TurnAnalysis, i: number): number {
+  const { cum, total, pair } = a;
+  if (!pair) return (360 * cum[i]) / total;
+  const [p1, p2] = pair;
+  if (i <= p1) return (90 * cum[i]) / cum[p1];
+  if (i <= p2) return 90 + (180 * (cum[i] - cum[p1])) / (cum[p2] - cum[p1]);
+  return 270 + (90 * (cum[i] - cum[p2])) / (total - cum[p2]);
+}
+
+/** Times of `count` frames evenly spaced along the turn (frame 1 = the start, facing the camera). */
+export function timesFromAnalysis(a: TurnAnalysis, count: number): number[] {
+  const n = a.times.length;
+  if (a.total <= 0) return Array.from({ length: count }, (_, j) => (a.duration * j) / count);
   const out: number[] = [];
   let i = 0;
   for (let j = 0; j < count; j++) {
     const target = (360 * j) / count;
-    while (i < n - 1 && angle(i) < target) i++;
-    out.push(times[i]);
+    while (i < n - 1 && angleAtSample(a, i) < target) i++;
+    out.push(a.times[i]);
   }
   return out;
+}
+
+/** Times of `count` frames evenly spaced along the turn (see analyzeTurn / timesFromAnalysis). */
+export async function pickTimes(v: HTMLVideoElement, count: number, onProgress?: (fraction: number) => void): Promise<number[]> {
+  return timesFromAnalysis(await analyzeTurn(v, onProgress), count);
+}
+
+/**
+ * Where the athlete (nearly) stands still for at least `minSec`, as time
+ * ranges; e.g. the pause before the turn or a stop facing the back. Uses its
+ * own measure, apart from `hold`: the change smoothed by a rolling median
+ * (`stillWindow` samples, which also hides duplicated video frames) below
+ * `stillRelative` x the 75th percentile of all changes, so slow shifting
+ * on the spot also counts as still.
+ */
+export function stillBands(a: TurnAnalysis, minSec: number): { from: number; to: number }[] {
+  const { stillWindow, stillRelative } = VIDEO_360;
+  const n = a.times.length;
+  if (n < 3) return [];
+  const sorted = a.diffs.slice(1).sort((x, y) => x - y);
+  const limit = sorted[Math.floor(0.75 * (sorted.length - 1))] * stillRelative;
+  const half = Math.floor(stillWindow / 2);
+  const still = a.diffs.map((_, i) => {
+    const w = a.diffs.slice(Math.max(1, i - half), Math.min(n, i + half + 1)).sort((x, y) => x - y);
+    return w.length > 0 && w[Math.floor(w.length / 2)] < limit;
+  });
+  const out: { from: number; to: number }[] = [];
+  let i = 1;
+  while (i < n) {
+    if (!still[i]) {
+      i++;
+      continue;
+    }
+    let j = i;
+    while (j + 1 < n && still[j + 1]) j++;
+    const from = a.times[i - 1];
+    const to = j + 1 < n ? a.times[j] : a.duration;
+    if (to - from >= minSec) out.push({ from, to });
+    i = j + 1;
+  }
+  return out;
+}
+
+/** The admin's marks on the timeline (seconds): one full turn and its 4 sides. */
+export type TurnMarks = { start: number; front: number; right: number; back: number; left: number; end: number };
+export const MARK_ORDER: (keyof TurnMarks)[] = ["start", "front", "right", "back", "left", "end"];
+
+/**
+ * First guess for the marks: the turn starts at the last still moment before
+ * the athlete moves and ends where the change stops adding up; the sides are
+ * where the estimated angle reaches 0°, 90°, 180° and 270°.
+ */
+export function suggestMarks(a: TurnAnalysis): TurnMarks {
+  const n = a.times.length;
+  const last = a.times[n - 1] ?? 0;
+  if (a.total <= 0 || n < 2) {
+    const q = a.duration / 4;
+    return { start: 0, front: 0, right: q, back: 2 * q, left: 3 * q, end: a.duration };
+  }
+  let i0 = 0;
+  while (i0 < n - 1 && a.cum[i0] <= 0) i0++;
+  let i1 = n - 1;
+  while (i1 > 0 && a.cum[i1 - 1] >= a.total) i1--;
+  const reach = (deg: number) => {
+    for (let i = 0; i < n; i++) if (angleAtSample(a, i) >= deg) return a.times[i];
+    return last;
+  };
+  const start = a.times[Math.max(0, i0 - 1)];
+  return { start, front: start, right: reach(90), back: reach(180), left: reach(270), end: a.times[i1] };
+}
+
+/** Marks must follow the turn: start ≤ front < right < back < left < end. */
+export function marksInOrder(m: TurnMarks): boolean {
+  return m.start <= m.front && m.front < m.right && m.right < m.back && m.back < m.left && m.left < m.end;
 }
 
 /**
