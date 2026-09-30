@@ -12,6 +12,8 @@ import { Badge } from "@/components/ui";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { Athlete360Admin } from "@/components/Athlete360Admin";
 import { AthleteViewsPicker } from "@/components/AthleteViewsPicker";
+import { sidesSource } from "@/lib/media360-sides";
+import { resolveViews } from "@/lib/views";
 import { AthleteZonesPlacer } from "@/components/AthleteZonesPlacer";
 import { Admin360Studio } from "@/components/admin360/Admin360Studio";
 import type { FrameMetaMap, Media360Draft } from "@/lib/media360";
@@ -25,6 +27,7 @@ import {
   addAthleteRace,
   deleteAthleteRace,
 } from "@/app/admin/actions";
+import { ActionForm } from "@/components/ActionForm";
 
 const ZONE_TONE: Record<ZoneStatus, BadgeTone> = {
   tersedia: "green",
@@ -75,6 +78,16 @@ export function AthleteEditorClient({
   m: Dict;
 }) {
   const [photo, setPhoto] = useState(athlete.photoUrl ?? "");
+  // Sides picker + zone placer work on the draft when there is one (published with it).
+  const sides = (() => {
+    const src = sidesSource(
+      { baseUrl: media360.baseUrl, frames: media360.frameNames, views: media360.views, hotspots: media360.hotspots },
+      media360.draft,
+      media360.draftUrls,
+    );
+    // No sides chosen in the draft yet: start from evenly spaced photos, like the live page.
+    return { ...src, views: src.views ?? resolveViews(src.frames, null) };
+  })();
   const [imgOk, setImgOk] = useState(true);
   const showImg = photo.trim().length > 0 && imgOk;
 
@@ -115,7 +128,7 @@ export function AthleteEditorClient({
               </span>
             )}
           </div>
-          <form action={updateAthlete} className="flex flex-col gap-4 sm:flex-row">
+          <ActionForm m={m} action={updateAthlete} className="flex flex-col gap-4 sm:flex-row">
             <input type="hidden" name="id" value={athlete.id} />
             {/* Photo preview */}
             <div className="flex shrink-0 flex-col items-center gap-2">
@@ -293,7 +306,7 @@ export function AthleteEditorClient({
                 </div>
               )}
             </div>
-          </form>
+          </ActionForm>
         </section>
 
         {/* ---------- 360° photos (admin upload) ---------- */}
@@ -325,27 +338,28 @@ export function AthleteEditorClient({
             m={m}
           />
         )}
-        {canEdit && media360.frames > 0 && media360.views && (
+        {canEdit && sides.views && (
           <AthleteViewsPicker
-            key={media360.frameNames.join("|")}
+            key={`${sides.frames.join("|")}#${JSON.stringify(sides.views)}`}
             athleteId={athlete.id}
-            baseUrl={media360.baseUrl}
-            frames={media360.frameNames}
-            views={media360.views}
-            saved={media360.viewsSaved}
+            frames={sides.frames}
+            srcs={sides.srcs}
+            views={sides.views}
+            saved={media360.viewsSaved || sides.pendingViews}
+            pending={sides.pendingViews}
             m={m}
           />
         )}
-        {canEdit && media360.frames > 0 && media360.views && (
+        {canEdit && sides.views && (
           <AthleteZonesPlacer
-            key={`${media360.frameNames.join("|")}#${JSON.stringify(media360.views)}`}
+            key={`${sides.frames.join("|")}#${JSON.stringify(sides.views)}#${JSON.stringify(sides.hotspots)}`}
             athleteId={athlete.id}
-            baseUrl={media360.baseUrl}
-            frames={media360.frameNames}
-            views={media360.views}
-            viewsSaved={media360.viewsSaved}
+            srcs={sides.srcs}
+            views={sides.views}
+            viewsSaved={media360.viewsSaved || sides.pendingViews}
             zones={athlete.zones}
-            initial={media360.hotspots}
+            initial={sides.hotspots}
+            pending={sides.pendingHotspots}
             m={m}
           />
         )}
@@ -406,7 +420,7 @@ export function AthleteEditorClient({
                 {m.ae_noEvents}
               </p>
             ) : (
-              <form
+              <ActionForm m={m}
                 action={addAthleteRace}
                 className="mb-4 grid grid-cols-1 gap-2 rounded-lg border border-border bg-surface-2 p-3 sm:grid-cols-[1fr_120px_auto_auto]"
               >
@@ -434,7 +448,7 @@ export function AthleteEditorClient({
                 <button type="submit" className="btn btn-primary whitespace-nowrap">
                   <Plus size={16} /> {m.ae_addRace}
                 </button>
-              </form>
+              </ActionForm>
             )
           )}
 
@@ -462,7 +476,7 @@ export function AthleteEditorClient({
                     </div>
                   </div>
                   {canEdit && (
-                    <form action={deleteAthleteRace} className="shrink-0">
+                    <ActionForm m={m} action={deleteAthleteRace} className="shrink-0">
                       <input type="hidden" name="id" value={r.id} />
                       <input type="hidden" name="athlete_id" value={athlete.id} />
                       <ConfirmButton
@@ -471,7 +485,7 @@ export function AthleteEditorClient({
                       >
                         <Trash2 size={13} /> {m.ae_removeRace}
                       </ConfirmButton>
-                    </form>
+                    </ActionForm>
                   )}
                 </li>
               ))}
@@ -538,7 +552,7 @@ function ZoneRow({
       {/* Effective price + source, with edit / reset */}
       <td className="td">
         {editing ? (
-          <form action={setAthleteZonePrice} className="flex flex-wrap items-center gap-2">
+          <ActionForm m={m} action={setAthleteZonePrice} className="flex flex-wrap items-center gap-2">
             <input type="hidden" name="athlete_id" value={athleteId} />
             <input type="hidden" name="zone_id" value={z.zoneId} />
             <input
@@ -552,7 +566,7 @@ function ZoneRow({
             />
             <button type="submit" className="inline-flex min-h-11 min-w-11 items-center justify-center text-xs font-medium text-accent hover:underline">{m.ae_savePrice}</button>
             <button type="button" onClick={() => setEditing(false)} className="inline-flex min-h-11 min-w-11 items-center justify-center text-xs text-muted hover:text-text">{m.ae_cancel}</button>
-          </form>
+          </ActionForm>
         ) : (
           <div className="flex flex-col gap-0.5">
             <div className="flex items-center gap-2">
@@ -564,7 +578,7 @@ function ZoneRow({
                 {m.ae_editPrice}
               </button>
               {z.isOverride && (
-                <form action={resetAthleteZonePrice} className="inline">
+                <ActionForm m={m} action={resetAthleteZonePrice} className="inline">
                   <input type="hidden" name="athlete_id" value={athleteId} />
                   <input type="hidden" name="zone_id" value={z.zoneId} />
                   <ConfirmButton
@@ -573,7 +587,7 @@ function ZoneRow({
                   >
                     {m.ae_resetPrice}
                   </ConfirmButton>
-                </form>
+                </ActionForm>
               )}
             </div>
             {z.isOverride && (
@@ -587,11 +601,11 @@ function ZoneRow({
 
       {/* Offered / Exclusive / Status / Save (active + exclusive only) */}
       <td className="td text-center">
-        <form id={formId} action={upsertAthleteZone}>
+        <ActionForm m={m} id={formId} action={upsertAthleteZone}>
           <input type="hidden" name="athlete_id" value={athleteId} />
           <input type="hidden" name="zone_id" value={z.zoneId} />
           {isTaken && <input type="hidden" name="active" value="on" />}
-        </form>
+        </ActionForm>
         {isTaken ? (
           <span className="text-xs text-amber" title={m.ae_zoneTakenNote}>🔒</span>
         ) : (

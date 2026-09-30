@@ -5,6 +5,7 @@ import { getMessages } from "@/lib/i18n-server";
 import { tNotif } from "@/lib/i18n";
 import { SectionCard } from "@/components/ui";
 import { updateSettings, updateNotifications } from "@/app/admin/actions";
+import { ActionForm } from "@/components/ActionForm";
 
 export const dynamic = "force-dynamic";
 
@@ -30,7 +31,7 @@ export default async function PengaturanPage() {
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <SectionCard title={m.set_profile}>
-          <form action={updateSettings} className="space-y-3">
+          <ActionForm m={m} action={updateSettings} className="space-y-3">
             <div>
               <label className="mb-1 block text-xs text-faint">{m.set_name}</label>
               <input name="nama" defaultValue={settings.nama} disabled={!canManage} className="input" />
@@ -44,11 +45,11 @@ export default async function PengaturanPage() {
               <input name="timezone" defaultValue={settings.timezone} disabled={!canManage} className="input" />
             </div>
             {canManage && <button className="btn btn-primary" type="submit">{m.set_saveProfile}</button>}
-          </form>
+          </ActionForm>
         </SectionCard>
 
         <SectionCard title={m.set_notifications}>
-          <form action={updateNotifications} className="space-y-1">
+          <ActionForm m={m} action={updateNotifications} className="space-y-1">
             {notifKeys.map((key) => (
               <label key={key} className="flex items-center justify-between gap-3 rounded-lg px-2 py-2.5 hover:bg-surface-2">
                 <span className="text-sm text-text">{tNotif(m, key)}</span>
@@ -66,7 +67,7 @@ export default async function PengaturanPage() {
                 <button className="btn btn-primary" type="submit">{m.set_saveNotifications}</button>
               </div>
             )}
-          </form>
+          </ActionForm>
         </SectionCard>
       </div>
     </div>

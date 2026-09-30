@@ -1,6 +1,7 @@
 "use client";
 
 import { issueDraftUploads } from "@/app/atlet/[id]/media-actions";
+import { ActionFailure, unwrap } from "@/lib/action-result";
 import { loadImage, measureFrame, normalizeToSet, setReference, type Foot } from "@/lib/media360";
 
 /** Downscale a blob so cutout inference is fast and uploads stay small. */
@@ -145,14 +146,14 @@ export async function uploadDraftBlobs(
   blobs: Blob[],
   onProgress?: (done: number) => void,
 ): Promise<string[]> {
-  const slots = await issueDraftUploads(athleteId, blobs.map((b, i) => `f${i}.${extOf(b)}`));
+  const { slots } = unwrap(await issueDraftUploads(athleteId, blobs.map((b, i) => `f${i}.${extOf(b)}`)));
   for (let i = 0; i < blobs.length; i++) {
     const res = await fetch(slots[i].uploadUrl, {
       method: "PUT",
       headers: { "content-type": blobs[i].type || "application/octet-stream", "x-upsert": "true" },
       body: blobs[i],
     });
-    if (!res.ok) throw new Error(`Upload gagal (HTTP ${res.status}) pada frame ${i + 1}.`);
+    if (!res.ok) throw new ActionFailure("upload_failed");
     onProgress?.(i + 1);
   }
   return slots.map((s) => s.file);

@@ -9,6 +9,7 @@ import { formatIDRCompact, formatNumber } from "@/lib/format";
 import { Badge, Avatar, EmptyState } from "@/components/ui";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { createBrand, setBrandStatus } from "@/app/admin/actions";
+import { ActionForm } from "@/components/ActionForm";
 
 export function BrandsClient({
   brands,
@@ -48,7 +49,7 @@ export function BrandsClient({
       </div>
 
       {showAdd && canEdit && (
-        <form action={createBrand} className="card grid grid-cols-1 gap-3 p-4 sm:grid-cols-3">
+        <ActionForm m={m} action={createBrand} className="card grid grid-cols-1 gap-3 p-4 sm:grid-cols-3">
           <input name="nama" required placeholder={m.br_formName} className="input" />
           <input name="kategori" required placeholder={m.br_category} className="input" />
           <select name="status" className="input" defaultValue="active">
@@ -58,7 +59,7 @@ export function BrandsClient({
           <div className="sm:col-span-3">
             <button className="btn btn-primary" type="submit">{m.br_formSave}</button>
           </div>
-        </form>
+        </ActionForm>
       )}
 
       {brands.length === 0 ? (
@@ -118,7 +119,7 @@ export function BrandsClient({
                   <td className="td"><Badge tone={ACTIVE_STATUS[b.status].tone}>{tActive(m, b.status)}</Badge></td>
                   {canToggle && (
                     <td className="td text-right">
-                      <form action={setBrandStatus} className="inline">
+                      <ActionForm m={m} action={setBrandStatus} className="inline">
                         <input type="hidden" name="id" value={b.id} />
                         <input type="hidden" name="status" value={next} />
                         <ConfirmButton
@@ -130,7 +131,7 @@ export function BrandsClient({
                         >
                           {next === "inactive" ? m.deactivate : m.activate}
                         </ConfirmButton>
-                      </form>
+                      </ActionForm>
                     </td>
                   )}
                 </tr>

@@ -9,6 +9,7 @@ import { formatIDR, formatNumber } from "@/lib/format";
 import { Badge } from "@/components/ui";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { updateZonePrice, setZoneActive } from "@/app/admin/actions";
+import { ActionForm } from "@/components/ActionForm";
 
 export function ZonesClient({
   zones,
@@ -56,7 +57,7 @@ export function ZonesClient({
                 <td className="td font-medium">{z.nama}</td>
                 <td className="td text-right">
                   {edit && canPricing ? (
-                    <form action={updateZonePrice} className="flex items-center justify-end gap-2">
+                    <ActionForm m={m} action={updateZonePrice} className="flex items-center justify-end gap-2">
                       <input type="hidden" name="id" value={z.id} />
                       <input
                         type="number"
@@ -67,7 +68,7 @@ export function ZonesClient({
                         className="input w-36 text-right tabnum"
                       />
                       <button className="btn btn-primary px-3 py-1.5 text-xs" type="submit">{m.save}</button>
-                    </form>
+                    </ActionForm>
                   ) : (
                     <span className="tabnum">{formatIDR(z.basePrice)}</span>
                   )}
@@ -77,7 +78,7 @@ export function ZonesClient({
                 <td className="td"><Badge tone={z.active ? ZONE_STATUS.available.tone : ZONE_STATUS.inactive.tone}>{tZoneStatus(m, z.active)}</Badge></td>
                 {canPricing && (
                   <td className="td text-right">
-                    <form action={setZoneActive} className="inline">
+                    <ActionForm m={m} action={setZoneActive} className="inline">
                       <input type="hidden" name="id" value={z.id} />
                       <input type="hidden" name="active" value={z.active ? "false" : "true"} />
                       <ConfirmButton
@@ -90,7 +91,7 @@ export function ZonesClient({
                       >
                         {z.active ? m.deactivate : m.activate}
                       </ConfirmButton>
-                    </form>
+                    </ActionForm>
                   </td>
                 )}
               </tr>

@@ -4,7 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { UploadCloud, Check, RotateCw, X } from "lucide-react";
 import { SPONSOR_360_UPLOAD } from "@/lib/config";
-import { type Dict, fmt } from "@/lib/i18n";
+import { type Dict, fmt, errorMessage } from "@/lib/i18n";
+import { unwrap } from "@/lib/action-result";
 import { saveDraft } from "@/app/atlet/[id]/media-actions";
 import { loadBackgroundRemover, normalizeBlobs, preparePhoto, uploadDraftBlobs } from "@/lib/media360-upload";
 import type { FrameMetaMap } from "@/lib/media360";
@@ -135,18 +136,18 @@ export function Athlete360Admin({
       names.forEach((f, i) => {
         if (feet[i]) meta[f] = { foot: feet[i]! };
       });
-      await saveDraft(athleteId, {
+      unwrap(await saveDraft(athleteId, {
         frames: names.map((file) => ({ file, base: null, origin: null })),
         meta,
         views: null,
         hotspots: [],
         note: "upload",
-      });
+      }));
       setPhase("done");
       setFiles([]);
       router.refresh();
     } catch (e) {
-      setError(e instanceof Error ? e.message : m.m360_err_generic);
+      setError(errorMessage(m, e));
       setPhase("error");
     }
   }

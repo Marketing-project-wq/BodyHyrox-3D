@@ -5,6 +5,7 @@ export type Locale = "en" | "id";
 export const LOCALES: Locale[] = ["en", "id"];
 export const DEFAULT_LOCALE: Locale = "en";
 export const LOCALE_COOKIE = "smb_lang";
+import { ActionFailure, errorCodeOf } from "./action-result";
 
 const en = {
   // sidebar / nav
@@ -459,6 +460,9 @@ const en = {
   m360_zones_remove: "Remove marker",
   m360_zones_save: "Save markers",
   m360_zones_saved: "Markers saved ✓",
+  m360_views_savedDraft: "Sides saved to the draft ✓ — Publish in the studio to put them live.",
+  m360_zones_savedDraft: "Markers saved to the draft ✓ — Publish in the studio to put them live.",
+  m360_sides_pending: "Not published yet: these sides / markers are in the draft. They go live with Publish in the studio.",
   m360_zones_count: "{n} markers on this side",
   m360_zones_needViews: "Save the sides above first — markers follow the photo each side uses.",
   m360_processing: "Processing {done}/{total}…",
@@ -481,6 +485,7 @@ const en = {
   st_bundledNote: "These photos are currently served from the app bundle. The first publish copies them into Storage automatically (nothing changes visually).",
   st_countWarn: "The draft has {n} frames — it needs {min}–{max} before it can be published.",
   st_lostViews: "No frame is linked to: {views}. Pick the sides again after publishing (until then evenly spaced frames are used).",
+  st_lostDraftViews: "The draft's side(s) {views} point at a frame that is no longer in the draft. Pick them again in \"Viewer sides\" before publishing.",
   st_lostMarkers: "{n} zone marker(s) will be removed because their frame is no longer in the draft: {zones}. Use \"Replace this photo\" (not add + delete) to keep them.",
   st_relinked: "The new photo at position {n} took over this frame's sides and zone markers (the deleted photo is its backup).",
   st_resetNote: "This draft brings its own sides and zone markers (new upload or restored version) — check them after publishing.",
@@ -608,6 +613,34 @@ const en = {
   rq_confirmReject: "Reject this request from {company}?",
   rq_none: "No requests.",
   rq_note: "Note",
+  // Server action error codes (lib/action-result.ts)
+  err_unknown: "Something went wrong. Please try again.",
+  err_forbidden: "You don't have permission for this action.",
+  err_missing_input: "Some required information is missing.",
+  err_athlete_not_found: "Athlete not found.",
+  err_event_not_found: "Event not found.",
+  err_race_not_found: "Race entry not found.",
+  err_zone_not_found: "Zone not found.",
+  err_brand_not_found: "Brand not found.",
+  err_transaction_not_found: "Transaction not found.",
+  err_already_refunded: "This transaction was already refunded.",
+  err_zone_taken: "This zone is sponsored. Cancel or refund its transaction before turning it off.",
+  err_zone_not_athlete: "That zone doesn't belong to this athlete.",
+  err_zone_unavailable: "That zone is no longer available.",
+  err_request_not_found: "Request not found.",
+  err_request_not_pending: "This request was already reviewed.",
+  err_media_missing: "This athlete has no 360 media yet.",
+  err_draft_invalid: "The draft is not valid. Reload the page and try again.",
+  err_draft_too_large: "The draft is too large.",
+  err_frame_count: "Wrong number of frames (8–36 allowed).",
+  err_frame_name_invalid: "Invalid or duplicate frame name.",
+  err_frame_source_invalid: "Invalid frame source.",
+  err_frame_missing: "A frame file could not be found or copied. Try again.",
+  err_nothing_to_publish: "There are no changes to publish.",
+  err_version_not_found: "That version was not found.",
+  err_zones_invalid: "The zone points are not valid.",
+  err_views_invalid: "The viewer sides are not valid.",
+  err_upload_failed: "Upload failed. Check the connection and try again.",
 } as const;
 
 export type Dict = Record<keyof typeof en, string>;
@@ -1055,6 +1088,9 @@ const id: Dict = {
   m360_zones_remove: "Hapus titik",
   m360_zones_save: "Simpan titik",
   m360_zones_saved: "Titik tersimpan ✓",
+  m360_views_savedDraft: "Sisi tersimpan di draft ✓ — Publish di studio untuk menayangkan.",
+  m360_zones_savedDraft: "Titik tersimpan di draft ✓ — Publish di studio untuk menayangkan.",
+  m360_sides_pending: "Belum dipublish: sisi / titik ini ada di draft. Tayang setelah Publish di studio.",
   m360_zones_count: "{n} titik di sisi ini",
   m360_zones_needViews: "Simpan pilihan sisi di atas dulu — titik mengikuti foto yang dipakai tiap sisi.",
   m360_processing: "Memproses {done}/{total}…",
@@ -1077,6 +1113,7 @@ const id: Dict = {
   st_bundledNote: "Foto ini sekarang disajikan dari bundle aplikasi. Publish pertama otomatis menyalinnya ke Storage (tampilan tidak berubah).",
   st_countWarn: "Draft berisi {n} frame — perlu {min}–{max} frame sebelum bisa dipublish.",
   st_lostViews: "Tidak ada frame untuk: {views}. Pilih ulang sisi setelah publish (sementara dipakai frame berjarak rata).",
+  st_lostDraftViews: "Sisi {views} di draft menunjuk frame yang sudah tidak ada di draft. Pilih ulang di \"Sisi tampilan\" sebelum Publish.",
   st_lostMarkers: "{n} titik zona akan terhapus karena frame-nya sudah tidak ada di draft: {zones}. Pakai \"Ganti foto ini\" (bukan tambah + hapus) supaya titik tetap ada.",
   st_relinked: "Foto baru di posisi {n} mengambil alih sisi dan titik zona frame ini (foto yang dihapus jadi backup-nya).",
   st_resetNote: "Draft ini membawa pilihan sisi dan titik zona sendiri (upload baru atau versi yang dikembalikan) — cek lagi setelah publish.",
@@ -1204,6 +1241,34 @@ const id: Dict = {
   rq_confirmReject: "Tolak pengajuan dari {company} ini?",
   rq_none: "Belum ada pengajuan.",
   rq_note: "Catatan",
+  // Kode error server action (lib/action-result.ts)
+  err_unknown: "Terjadi kesalahan. Silakan coba lagi.",
+  err_forbidden: "Anda tidak memiliki izin untuk aksi ini.",
+  err_missing_input: "Ada data wajib yang belum diisi.",
+  err_athlete_not_found: "Atlet tidak ditemukan.",
+  err_event_not_found: "Event tidak ditemukan.",
+  err_race_not_found: "Data race tidak ditemukan.",
+  err_zone_not_found: "Zona tidak ditemukan.",
+  err_brand_not_found: "Brand tidak ditemukan.",
+  err_transaction_not_found: "Transaksi tidak ditemukan.",
+  err_already_refunded: "Transaksi ini sudah di-refund.",
+  err_zone_taken: "Zona sudah terisi sponsor. Batalkan/refund transaksinya dulu sebelum menonaktifkan.",
+  err_zone_not_athlete: "Zona itu bukan milik atlet ini.",
+  err_zone_unavailable: "Zona itu sudah tidak tersedia.",
+  err_request_not_found: "Pengajuan tidak ditemukan.",
+  err_request_not_pending: "Pengajuan ini sudah diproses.",
+  err_media_missing: "Atlet ini belum punya media 360.",
+  err_draft_invalid: "Draft tidak valid. Muat ulang halaman lalu coba lagi.",
+  err_draft_too_large: "Draft terlalu besar.",
+  err_frame_count: "Jumlah frame tidak sesuai (8–36).",
+  err_frame_name_invalid: "Nama frame tidak valid atau ganda.",
+  err_frame_source_invalid: "Sumber frame tidak valid.",
+  err_frame_missing: "Ada file frame yang tidak ditemukan atau gagal disalin. Coba lagi.",
+  err_nothing_to_publish: "Tidak ada perubahan untuk dipublish.",
+  err_version_not_found: "Versi tidak ditemukan.",
+  err_zones_invalid: "Titik zona tidak valid.",
+  err_views_invalid: "Sisi viewer tidak valid.",
+  err_upload_failed: "Upload gagal. Periksa koneksi lalu coba lagi.",
 };
 
 export const messages: Record<Locale, Dict> = { en, id };
@@ -1213,6 +1278,23 @@ export function getDict(locale: Locale): Dict {
 }
 
 /** Simple {placeholder} interpolation. */
+/**
+ * Text for anything caught on the client: a server action failure code is
+ * translated; a client-side error that already carries a translated message
+ * (e.g. m360_err_module) keeps it; anything else gets the generic message.
+ */
+export function errorMessage(m: Dict, e: unknown): string {
+  const code = errorCodeOf(e);
+  if (code !== "unknown" || e instanceof ActionFailure) return errorText(m, code);
+  return e instanceof Error && e.message ? e.message : errorText(m, "unknown");
+}
+
+/** Translated text for a server action error code. */
+export function errorText(m: Dict, code: unknown): string {
+  const key = `err_${typeof code === "string" ? code : "unknown"}` as keyof Dict;
+  return (m[key] as string | undefined) ?? m.err_unknown;
+}
+
 export function fmt(tpl: string, vars: Record<string, string | number>): string {
   return tpl.replace(/\{(\w+)\}/g, (_, k) => (vars[k] != null ? String(vars[k]) : `{${k}}`));
 }
