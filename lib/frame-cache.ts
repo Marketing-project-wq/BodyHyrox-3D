@@ -7,7 +7,7 @@ import { VIEWER_SPIN } from "@/lib/config";
  *
  * Every frame is downloaded once and kept COMPRESSED (a Blob, ~30–80 KB).
  * Only a few are decoded at a time: an ImageBitmap LRU capped per device
- * class (VIEWER_SPIN.cacheFrames), decoded at the size the canvas draws them
+ * class (VIEWER_SPIN.cacheFrames, see cacheLimit), decoded at the size the canvas draws them
  * (never above the file's own size), and closed when evicted. So memory stays
  * bounded however many frames a set has (iOS Safari reloads tabs that decode
  * too many full-size images).
@@ -18,14 +18,32 @@ import { VIEWER_SPIN } from "@/lib/config";
 
 export type DeviceClass = "phone" | "tablet" | "desktop";
 
+/** navigator.deviceMemory in GB (Chromium only); undefined where unknown. */
+function deviceMemory(): number | undefined {
+  if (typeof navigator === "undefined") return undefined;
+  const mem = (navigator as Navigator & { deviceMemory?: number }).deviceMemory;
+  return typeof mem === "number" && mem > 0 ? mem : undefined;
+}
+
 export function deviceClass(): DeviceClass {
   if (typeof window === "undefined") return "desktop";
-  const mem = (navigator as Navigator & { deviceMemory?: number }).deviceMemory;
+  const mem = deviceMemory();
   const short = Math.min(window.screen.width, window.screen.height);
   const coarse = window.matchMedia("(pointer: coarse)").matches;
-  if ((mem != null && mem <= 2) || short < 600) return "phone";
+  if ((mem != null && mem <= VIEWER_SPIN.lowMemoryGb) || short < 600) return "phone";
   if (coarse) return "tablet";
   return "desktop";
+}
+
+/**
+ * Decoded-frame limit for this device: the low-memory value when the browser
+ * reports deviceMemory ≤ lowMemoryGb, else the device-class value (also when
+ * deviceMemory is unknown, e.g. Safari on iPhone).
+ */
+export function cacheLimit(): number {
+  const mem = deviceMemory();
+  if (mem != null && mem <= VIEWER_SPIN.lowMemoryGb) return VIEWER_SPIN.cacheFrames.lowMemory;
+  return VIEWER_SPIN.cacheFrames[deviceClass()];
 }
 
 type Source = Blob | HTMLImageElement;
@@ -44,7 +62,7 @@ export class FrameCache {
 
   constructor(private urls: string[], limit?: number) {
     this.sources = new Array(urls.length).fill(undefined);
-    this.limit = limit ?? VIEWER_SPIN.cacheFrames[deviceClass()];
+    this.limit = limit ?? cacheLimit();
   }
 
   /** Download the frames in this order (a few at a time); onLoaded fires per frame. */

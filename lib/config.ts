@@ -221,7 +221,11 @@ export const VIEWER_VIEWS = {
  * - sideReadoutDeg: the readout names the side within this many degrees.
  * - maxDpr: canvas resolution cap (device px per CSS px).
  * - cacheFrames: decoded frames kept in memory (ImageBitmap LRU) per device
- *   class; everything else stays compressed (Blob).
+ *   class; everything else stays compressed (Blob). phone 24 holds a whole
+ *   24-frame set (~42 MB at 390×844, DPR 3), so auto-rotate stops decoding
+ *   after one turn. lowMemory applies on any device reporting
+ *   navigator.deviceMemory ≤ lowMemoryGb; where deviceMemory is unknown
+ *   (Safari, Firefox) the device-class value is used.
  * - loadConcurrency: frames downloaded at once (the 4 sides first, then the
  *   others spread evenly around the turn).
  * - prefetch: frames decoded on each side while at rest; while turning,
@@ -239,7 +243,8 @@ export const VIEWER_SPIN = {
   markerWindowDeg: 15,
   sideReadoutDeg: 10,
   maxDpr: 2,
-  cacheFrames: { phone: 12, tablet: 16, desktop: 32 },
+  cacheFrames: { phone: 24, tablet: 16, desktop: 32, lowMemory: 12 },
+  lowMemoryGb: 2,
   loadConcurrency: 3,
   prefetch: 3,
   prefetchAhead: 6,
