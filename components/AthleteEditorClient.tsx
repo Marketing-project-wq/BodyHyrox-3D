@@ -5,12 +5,13 @@ import { useFormStatus } from "react-dom";
 import Link from "next/link";
 import { ArrowLeft, Trophy, Trash2, Plus } from "lucide-react";
 import type { AdminAthleteDetail, AdminZoneRow, EventRow, ZoneStatus } from "@/lib/data";
-import { ACTIVE_STATUS, type BadgeTone } from "@/lib/config";
+import { ACTIVE_STATUS, VIDEO_360, type BadgeTone } from "@/lib/config";
 import { type Dict, fmt, tActive } from "@/lib/i18n";
 import { formatIDR, formatIDRCompact, formatDayMonth, initials } from "@/lib/format";
 import { Badge } from "@/components/ui";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { Athlete360Admin } from "@/components/Athlete360Admin";
+import { Athlete360VideoAdmin } from "@/components/Athlete360VideoAdmin";
 import { AthleteViewsPicker } from "@/components/AthleteViewsPicker";
 import { sidesSource } from "@/lib/media360-sides";
 import { resolveViews } from "@/lib/views";
@@ -309,8 +310,11 @@ export function AthleteEditorClient({
           </ActionForm>
         </section>
 
-        {/* ---------- 360° photos (admin upload) ---------- */}
-        {canEdit && (
+        {/* ---------- 360° set (admin upload: one video, or photos) ---------- */}
+        {canEdit && VIDEO_360.source === "video" && (
+          <Athlete360VideoAdmin athleteId={athlete.id} currentFrames={media360.frames} hasDraft={!!media360.draft} m={m} />
+        )}
+        {canEdit && VIDEO_360.source !== "video" && (
           <Athlete360Admin
             athleteId={athlete.id}
             currentFrames={media360.frames}
@@ -335,6 +339,7 @@ export function AthleteEditorClient({
             version={media360.version}
             publishedAt={media360.publishedAt}
             history={media360.history}
+            frameTools={VIDEO_360.source !== "video"}
             m={m}
           />
         )}

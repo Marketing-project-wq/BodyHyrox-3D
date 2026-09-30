@@ -356,6 +356,43 @@ export const SET_NORMALIZE = {
 } as const;
 
 /**
+ * 360 set from ONE video (admin). The video never leaves the browser: it is
+ * sampled into `frames` photos evenly spaced along the turn (holds and
+ * duplicate frames skipped), cut out, fitted onto the standard canvas with
+ * one transform for the whole set (no per-frame jitter) and saved to the
+ * draft like a bulk photo upload.
+ * - source: "video" shows the video upload (and a compact studio without
+ *   the frame grid); "photos" brings back the photo upload + frame grid.
+ * - canvas / fit: the standard frame (476x1120) with the head and ground
+ *   lines and centre of the current sets (fractions of the canvas).
+ * - analysisFps / maxSamples: how densely the turn is measured.
+ * - thumbW: width of the small thumbnails the turn is measured on (px).
+ * - holdRelative: a change smaller than this share of the typical change
+ *   between samples counts as standing still (adds no angle).
+ * - background: colour distance (sum of RGB) from the corner colour above
+ *   which a pixel belongs to the athlete (plain background needed).
+ * - shoulderBand: rows (fraction of the body height from the head) whose
+ *   silhouette width marks the side profiles: narrowest = 90° / 270°.
+ * - profileDepth: a profile must be at most this share of the widest view.
+ */
+export const VIDEO_360 = {
+  source: "video" as "video" | "photos",
+  frames: 24,
+  maxFileMB: 200,
+  maxDurationSec: 60,
+  acceptMime: ["video/mp4", "video/quicktime", "video/webm"] as const,
+  canvas: { w: 476, h: 1120 },
+  fit: { top: 0.066, toe: 0.964, cx: 0.5 },
+  analysisFps: 30,
+  maxSamples: 360,
+  thumbW: 96,
+  holdRelative: 0.3,
+  background: 60,
+  shoulderBand: [0.18, 0.3] as const,
+  profileDepth: 0.8,
+};
+
+/**
  * Ambient motion of the neon stage (durations in seconds, intensity 0..1).
  * Kept slow/subtle ("halus & elegan"); all animation is CSS and is disabled
  * under `prefers-reduced-motion`. Exposed as CSS variables by <AthleteStage>

@@ -152,9 +152,15 @@ export async function saveDraft(athleteId: string, draft: Media360Draft): Promis
       .maybeSingle<{ draft: Media360Draft | null }>();
     if (sErr) throw new Error(sErr.message);
     const keep = stored?.draft ?? null;
-    if (keep && keep.views !== undefined) d.views = keep.views;
-    if (keep && keep.hotspots !== undefined) d.hotspots = keep.hotspots;
-    followReplacedFrames(d);
+    // A brand-new set (bulk photo or video upload: only new draft files, none
+    // of them in the stored draft) brings its own sides and markers.
+    const keptFiles = new Set((keep?.frames ?? []).map((f) => f.file));
+    const fresh = d.frames.every((f) => f.base === null && f.origin === null && !keptFiles.has(f.file));
+    if (!fresh) {
+      if (keep && keep.views !== undefined) d.views = keep.views;
+      if (keep && keep.hotspots !== undefined) d.hotspots = keep.hotspots;
+      followReplacedFrames(d);
+    }
     const { error } = await db().rpc("smb_save_athlete_media_draft", {
       p_athlete_id: athleteId,
       p_draft: d,
