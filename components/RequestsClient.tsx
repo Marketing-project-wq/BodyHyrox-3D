@@ -8,6 +8,7 @@ import { formatIDR, formatNumber, formatDayMonth } from "@/lib/format";
 import { Badge } from "@/components/ui";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { reviewRequest } from "@/app/admin/actions";
+import { ActionForm } from "@/components/ActionForm";
 
 const TONE: Record<RequestStatus, BadgeTone> = {
   pending: "amber",
@@ -100,7 +101,7 @@ export function RequestsClient({
                     <td className="td text-right">
                       {r.status === "pending" ? (
                         <div className="flex justify-end gap-3">
-                          <form action={reviewRequest} className="inline">
+                          <ActionForm m={m} action={reviewRequest} className="inline">
                             <input type="hidden" name="id" value={r.id} />
                             <input type="hidden" name="action" value="approve" />
                             <ConfirmButton
@@ -113,8 +114,8 @@ export function RequestsClient({
                             >
                               {m.rq_approve}
                             </ConfirmButton>
-                          </form>
-                          <form action={reviewRequest} className="inline">
+                          </ActionForm>
+                          <ActionForm m={m} action={reviewRequest} className="inline">
                             <input type="hidden" name="id" value={r.id} />
                             <input type="hidden" name="action" value="reject" />
                             <ConfirmButton
@@ -123,7 +124,7 @@ export function RequestsClient({
                             >
                               {m.rq_reject}
                             </ConfirmButton>
-                          </form>
+                          </ActionForm>
                         </div>
                       ) : (
                         <span className="text-xs text-faint">—</span>

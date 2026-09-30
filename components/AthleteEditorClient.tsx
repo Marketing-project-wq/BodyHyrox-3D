@@ -25,6 +25,7 @@ import {
   addAthleteRace,
   deleteAthleteRace,
 } from "@/app/admin/actions";
+import { ActionForm } from "@/components/ActionForm";
 
 const ZONE_TONE: Record<ZoneStatus, BadgeTone> = {
   tersedia: "green",
@@ -115,7 +116,7 @@ export function AthleteEditorClient({
               </span>
             )}
           </div>
-          <form action={updateAthlete} className="flex flex-col gap-4 sm:flex-row">
+          <ActionForm m={m} action={updateAthlete} className="flex flex-col gap-4 sm:flex-row">
             <input type="hidden" name="id" value={athlete.id} />
             {/* Photo preview */}
             <div className="flex shrink-0 flex-col items-center gap-2">
@@ -293,7 +294,7 @@ export function AthleteEditorClient({
                 </div>
               )}
             </div>
-          </form>
+          </ActionForm>
         </section>
 
         {/* ---------- 360° photos (admin upload) ---------- */}
@@ -406,7 +407,7 @@ export function AthleteEditorClient({
                 {m.ae_noEvents}
               </p>
             ) : (
-              <form
+              <ActionForm m={m}
                 action={addAthleteRace}
                 className="mb-4 grid grid-cols-1 gap-2 rounded-lg border border-border bg-surface-2 p-3 sm:grid-cols-[1fr_120px_auto_auto]"
               >
@@ -434,7 +435,7 @@ export function AthleteEditorClient({
                 <button type="submit" className="btn btn-primary whitespace-nowrap">
                   <Plus size={16} /> {m.ae_addRace}
                 </button>
-              </form>
+              </ActionForm>
             )
           )}
 
@@ -462,7 +463,7 @@ export function AthleteEditorClient({
                     </div>
                   </div>
                   {canEdit && (
-                    <form action={deleteAthleteRace} className="shrink-0">
+                    <ActionForm m={m} action={deleteAthleteRace} className="shrink-0">
                       <input type="hidden" name="id" value={r.id} />
                       <input type="hidden" name="athlete_id" value={athlete.id} />
                       <ConfirmButton
@@ -471,7 +472,7 @@ export function AthleteEditorClient({
                       >
                         <Trash2 size={13} /> {m.ae_removeRace}
                       </ConfirmButton>
-                    </form>
+                    </ActionForm>
                   )}
                 </li>
               ))}
@@ -538,7 +539,7 @@ function ZoneRow({
       {/* Effective price + source, with edit / reset */}
       <td className="td">
         {editing ? (
-          <form action={setAthleteZonePrice} className="flex flex-wrap items-center gap-2">
+          <ActionForm m={m} action={setAthleteZonePrice} className="flex flex-wrap items-center gap-2">
             <input type="hidden" name="athlete_id" value={athleteId} />
             <input type="hidden" name="zone_id" value={z.zoneId} />
             <input
@@ -552,7 +553,7 @@ function ZoneRow({
             />
             <button type="submit" className="inline-flex min-h-11 min-w-11 items-center justify-center text-xs font-medium text-accent hover:underline">{m.ae_savePrice}</button>
             <button type="button" onClick={() => setEditing(false)} className="inline-flex min-h-11 min-w-11 items-center justify-center text-xs text-muted hover:text-text">{m.ae_cancel}</button>
-          </form>
+          </ActionForm>
         ) : (
           <div className="flex flex-col gap-0.5">
             <div className="flex items-center gap-2">
@@ -564,7 +565,7 @@ function ZoneRow({
                 {m.ae_editPrice}
               </button>
               {z.isOverride && (
-                <form action={resetAthleteZonePrice} className="inline">
+                <ActionForm m={m} action={resetAthleteZonePrice} className="inline">
                   <input type="hidden" name="athlete_id" value={athleteId} />
                   <input type="hidden" name="zone_id" value={z.zoneId} />
                   <ConfirmButton
@@ -573,7 +574,7 @@ function ZoneRow({
                   >
                     {m.ae_resetPrice}
                   </ConfirmButton>
-                </form>
+                </ActionForm>
               )}
             </div>
             {z.isOverride && (
@@ -587,11 +588,11 @@ function ZoneRow({
 
       {/* Offered / Exclusive / Status / Save (active + exclusive only) */}
       <td className="td text-center">
-        <form id={formId} action={upsertAthleteZone}>
+        <ActionForm m={m} id={formId} action={upsertAthleteZone}>
           <input type="hidden" name="athlete_id" value={athleteId} />
           <input type="hidden" name="zone_id" value={z.zoneId} />
           {isTaken && <input type="hidden" name="active" value="on" />}
-        </form>
+        </ActionForm>
         {isTaken ? (
           <span className="text-xs text-amber" title={m.ae_zoneTakenNote}>🔒</span>
         ) : (

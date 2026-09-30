@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import { Check, RotateCw, X } from "lucide-react";
 import { VIEW_KEYS, type HotspotInput, type Media360Views } from "@/lib/views";
 import type { AdminZoneRow } from "@/lib/data";
-import { type Dict, fmt } from "@/lib/i18n";
+import { type Dict, fmt, errorMessage } from "@/lib/i18n";
+import { unwrap } from "@/lib/action-result";
 import { setMediaHotspots } from "@/app/atlet/[id]/media-actions";
 
 type Point = { x: number; y: number };
@@ -87,11 +88,11 @@ export function AthleteZonesPlacer({
       .map(([athleteZoneId, p]) => ({ athleteZoneId, label: zoneName(athleteZoneId), points: p }));
     start(async () => {
       try {
-        await setMediaHotspots(athleteId, payload);
+        unwrap(await setMediaHotspots(athleteId, payload));
         setOk(true);
         router.refresh();
       } catch (err) {
-        setError(err instanceof Error ? err.message : String(err));
+        setError(errorMessage(m, err));
       }
     });
   };

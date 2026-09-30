@@ -7,6 +7,7 @@ import { type Dict, type Locale } from "@/lib/i18n";
 import { formatNumber } from "@/lib/format";
 import { Badge, EmptyState } from "@/components/ui";
 import { createEvent } from "@/app/admin/actions";
+import { ActionForm } from "@/components/ActionForm";
 
 export function EventsClient({
   events,
@@ -36,7 +37,7 @@ export function EventsClient({
       </div>
 
       {showAdd && canManage && (
-        <form action={createEvent} className="card grid grid-cols-1 gap-3 p-4 sm:grid-cols-2">
+        <ActionForm m={m} action={createEvent} className="card grid grid-cols-1 gap-3 p-4 sm:grid-cols-2">
           <input name="nama" required placeholder={m.ev_formName} className="input" />
           <input name="venue" required placeholder={m.ev_formVenue} className="input" />
           <input name="event_date" required type="date" className="input" />
@@ -47,7 +48,7 @@ export function EventsClient({
           <div className="sm:col-span-2">
             <button className="btn btn-primary" type="submit">{m.ev_formSave}</button>
           </div>
-        </form>
+        </ActionForm>
       )}
 
       {events.length === 0 ? (
