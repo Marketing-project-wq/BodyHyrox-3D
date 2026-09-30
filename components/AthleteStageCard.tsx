@@ -93,8 +93,9 @@ export function AthleteStageCard({
   const tweenRef = useRef<{ from: number; to: number; t0: number; dur: number; frames: number; toSide: boolean } | null>(null);
   const dragRef = useRef<{ base: number; angle: number } | null>(null);
   const inertiaRef = useRef(0); // deg/s after a released drag (0 = none)
-  // Visitor's Play/Pause: the auto-rotation runs only on Play. Any manual turn
-  // (drag, tab, arrow, key, wheel, tap) switches to Pause.
+  // Visitor's Play/Pause: the auto-rotation runs only on Play. A manual turn
+  // (drag, tab, arrow, key, wheel, tap) only holds it: the spin comes back by
+  // itself VIEWER_SPIN.manualResumeMs after the turn ends. Only Pause stops it.
   const [playing, setPlayingState] = useState(true);
   const playingRef = useRef(true);
   const degRef = useRef<HTMLDivElement>(null);
@@ -111,6 +112,8 @@ export function AthleteStageCard({
   const qualityRef = useRef({ t0: 0, frames: 0, level: 0, slow: 0 }); // level 0 full, 1 dpr 1, 2 half rate
   const clockStartRef = useRef(0); // when the stage started (quality warm-up)
   const frameParityRef = useRef(0);
+  const manualTurnRef = useRef(false); // a drag / inertia / tween was running last frame
+  const releaseManualRef = useRef<() => void>(() => {}); // schedules the resume after a manual turn
 
   const settleView = useCallback((deg: number) => {
     const v = ((Math.round(deg / 90) % 4) + 4) % 4;
@@ -239,7 +242,13 @@ export function AthleteStageCard({
         qualityRef.current.frames = 0;
       }
 
-      const busy = !!dragRef.current || !!tweenRef.current || !!inertiaRef.current || f > 0 || want > 0;
+      // A manual turn just ended (finger up and inertia / tween done): the
+      // spin comes back a little later.
+      const manualTurn = !!dragRef.current || !!tweenRef.current || !!inertiaRef.current;
+      if (manualTurnRef.current && !manualTurn) releaseManualRef.current();
+      manualTurnRef.current = manualTurn;
+
+      const busy = manualTurn || f > 0 || want > 0;
       rafRef.current = busy ? requestAnimationFrame(tick) : null;
     },
     [checkTurnFps, disableArena],
@@ -293,6 +302,8 @@ export function AthleteStageCard({
     [resume],
   );
 
+  releaseManualRef.current = () => resumeLater("manual", VIEWER_SPIN.manualResumeMs);
+
   useEffect(
     () => () => {
       if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
@@ -331,13 +342,19 @@ export function AthleteStageCard({
     return () => clearTimeout(t);
   }, [photosReady, arenaWanted, arenaOn, resume]);
 
-  // Play / Pause. Pause stops right away when the visitor turned the athlete
-  // (so it stays exactly where they left it); the button eases it out.
+  // Play / Pause (the button eases the spin in / out). Play also ends a
+  // manual-turn hold at once.
   const setPlaying = useCallback(
     (p: boolean, now = false) => {
       playingRef.current = p;
       setPlayingState(p);
       if (!p && now) autoFactorRef.current = 0;
+      if (p) {
+        const t = resumeTimersRef.current.get("manual");
+        if (t) clearTimeout(t);
+        resumeTimersRef.current.delete("manual");
+        pausesRef.current.delete("manual");
+      }
       ensureLoop();
     },
     [ensureLoop],
@@ -347,11 +364,13 @@ export function AthleteStageCard({
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) setPlaying(false, true);
   }, [setPlaying]);
   const togglePlay = useCallback(() => setPlaying(!playingRef.current), [setPlaying]);
-  // A manual turn: Pause at once and drop any running inertia.
+  // A manual turn: hold the spin at once (so the athlete stays exactly where
+  // the visitor puts it) and drop any running inertia. Play/Pause is left
+  // as it is; the hold ends manualResumeMs after the turn ends.
   const takeOver = useCallback(() => {
-    setPlaying(false, true);
+    holdNow("manual");
     inertiaRef.current = 0;
-  }, [setPlaying]);
+  }, [holdNow]);
 
   const combined = () => autoAngleRef.current + viewAngleRef.current;
   // Where the athlete is heading (end of a running turn) or is.
@@ -417,6 +436,7 @@ export function AthleteStageCard({
       takeOver();
       tweenRef.current = null;
       viewAngleRef.current -= dx * VIEWER_SPIN.wheelDegPerPx;
+      releaseManualRef.current(); // each wheel event restarts the delay
       ensureLoop();
     },
     [takeOver, ensureLoop],
@@ -429,8 +449,11 @@ export function AthleteStageCard({
     },
     [holdNow, resumeLater],
   );
-  // A tap / click on the athlete (not a drag): Pause where it is.
-  const onTap = useCallback(() => takeOver(), [takeOver]);
+  // A tap / click on the athlete (not a drag): hold it where it is for a moment.
+  const onTap = useCallback(() => {
+    takeOver();
+    if (!manualTurnRef.current) releaseManualRef.current();
+  }, [takeOver]);
   // A zone card is open (touch): no spin until it closes.
   const onZoneCardChange = useCallback(
     (open: boolean) => {
@@ -444,7 +467,7 @@ export function AthleteStageCard({
   const onFocusChange = useCallback(() => {}, []);
   // Drag: the angle follows the finger / pointer (right = toward Kanan); on
   // release it keeps turning a little and slows down (inertia), then stays
-  // exactly there: no snapping to a side, and Pause.
+  // exactly there (no snapping to a side) until the spin comes back.
   const onDragStart = useCallback(() => {
     takeOver();
     tweenRef.current = null;

@@ -231,6 +231,10 @@ export const VIEWER_VIEWS = {
  * - prefetch: frames decoded on each side while at rest; while turning,
  *   `prefetchAhead` in the direction of the turn and 1 behind.
  * - fastTurn*: see below.
+ * - manualResumeMs: after a manual turn ends (finger up, inertia and tween
+ *   done, last wheel / tap) the auto-rotation comes back by itself this much
+ *   later, easing in. Hover and an open zone card hold it longer; only the
+ *   visitor's Pause stops it.
  */
 export const VIEWER_SPIN = {
   crossfadeShare: 0.5,
@@ -245,6 +249,7 @@ export const VIEWER_SPIN = {
   maxDpr: 2,
   cacheFrames: { phone: 24, tablet: 16, desktop: 32, lowMemory: 12 },
   lowMemoryGb: 2,
+  manualResumeMs: 3000,
   loadConcurrency: 3,
   prefetch: 3,
   prefetchAhead: 6,
@@ -308,8 +313,9 @@ export const STAGE_ARENA = {
    * athlete drifts to the right (camera orbits toward the athlete's right side),
    * -1 = the other way. Starts once the athlete photos and the arena are ready,
    * easing in/out over `autoRotateEaseMs`. Runs only while the visitor's
-   * Play/Pause is on Play (a drag, tab, arrow or key turns it to Pause);
-   * starts on Pause under prefers-reduced-motion. `autoRotateResumeMs`: after
+   * Play/Pause is on Play (a drag, tab, arrow, key, wheel or tap only holds
+   * it: see VIEWER_SPIN.manualResumeMs); starts on Pause under
+   * prefers-reduced-motion. `autoRotateResumeMs`: after
    * a zone card closes the spin (when on Play) resumes this much later.
    */
   autoRotateSecPerTurn: 36,
