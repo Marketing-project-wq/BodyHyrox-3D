@@ -3,11 +3,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { ChevronLeft, ChevronRight, RotateCcw } from "lucide-react";
+import { ChevronLeft, ChevronRight, Pause, Play, RotateCcw } from "lucide-react";
 import type { PublicAthleteDetail } from "@/lib/data";
-import { STAGE_ARENA, STAGE_READOUT, VIEWER_360, VIEWER_360_FRAME_CLASS, VIEWER_VIEWS, stageFitVars, viewer360FrameStyle } from "@/lib/config";
+import { STAGE_ARENA, STAGE_READOUT, VIEWER_360, VIEWER_360_FRAME_CLASS, VIEWER_SPIN, VIEWER_VIEWS, stageFitVars, viewer360FrameStyle } from "@/lib/config";
+import { decayVelocity, degreeLabel, nearestSide, nextSideTarget, sideTarget } from "@/lib/spin";
 import { VIEW_KEYS } from "@/lib/views";
-import { type Dict } from "@/lib/i18n";
+import { type Dict, fmt } from "@/lib/i18n";
 import { tGender } from "@/lib/i18n";
 import { initials } from "@/lib/format";
 import { AthleteViews, type AthleteViewsHandle } from "@/components/AthleteViews";
@@ -52,11 +53,10 @@ export function AthleteStageCard({
   const intl = locale === "id" ? "id-ID" : "en-US";
   const has360 = !!athlete.media360 && athlete.media360.frames.length > 0;
 
-  // Fixed 4-view viewer. `view` = index into VIEW_KEYS (0 Depan, 1 Kanan,
-  // 2 Belakang, 3 Kiri). The camera angle (3D arena + fallback ring ticks) is
-  // continuous: each step turns it ±90° so the stage turns the matching way,
-  // eased over the photo crossfade and written straight to the DOM/arena
-  // (no React re-render per animation frame).
+  // Free rotation. `view` = the side nearest to the current angle (index into
+  // VIEW_KEYS: 0 Depan, 1 Kanan, 2 Belakang, 3 Kiri) for the tabs, readout
+  // name and zone markers; the angle itself is continuous and written straight
+  // to the DOM/arena (no React re-render per animation frame).
   const viewNames = [m.view_front, m.view_right, m.view_back, m.view_left];
   const [view, setView] = useState(0);
   const viewRef = useRef(0);
@@ -66,10 +66,12 @@ export function AthleteStageCard({
   // ?debug=viewport: viewport / toolbar measuring overlay (both: debug=feet,viewport).
   const [debugFeet, setDebugFeet] = useState(false);
   const [debugViewport, setDebugViewport] = useState(false);
+  const [debugPerf, setDebugPerf] = useState(false);
   useEffect(() => {
     const debug = (new URLSearchParams(window.location.search).get("debug") ?? "").split(",");
     setDebugFeet(debug.includes("feet"));
     setDebugViewport(debug.includes("viewport"));
+    setDebugPerf(debug.includes("perf"));
   }, []);
   const platformRef = useRef<HTMLDivElement>(null);
   const figureRef = useRef<HTMLDivElement>(null);
@@ -87,9 +89,19 @@ export function AthleteStageCard({
   //   athlete photo          <- viewAngle   (stays on its view while idle)
   const viewsRef = useRef<AthleteViewsHandle>(null);
   const viewAngleRef = useRef(0); // painted view angle
-  const targetRef = useRef(0); // where the current view turn ends (multiple of 90)
-  const tweenRef = useRef<{ from: number; to: number; t0: number; dur: number; frames: number } | null>(null);
+  // A turn to a side (tab/arrow) or by a few degrees (key); `to` = view angle.
+  const tweenRef = useRef<{ from: number; to: number; t0: number; dur: number; frames: number; toSide: boolean } | null>(null);
   const dragRef = useRef<{ base: number; angle: number } | null>(null);
+  const inertiaRef = useRef(0); // deg/s after a released drag (0 = none)
+  // Visitor's Play/Pause: the auto-rotation runs only on Play. Any manual turn
+  // (drag, tab, arrow, key, wheel, tap) switches to Pause.
+  const [playing, setPlayingState] = useState(true);
+  const playingRef = useRef(true);
+  const degRef = useRef<HTMLDivElement>(null);
+  // Screen readers hear the side + degrees only when the athlete comes to rest.
+  const liveRef = useRef<HTMLSpanElement>(null);
+  const wasMovingRef = useRef(false);
+  const sideNameRef = useRef<HTMLDivElement>(null);
   const autoAngleRef = useRef(0);
   const autoFactorRef = useRef(0); // 0..1 eased speed factor
   const pausesRef = useRef(new Set<string>(["loading"]));
@@ -139,6 +151,10 @@ export function AthleteStageCard({
       if (dragRef.current) {
         viewAngleRef.current = dragRef.current.angle;
         moving = true;
+      } else if (inertiaRef.current) {
+        viewAngleRef.current += inertiaRef.current * dt;
+        inertiaRef.current = decayVelocity(inertiaRef.current, dt, VIEWER_SPIN.inertiaTauMs, VIEWER_SPIN.inertiaMinDegPerSec);
+        moving = true;
       } else if (tw) {
         const t = Math.min(1, (now - tw.t0) / tw.dur);
         const e = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2; // easeInOutCubic
@@ -151,9 +167,8 @@ export function AthleteStageCard({
         }
       }
 
-      // Auto-rotate: ease the speed factor toward 1 (running) or 0 (paused).
-      const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-      const want = !reduced && pausesRef.current.size === 0 ? 1 : 0;
+      // Auto-rotate (only on Play): ease the speed factor toward 1 or 0.
+      const want = playingRef.current && pausesRef.current.size === 0 ? 1 : 0;
       const tau = STAGE_ARENA.autoRotateEaseMs / 1000 / 3;
       let f = autoFactorRef.current + (want - autoFactorRef.current) * (1 - Math.exp(-dt / tau));
       if (Math.abs(want - f) < 0.002) f = want;
@@ -164,13 +179,20 @@ export function AthleteStageCard({
       const env = autoAngleRef.current + viewAngleRef.current;
       const turning = moving; // a view turn / swipe (not just the idle spin)
       moving = moving || f > 0.001;
-      // Tabs + readout follow the side the athlete is nearest to.
-      if (!dragRef.current && !tweenRef.current) {
-        const side = ((Math.round(env / 90) % 4) + 4) % 4;
-        if (side !== viewRef.current) {
-          viewRef.current = side;
-          setView(side);
-        }
+      // Tabs + readout follow the side the athlete is nearest to (a turn to
+      // a side shows its destination right away); the degrees are exact.
+      const near = nearestSide(env);
+      if (!tweenRef.current?.toSide && near.side !== viewRef.current) {
+        viewRef.current = near.side;
+        setView(near.side);
+      }
+      const deg = degRef.current;
+      const label = degreeLabel(env);
+      if (deg && deg.textContent !== label) deg.textContent = label;
+      const nameEl = sideNameRef.current;
+      if (nameEl) {
+        const op = near.off <= VIEWER_SPIN.sideReadoutDeg || tweenRef.current?.toSide ? "1" : "0.45";
+        if (nameEl.style.opacity !== op) nameEl.style.opacity = op;
       }
       ticksRef.current?.setAttribute("transform", `rotate(${(VIEWER_360.ringTurnDirection * env).toFixed(2)})`);
       const h = arenaHandle.current;
@@ -178,6 +200,8 @@ export function AthleteStageCard({
       const halfRate = qualityRef.current.level >= 2 && !moving;
       frameParityRef.current ^= 1;
       if (!halfRate || frameParityRef.current === 0) h.invalidate?.();
+      if (wasMovingRef.current && !moving && liveRef.current) liveRef.current.textContent = `${viewNames[near.side]}, ${label}`;
+      wasMovingRef.current = moving;
       const lv = lastViewPaintRef.current;
       if (!lv || lv.a !== env || lv.moving !== moving) {
         viewsRef.current?.render(env, moving, turning);
@@ -215,7 +239,7 @@ export function AthleteStageCard({
         qualityRef.current.frames = 0;
       }
 
-      const busy = !!dragRef.current || !!tweenRef.current || f > 0 || want > 0;
+      const busy = !!dragRef.current || !!tweenRef.current || !!inertiaRef.current || f > 0 || want > 0;
       rafRef.current = busy ? requestAnimationFrame(tick) : null;
     },
     [checkTurnFps, disableArena],
@@ -307,13 +331,37 @@ export function AthleteStageCard({
     return () => clearTimeout(t);
   }, [photosReady, arenaWanted, arenaOn, resume]);
 
-  // Turn so the combined (stage + athlete) angle ends at `toC` (a side, multiple
-  // of 90), from wherever it is now; retargets cleanly mid-turn. Callers hold
-  // the idle spin first, so the landing is exact.
+  // Play / Pause. Pause stops right away when the visitor turned the athlete
+  // (so it stays exactly where they left it); the button eases it out.
+  const setPlaying = useCallback(
+    (p: boolean, now = false) => {
+      playingRef.current = p;
+      setPlayingState(p);
+      if (!p && now) autoFactorRef.current = 0;
+      ensureLoop();
+    },
+    [ensureLoop],
+  );
+  // prefers-reduced-motion: start on Pause (the visitor can still press Play).
+  useEffect(() => {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) setPlaying(false, true);
+  }, [setPlaying]);
+  const togglePlay = useCallback(() => setPlaying(!playingRef.current), [setPlaying]);
+  // A manual turn: Pause at once and drop any running inertia.
+  const takeOver = useCallback(() => {
+    setPlaying(false, true);
+    inertiaRef.current = 0;
+  }, [setPlaying]);
+
+  const combined = () => autoAngleRef.current + viewAngleRef.current;
+  // Where the athlete is heading (end of a running turn) or is.
+  const aimed = () => (tweenRef.current ? autoAngleRef.current + tweenRef.current.to : combined());
+
+  // Turn so the combined (stage + athlete) angle ends at `toC`, from wherever
+  // it is now; retargets cleanly mid-turn. Instant under reduced motion.
   const turnTo = useCallback(
-    (toC: number) => {
-      targetRef.current = toC;
-      settleView(toC); // tabs + readout jump to the destination right away
+    (toC: number, opts: { toSide: boolean; ms?: number }) => {
+      if (opts.toSide) settleView(Math.round(toC / 90) * 90); // tabs + readout jump to the destination
       const from = viewAngleRef.current;
       const to = toC - autoAngleRef.current;
       const dist = Math.abs(to - from);
@@ -326,65 +374,64 @@ export function AthleteStageCard({
       }
       const { turnMs90, turnMs180, minTurnMs } = VIEWER_VIEWS;
       const dur =
-        dist <= 90
+        opts.ms ??
+        (dist <= 90
           ? Math.max(minTurnMs, (turnMs90 * dist) / 90)
-          : turnMs90 + ((turnMs180 - turnMs90) * Math.min(90, dist - 90)) / 90;
-      tweenRef.current = { from, to, t0: performance.now(), dur, frames: 0 };
+          : turnMs90 + ((turnMs180 - turnMs90) * Math.min(90, dist - 90)) / 90);
+      tweenRef.current = { from, to, t0: performance.now(), dur, frames: 0, toSide: opts.toSide };
       ensureLoop();
     },
     [settleView, ensureLoop],
   );
-  const combined = () => autoAngleRef.current + viewAngleRef.current;
-  // The side we're on / heading to (a multiple of 90, continuous).
-  const baseSide = () => (tweenRef.current ? targetRef.current : Math.round(combined() / 90) * 90);
-  // Stop on the nearest side (so its zone markers show).
-  const snapToSide = useCallback(() => {
-    if (dragRef.current) return;
-    turnTo(baseSide());
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [turnTo]);
-  // Tabs: shortest way round (Front -> Back = one 180° turn). Holds the spin a
-  // moment so the chosen side can be seen.
+  // Tabs: shortest way round through the frames in between.
   const goTo = useCallback(
     (target: number) => {
-      holdNow("interact");
-      const b = baseSide();
-      const cur = ((Math.round(b / 90) % 4) + 4) % 4;
-      let d = (((target - cur) % 4) + 4) % 4; // 0..3
-      if (d === 3) d = -1;
-      turnTo(b + d * 90);
-      resumeLater("interact", STAGE_ARENA.autoRotateResumeMs);
+      takeOver();
+      turnTo(sideTarget(aimed(), target), { toSide: true });
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [turnTo, holdNow, resumeLater],
+    [turnTo, takeOver],
   );
-  // Arrows / keys: next = +90 (toward Kanan), previous = -90.
+  // Arrows (lg): the next side in that direction (+1 = toward Kanan).
   const step = useCallback(
     (delta: 1 | -1) => {
-      holdNow("interact");
-      turnTo(baseSide() + delta * 90);
-      resumeLater("interact", STAGE_ARENA.autoRotateResumeMs);
+      takeOver();
+      turnTo(nextSideTarget(aimed(), delta), { toSide: true });
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [turnTo, holdNow, resumeLater],
+    [turnTo, takeOver],
   );
-  // Hover (mouse) / tap (touch) / keyboard focus on the athlete: stop on the
-  // nearest side so the zone markers appear and can be clicked.
+  // ←/→ keys on the athlete: a few degrees per press (holding repeats).
+  const onKeyTurn = useCallback(
+    (deltaDeg: number) => {
+      const from = tweenRef.current && !tweenRef.current.toSide ? aimed() : combined();
+      takeOver();
+      turnTo(from + deltaDeg, { toSide: false, ms: VIEWER_SPIN.keyTurnMs });
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [turnTo, takeOver],
+  );
+  // Horizontal trackpad / wheel: turns like a drag (the OS momentum is the inertia).
+  const onWheelTurn = useCallback(
+    (dx: number) => {
+      takeOver();
+      tweenRef.current = null;
+      viewAngleRef.current -= dx * VIEWER_SPIN.wheelDegPerPx;
+      ensureLoop();
+    },
+    [takeOver, ensureLoop],
+  );
+  // Mouse / pen over the athlete: hold the spin while there (no snapping).
   const onHoverChange = useCallback(
     (over: boolean) => {
-      if (over) {
-        holdNow("hover");
-        snapToSide();
-      } else resumeLater("hover", STAGE_ARENA.hoverResumeMs);
+      if (over) holdNow("hover");
+      else resumeLater("hover", STAGE_ARENA.hoverResumeMs);
     },
-    [holdNow, snapToSide, resumeLater],
+    [holdNow, resumeLater],
   );
-  const onTap = useCallback(() => {
-    holdNow("tap");
-    snapToSide();
-    resumeLater("tap", STAGE_ARENA.tapHoldMs);
-  }, [holdNow, snapToSide, resumeLater]);
-  // A zone card is open (touch): no idle spin until it closes.
+  // A tap / click on the athlete (not a drag): Pause where it is.
+  const onTap = useCallback(() => takeOver(), [takeOver]);
+  // A zone card is open (touch): no spin until it closes.
   const onZoneCardChange = useCallback(
     (open: boolean) => {
       if (open) holdNow("zone");
@@ -392,22 +439,17 @@ export function AthleteStageCard({
     },
     [holdNow, resumeLater],
   );
-  const onFocusChange = useCallback(
-    (focused: boolean) => {
-      if (focused) {
-        holdNow("focus");
-        snapToSide();
-      } else resumeLater("focus", STAGE_ARENA.autoRotateResumeMs);
-    },
-    [holdNow, snapToSide, resumeLater],
-  );
-  // Swipe: the view angle follows the finger (drag right = toward Kanan), then
-  // snaps to a side; the idle spin stops meanwhile and eases back in later.
+  // Keyboard focus on the athlete no longer holds the spin: keyboard users
+  // pause / play with Space (a focus hold made Space→Play look broken).
+  const onFocusChange = useCallback(() => {}, []);
+  // Drag: the angle follows the finger / pointer (right = toward Kanan); on
+  // release it keeps turning a little and slows down (inertia), then stays
+  // exactly there: no snapping to a side, and Pause.
   const onDragStart = useCallback(() => {
-    holdNow("drag");
+    takeOver();
     tweenRef.current = null;
     dragRef.current = { base: viewAngleRef.current, angle: viewAngleRef.current };
-  }, [holdNow]);
+  }, [takeOver]);
   const onDragMove = useCallback(
     (dx: number) => {
       const d = dragRef.current;
@@ -421,17 +463,14 @@ export function AthleteStageCard({
     (vx: number) => {
       const d = dragRef.current;
       dragRef.current = null;
-      const auto = autoAngleRef.current;
-      const base = (d?.base ?? viewAngleRef.current) + auto;
-      const cur = (d?.angle ?? viewAngleRef.current) + auto;
-      viewAngleRef.current = cur - auto;
-      const startSide = Math.round(base / 90) * 90;
-      let to = Math.round(cur / 90) * 90;
-      if (to === startSide && Math.abs(vx) >= VIEWER_VIEWS.flickVelocity) to = startSide + Math.sign(vx) * 90;
-      turnTo(to);
-      resumeLater("drag", STAGE_ARENA.autoRotateResumeMs);
+      if (d) viewAngleRef.current = d.angle;
+      const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      const v = vx * 1000 * (90 / VIEWER_VIEWS.dragPxPer90); // deg/s
+      const cap = VIEWER_SPIN.inertiaMaxDegPerSec;
+      inertiaRef.current = reduced || Math.abs(v) < VIEWER_SPIN.inertiaMinDegPerSec ? 0 : Math.max(-cap, Math.min(cap, v));
+      ensureLoop();
     },
-    [turnTo, resumeLater],
+    [ensureLoop],
   );
   const tickAngles = useMemo(
     () => Array.from({ length: VIEWER_360.ringTicks }, (_, i) => (i * 360) / VIEWER_360.ringTicks),
@@ -592,7 +631,7 @@ export function AthleteStageCard({
           {has360 && (
             <div
               className="stagecard-readout pointer-events-none z-20"
-              aria-live="polite"
+              aria-hidden
               style={
                 {
                   "--ro-scrim-full": STAGE_READOUT.scrimOpacity,
@@ -606,8 +645,12 @@ export function AthleteStageCard({
                 } as React.CSSProperties
               }
             >
-              <div className="stagecard-readout-name font-condensed font-bold uppercase leading-none">{viewNames[view]}</div>
-              <div className="stagecard-readout-deg font-mono text-xs text-[#ff2d55] tabular-nums">{`${view * 90}°`}</div>
+              <div ref={sideNameRef} className="stagecard-readout-name font-condensed font-bold uppercase leading-none transition-opacity">
+                {viewNames[view]}
+              </div>
+              <div ref={degRef} className="stagecard-readout-deg font-mono text-xs text-[#ff2d55] tabular-nums">
+                0°
+              </div>
               <p className="stagecard-readout-hint font-mono text-[11px] leading-snug">{m.sc_hint}</p>
             </div>
           )}
@@ -655,7 +698,9 @@ export function AthleteStageCard({
                 athleteId={athlete.id}
                 media={athlete.media360!}
                 view={view}
-                onStep={step}
+                onKeyTurn={onKeyTurn}
+                onTogglePlay={togglePlay}
+                onWheelTurn={onWheelTurn}
                 onDragStart={onDragStart}
                 onDragMove={onDragMove}
                 onDragEnd={onDragEnd}
@@ -666,8 +711,10 @@ export function AthleteStageCard({
                 onZoneCardChange={onZoneCardChange}
                 arena={arenaOn ? arenaHandle : undefined}
                 debug={debugFeet}
+                debugPerf={debugPerf}
+                describe={(a) => fmt(m.sc_stageImg, { name: athlete.nama, side: viewNames[nearestSide(a).side], deg: degreeLabel(a) })}
                 m={m}
-                label={`${athlete.nama} — ${viewNames[view]}`}
+                label={`${athlete.nama}. ${m.sc_keysHint}`}
               />
             ) : (
               <div className={`relative mx-auto ${VIEWER_360_FRAME_CLASS}`} style={figureStyle}>
@@ -688,17 +735,31 @@ export function AthleteStageCard({
             )}
           </div>
 
-          {/* View switcher: ‹ Depan · Kanan · Belakang · Kiri › (above the CTA) */}
+          {/* View switcher: ‹ ⏯ Depan · Kanan · Belakang · Kiri › (above the CTA);
+              below lg without the ‹ › (swipe, tabs and keys turn the athlete). */}
           {has360 && (
             <div className="absolute inset-x-0 bottom-[3.75rem] z-20 flex items-center justify-center gap-1.5 px-2">
               <button
                 type="button"
                 onClick={() => step(-1)}
                 aria-label={m.view_prev}
-                className="group flex h-11 w-11 shrink-0 items-center justify-center max-[359px]:hidden"
+                className="group flex h-11 w-11 shrink-0 items-center justify-center max-lg:hidden"
               >
                 <span className="flex h-8 w-8 items-center justify-center rounded-full border border-white/15 bg-black/50 text-white/80 backdrop-blur [@media(pointer:coarse)]:bg-black/65 [@media(pointer:coarse)]:backdrop-blur-none transition-colors group-hover:border-white/40 group-hover:text-white">
                   <ChevronLeft size={16} />
+                </span>
+              </button>
+              {/* Play / Pause of the auto-rotation (44px target). */}
+              <button
+                type="button"
+                onClick={togglePlay}
+                aria-label={m.sc_autoRotate}
+                aria-pressed={playing}
+                title={playing ? m.sc_pause : m.sc_play}
+                className="group flex h-11 w-11 shrink-0 items-center justify-center"
+              >
+                <span className="flex h-8 w-8 items-center justify-center rounded-full border border-white/15 bg-black/50 text-white/80 backdrop-blur [@media(pointer:coarse)]:bg-black/65 [@media(pointer:coarse)]:backdrop-blur-none transition-colors group-hover:border-white/40 group-hover:text-white">
+                  {playing ? <Pause size={14} /> : <Play size={14} className="translate-x-px" />}
                 </span>
               </button>
               {/* Tabs: 44px tall touch targets; the pill track stays slim (drawn behind). */}
@@ -729,7 +790,7 @@ export function AthleteStageCard({
                 type="button"
                 onClick={() => step(1)}
                 aria-label={m.view_next}
-                className="group flex h-11 w-11 shrink-0 items-center justify-center max-[359px]:hidden"
+                className="group flex h-11 w-11 shrink-0 items-center justify-center max-lg:hidden"
               >
                 <span className="flex h-8 w-8 items-center justify-center rounded-full border border-white/15 bg-black/50 text-white/80 backdrop-blur [@media(pointer:coarse)]:bg-black/65 [@media(pointer:coarse)]:backdrop-blur-none transition-colors group-hover:border-white/40 group-hover:text-white">
                   <ChevronRight size={16} />
@@ -784,6 +845,7 @@ export function AthleteStageCard({
       <span className="sr-only">
         <RotateCcw size={12} /> {m.sc_dragOnly}
       </span>
+      <span ref={liveRef} className="sr-only" aria-live="polite" />
       {debugViewport && <ViewportDebug sectionRef={sectionRef} />}
     </section>
   );
