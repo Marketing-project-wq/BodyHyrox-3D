@@ -6,7 +6,7 @@ import Link from "next/link";
 import { ChevronLeft, ChevronRight, Pause, Play, RotateCcw } from "lucide-react";
 import type { PublicAthleteDetail } from "@/lib/data";
 import { STAGE_ARENA, STAGE_READOUT, VIEWER_360, VIEWER_360_FRAME_CLASS, VIEWER_SPIN, VIEWER_VIEWS, stageFitVars, viewer360FrameStyle } from "@/lib/config";
-import { decayVelocity, degreeLabel, nearestSide, nextSideTarget, sideTarget } from "@/lib/spin";
+import { decayVelocity, degreeLabel, nearestSide, nextSideTarget, norm360, shortestDelta, sideTarget } from "@/lib/spin";
 import { VIEW_KEYS } from "@/lib/views";
 import { type Dict, fmt } from "@/lib/i18n";
 import { tGender } from "@/lib/i18n";
@@ -67,11 +67,13 @@ export function AthleteStageCard({
   const [debugFeet, setDebugFeet] = useState(false);
   const [debugViewport, setDebugViewport] = useState(false);
   const [debugPerf, setDebugPerf] = useState(false);
+  const [debugVideo, setDebugVideo] = useState(false);
   useEffect(() => {
     const debug = (new URLSearchParams(window.location.search).get("debug") ?? "").split(",");
     setDebugFeet(debug.includes("feet"));
     setDebugViewport(debug.includes("viewport"));
     setDebugPerf(debug.includes("perf"));
+    setDebugVideo(debug.includes("video"));
   }, []);
   const platformRef = useRef<HTMLDivElement>(null);
   const figureRef = useRef<HTMLDivElement>(null);
@@ -177,6 +179,11 @@ export function AthleteStageCard({
       if (Math.abs(want - f) < 0.002) f = want;
       autoFactorRef.current = f;
       autoAngleRef.current += (STAGE_ARENA.autoRotateDirection * 360 * dt * f) / STAGE_ARENA.autoRotateSecPerTurn;
+      // A set with a turn video plays it while auto-rotating at full speed; then
+      // the video's angle drives the stage (the arena follows the athlete).
+      const videoWanted = f === 1 && want === 1 && !moving;
+      const va = viewsRef.current?.video(videoWanted, autoAngleRef.current + viewAngleRef.current, now) ?? null;
+      if (va != null) autoAngleRef.current += shortestDelta(norm360(autoAngleRef.current + viewAngleRef.current), va);
 
       // Paint: stage AND athlete follow the same combined angle (turntable).
       const env = autoAngleRef.current + viewAngleRef.current;
@@ -735,6 +742,7 @@ export function AthleteStageCard({
                 arena={arenaOn ? arenaHandle : undefined}
                 debug={debugFeet}
                 debugPerf={debugPerf}
+                debugVideo={debugVideo}
                 describe={(a) => fmt(m.sc_stageImg, { name: athlete.nama, side: viewNames[nearestSide(a).side], deg: degreeLabel(a) })}
                 m={m}
                 label={`${athlete.nama}. ${m.sc_keysHint}`}

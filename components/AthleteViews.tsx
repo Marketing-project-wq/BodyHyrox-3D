@@ -4,7 +4,8 @@ import { forwardRef, useCallback, useEffect, useImperativeHandle, useLayoutEffec
 import { useRouter } from "next/navigation";
 import type { Media360 } from "@/lib/data";
 import { VIEW_ANGLES, VIEW_KEYS, frameAngles } from "@/lib/views";
-import { STAGE_ARENA, VIEWER_360, VIEWER_360_FRAME_CLASS, VIEWER_SPIN, VIEWER_VIEWS, viewer360FrameStyle } from "@/lib/config";
+import { STAGE_ARENA, VIEWER_360, VIEWER_360_FRAME_CLASS, VIEWER_SPIN, VIEWER_VIDEO, VIEWER_VIEWS, viewer360FrameStyle } from "@/lib/config";
+import { alphaLooksRight, isHevc, sourceOrder, timeForAngle, videoAngle, type StageVideoSource } from "@/lib/stage-video";
 import { blendAmount, bracket, loadOrder, nearestSide, norm360 } from "@/lib/spin";
 import { FrameCache } from "@/lib/frame-cache";
 import { type Dict } from "@/lib/i18n";
@@ -22,6 +23,13 @@ export type AthleteViewsHandle = {
    * squeeze cue of the 4-photo fallback.
    */
   render: (angleDeg: number, moving: boolean, turning?: boolean) => void;
+  /**
+   * Hybrid viewer (sets with media.video): `want` = the stage auto-rotates at
+   * full speed. Returns the angle of the video frame on screen while the video
+   * shows (the stage then follows it), else null (the frames show; the video
+   * starts at `envDeg` once it can).
+   */
+  video: (want: boolean, envDeg: number, now: number) => number | null;
 };
 
 type DragCallbacks = {
@@ -77,6 +85,8 @@ export const AthleteViews = forwardRef<
     debug?: boolean;
     /** ?debug=perf: decode / draw counters on the element (data-perf). */
     debugPerf?: boolean;
+    /** ?debug=video: video layer state on the element (data-video). */
+    debugVideo?: boolean;
     /** Accessible name of the athlete picture at an angle (updated at rest only). */
     describe: (angleDeg: number) => string;
     /** A zone card opened (touch) or closed: the stage holds its idle spin meanwhile. */
@@ -89,7 +99,7 @@ export const AthleteViews = forwardRef<
     onFocusChange?: (focused: boolean) => void;
   } & DragCallbacks
 >(function AthleteViews(
-  { athleteId, media, view, m, label, onKeyTurn, onTogglePlay, onWheelTurn, onReady, onHoverChange, onTap, onFocusChange, onDragStart, onDragMove, onDragEnd, arena, debug, debugPerf, describe, onZoneCardChange },
+  { athleteId, media, view, m, label, onKeyTurn, onTogglePlay, onWheelTurn, onReady, onHoverChange, onTap, onFocusChange, onDragStart, onDragMove, onDragEnd, arena, debug, debugPerf, debugVideo, describe, onZoneCardChange },
   ref,
 ) {
   const rootRef = useRef<HTMLDivElement>(null);
@@ -263,7 +273,10 @@ export const AthleteViews = forwardRef<
       const cache = cacheRef.current;
       const EPS = 0.002;
       const showHi = base === br.lo && a > EPS && br.hi !== br.lo;
-      if (cache) {
+      // While the turn video shows, no frame is decoded or drawn (it covers
+      // them); after it pauses it stays up until the frames here are drawn.
+      const vs = vid.current;
+      if (cache && vs.state !== "on") {
         cache.pin(showHi ? [base, br.hi] : [base]);
         let loOk = drawLayer(0, base);
         const hiOk = showHi && drawLayer(1, br.hi);
@@ -290,6 +303,12 @@ export const AthleteViews = forwardRef<
         // is the whole athlete where the poses overlap); else it stays opaque.
         if (c0) c0.style.opacity = dissolve && hiOk ? String(1 - a) : "1";
         if (c1) c1.style.opacity = hiOk ? String(a) : "0";
+        if (vs.swapFrom) {
+          if ((loOk && (!showHi || hiOk)) || now - vs.swapFrom > VIEWER_VIDEO.swapMaxMs) {
+            vs.swapFrom = 0;
+            showVideo(false);
+          } else schedulePaint();
+        }
         // ?debug=feet / perf: decoded frames (memory) and decode / draw counters.
         if ((debugOn.current || perfOn.current) && rootRef.current) rootRef.current.dataset.decoded = `${cache.decodedCount}/${cache.limit}`;
         if (perfOn.current && rootRef.current) rootRef.current.dataset.perf = JSON.stringify({ ...cache.stats, ...perf.current });
@@ -456,7 +475,244 @@ export const AthleteViews = forwardRef<
   const paintRef = useRef(paint);
   paintRef.current = paint;
 
-  useImperativeHandle(ref, () => ({ render: paint }), [paint]);
+  // ---- Video layer (hybrid viewer; only for sets with media.video) ----
+  // States: off (no video / not loaded yet), ready (source chosen, paused),
+  // starting (seeked + playing, waiting for its first frame), on (showing),
+  // failed (no usable source, autoplay refused, reduced motion, Save-Data).
+  const stageVideo = media.video;
+  const videoElRef = useRef<HTMLVideoElement>(null);
+  const vid = useRef({
+    state: "off" as "off" | "ready" | "starting" | "on" | "failed",
+    srcs: [] as StageVideoSource[],
+    srcIdx: 0,
+    verified: false,
+    mediaTime: 0,
+    at: 0,
+    rvfc: false,
+    blockedUntil: 0,
+    swapFrom: 0, // paused video still shown since (ms), until the frames are drawn
+    q: { at: 0, dropped: 0, total: 0, bad: 0 }, // playback quality at the last check
+    stall: 0 as ReturnType<typeof setTimeout> | 0,
+    reason: "",
+  });
+  const videoDebugOn = useRef(!!debugVideo);
+  videoDebugOn.current = !!debugVideo;
+  const showVideoDebug = () => {
+    const v = vid.current;
+    if (videoDebugOn.current && rootRef.current)
+      rootRef.current.dataset.video = `${v.state}|${v.srcs[v.srcIdx]?.file ?? "-"}|${v.reason}`;
+  };
+  // Frames and video swap visibility; the canvases keep being painted (at
+  // the same angle) so the swap back is instant.
+  const showVideo = (on: boolean) => {
+    const el = videoElRef.current;
+    if (el) el.style.opacity = on ? "1" : "0";
+    for (const c of canvasRefs.current) if (c) c.style.visibility = on ? "hidden" : "";
+  };
+  // Is the frame on screen transparent around the athlete? (else the browser
+  // shows this format without alpha, e.g. VP9 in Safari: a black box)
+  const alphaOk = (el: HTMLVideoElement, src: StageVideoSource): boolean => {
+    try {
+      const W = 24;
+      const H = 40;
+      const c = document.createElement("canvas");
+      c.width = W;
+      c.height = H;
+      const g = c.getContext("2d", { willReadFrequently: true });
+      if (!g) return isHevc(src);
+      g.drawImage(el, 0, 0, W, H);
+      const d = g.getImageData(0, 0, W, H).data;
+      let max = 0;
+      for (let i = 3; i < d.length; i += 4) max = Math.max(max, d[i]);
+      const corner = [0, W - 1, (H - 1) * W, H * W - 1].map((p) => d[p * 4 + 3]);
+      return alphaLooksRight(corner, max, VIEWER_VIDEO.alphaCornerMax);
+    } catch {
+      return isHevc(src); // pixels unreadable: trust Apple's HEVC alpha only
+    }
+  };
+  const loadSource = (i: number) => {
+    const v = vid.current;
+    const el = videoElRef.current;
+    if (!el) return;
+    if (i >= v.srcs.length) {
+      v.state = "failed";
+      v.reason ||= "no-usable-source";
+      el.removeAttribute("src");
+      el.load();
+      showVideo(false);
+      showVideoDebug();
+      return;
+    }
+    v.srcIdx = i;
+    v.verified = false;
+    v.state = "ready";
+    el.src = `${base}/${v.srcs[i].file}`;
+    el.preload = "auto";
+    el.load();
+    showVideoDebug();
+  };
+  // Pause: the paused frame stays up until the frames at this angle are drawn
+  // (paint swaps then), so the hand-over never shows a wrong pose.
+  const stopVideo = () => {
+    const v = vid.current;
+    const el = videoElRef.current;
+    if (el && !el.paused) el.pause();
+    if (v.state === "on") {
+      v.swapFrom = performance.now();
+      schedulePaint();
+    } else if (!v.swapFrom) showVideo(false);
+    if (v.state === "on" || v.state === "starting") v.state = "ready";
+    showVideoDebug();
+  };
+  const onFrame = (el: HTMLVideoElement, mediaTime: number) => {
+    const v = vid.current;
+    v.mediaTime = mediaTime;
+    v.at = performance.now();
+    if (v.state !== "starting") return;
+    if (!v.verified) {
+      if (!alphaOk(el, v.srcs[v.srcIdx])) {
+        el.pause();
+        v.reason = `no-alpha:${v.srcs[v.srcIdx].file}`;
+        loadSource(v.srcIdx + 1);
+        return;
+      }
+      v.verified = true;
+    }
+    v.state = "on";
+    v.swapFrom = 0;
+    v.q = { at: 0, dropped: 0, total: 0, bad: 0 };
+    showVideo(true);
+    showVideoDebug();
+  };
+  const startVideo = (envDeg: number) => {
+    const v = vid.current;
+    const el = videoElRef.current;
+    if (!el || !stageVideo) return;
+    const leadDeg = (VIEWER_VIDEO.leadMs / 1000) * (360 / STAGE_ARENA.autoRotateSecPerTurn);
+    v.state = "starting";
+    el.playbackRate = stageVideo.duration / STAGE_ARENA.autoRotateSecPerTurn;
+    el.currentTime = timeForAngle(envDeg + leadDeg, stageVideo.duration);
+    showVideoDebug();
+    const watch = () => {
+      if (v.rvfc) {
+        const cb = (_now: number, md: { mediaTime: number }) => {
+          if (el.paused || (v.state !== "starting" && v.state !== "on")) return;
+          onFrame(el, md.mediaTime);
+          (el as HTMLVideoElement & { requestVideoFrameCallback: (f: typeof cb) => number }).requestVideoFrameCallback(cb);
+        };
+        (el as HTMLVideoElement & { requestVideoFrameCallback: (f: typeof cb) => number }).requestVideoFrameCallback(cb);
+      } else {
+        const onPlaying = () => {
+          el.removeEventListener("playing", onPlaying);
+          onFrame(el, el.currentTime);
+        };
+        el.addEventListener("playing", onPlaying);
+      }
+    };
+    el.play().then(watch, (e: unknown) => {
+      // Autoplay refused (iPhone Low Power Mode, browser settings): frames.
+      v.state = "ready";
+      v.reason = `play:${(e as Error)?.name ?? "error"}`;
+      v.blockedUntil = performance.now() + VIEWER_VIDEO.retryAfterMs;
+      showVideo(false);
+      showVideoDebug();
+    });
+  };
+  const videoTick = useCallback(
+    (want: boolean, envDeg: number, now: number): number | null => {
+      const v = vid.current;
+      const el = videoElRef.current;
+      if (!el || !stageVideo || v.state === "off" || v.state === "failed") return null;
+      if (!want) {
+        if (v.state === "on" || v.state === "starting") stopVideo();
+        return null;
+      }
+      if (v.state === "ready") {
+        if (now >= v.blockedUntil) startVideo(envDeg);
+        return null;
+      }
+      if (v.state !== "on") return null;
+      // A phone that can't decode it in time (many dropped frames in two
+      // checks in a row): frames for good.
+      if (now - v.q.at > VIEWER_VIDEO.dropCheckMs) {
+        const q = typeof el.getVideoPlaybackQuality === "function" ? el.getVideoPlaybackQuality() : null;
+        let bad = 0;
+        if (q && v.q.at) {
+          const total = q.totalVideoFrames - v.q.total;
+          const dropped = q.droppedVideoFrames - v.q.dropped;
+          bad = total >= 10 && dropped / total > VIEWER_VIDEO.maxDropShare ? v.q.bad + 1 : 0;
+          if (bad >= 2) {
+            v.reason = `dropping:${dropped}/${total}`;
+            stopVideo();
+            v.state = "failed";
+            showVideoDebug();
+            return null;
+          }
+        }
+        v.q = { at: now, dropped: q?.droppedVideoFrames ?? 0, total: q?.totalVideoFrames ?? 0, bad };
+      }
+      const t = v.rvfc ? v.mediaTime + ((now - v.at) / 1000) * el.playbackRate : el.currentTime;
+      return videoAngle(t, stageVideo.duration);
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [stageVideo],
+  );
+
+  // Pick the source once the four sides are on screen (they load first).
+  useEffect(() => {
+    const el = videoElRef.current;
+    if (!ready || !stageVideo || !el || !VIEWER_VIDEO.enabled) return;
+    const v = vid.current;
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const saveData = (navigator as Navigator & { connection?: { saveData?: boolean } }).connection?.saveData === true;
+    if (reduced || saveData || STAGE_ARENA.autoRotateDirection !== 1) {
+      v.state = "failed";
+      v.reason = reduced ? "reduced-motion" : saveData ? "save-data" : "direction";
+      showVideoDebug();
+      return;
+    }
+    v.rvfc = "requestVideoFrameCallback" in el;
+    v.srcs = sourceOrder(stageVideo.sources, (t) => el.canPlayType(t), /Apple/.test(navigator.vendor));
+    // Buffering while shown: back to the frames, try again a little later.
+    const onWaiting = () => {
+      if (v.state !== "on") return;
+      if (v.stall) clearTimeout(v.stall);
+      v.stall = setTimeout(() => {
+        v.stall = 0;
+        if (v.state !== "on") return;
+        v.reason = "stall";
+        v.blockedUntil = performance.now() + VIEWER_VIDEO.retryAfterMs;
+        stopVideo();
+      }, VIEWER_VIDEO.stallFallbackMs);
+    };
+    const onPlaying = () => {
+      if (v.stall) clearTimeout(v.stall);
+      v.stall = 0;
+    };
+    const onError = () => {
+      if (v.state === "failed") return;
+      v.reason = `error:${v.srcs[v.srcIdx]?.file ?? ""}`;
+      stopVideo();
+      loadSource(v.srcIdx + 1);
+    };
+    el.addEventListener("waiting", onWaiting);
+    el.addEventListener("playing", onPlaying);
+    el.addEventListener("error", onError);
+    const t = setTimeout(() => loadSource(0), VIEWER_VIDEO.startDelayMs);
+    return () => {
+      clearTimeout(t);
+      if (v.stall) clearTimeout(v.stall);
+      el.removeEventListener("waiting", onWaiting);
+      el.removeEventListener("playing", onPlaying);
+      el.removeEventListener("error", onError);
+      el.pause();
+      v.state = "off";
+      showVideo(false);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready, stageVideo, base]);
+
+  useImperativeHandle(ref, () => ({ render: paint, video: videoTick }), [paint, videoTick]);
 
   // Feet metrics: the precomputed feet.json next to the frames, else measure
   // each decoded frame in the browser, else the config feet line.
@@ -844,6 +1100,22 @@ export const AthleteViews = forwardRef<
             style={{ opacity: k === 0 ? 1 : 0, zIndex: k + 1, mixBlendMode: k === 1 && dissolveOn ? ("plus-lighter" as never) : undefined }}
           />
         ))}
+        {stageVideo && (
+          // The turn video (hybrid viewer): same box and feet shift as the
+          // frames, shown only while it plays the auto-rotation.
+          <video
+            ref={videoElRef}
+            aria-hidden
+            muted
+            playsInline
+            loop
+            preload="none"
+            crossOrigin="anonymous"
+            disablePictureInPicture
+            className="pointer-events-none absolute inset-0 h-full w-full"
+            style={{ opacity: 0, zIndex: 3, objectFit: "fill" }}
+          />
+        )}
       </div>
 
       {!ready && (

@@ -3,6 +3,7 @@ import { resolveViews, type Media360Views, type HotspotInput } from "./views";
 export { VIEW_KEYS, resolveViews, type ViewKey, type Media360Views } from "./views";
 import { SPONSOR_360_UPLOAD, type TxStatus, type ActiveStatus, type Visibility } from "./config";
 import type { FrameMetaMap, Media360Draft } from "./media360";
+import { parseStageVideo, type StageVideo } from "./stage-video";
 
 /** PostgREST returns bigint as string; coerce to number safely. */
 const n = (v: unknown): number => (v == null ? 0 : Number(v));
@@ -345,6 +346,12 @@ export type Media360 = {
   /** Per-frame transform + measured feet (admin studio). */
   frameMeta: FrameMetaMap;
   version: number;
+  /**
+   * Transparent turn video for the auto-rotation (hybrid viewer), next to the
+   * frames. Null for sets without one (all of them until the video column
+   * exists: nothing here reads a column that isn't there).
+   */
+  video: StageVideo | null;
 };
 /** Optional profile stats shown on the stage card. Null = not filled → hidden. */
 export type AthleteProfileStats = {
@@ -375,6 +382,7 @@ function mapMedia360(raw: unknown): Media360 | null {
     isPlaceholder: Boolean(m.is_placeholder),
     frameMeta: (m.frame_meta && typeof m.frame_meta === "object" ? m.frame_meta : {}) as FrameMetaMap,
     version: Number(m.version ?? 1),
+    video: parseStageVideo(m.video),
     hotspots: hotspotsRaw.map((h) => {
       const pointsRaw = (h.points ?? {}) as Record<string, { x: number; y: number }>;
       const points: Record<string, { x: number; y: number }> = {};

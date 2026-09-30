@@ -276,6 +276,41 @@ export const VIEWER_SPIN = {
   fastTurnFrames: 24,
 };
 
+/**
+ * Hybrid viewer: a set with a transparent turn video (media.video) plays it
+ * while the athlete auto-rotates at full speed; any hold (hover, drag, tab,
+ * key, Pause, zone card, hidden tab, offscreen) shows the frames at the same
+ * angle, and the video takes over again once its frame at that angle is
+ * painted. Never used under prefers-reduced-motion or Save-Data, or when the
+ * auto-rotation runs the other way (a video only plays forward).
+ * - startDelayMs: wait after the four side frames are ready before loading
+ *   the video (they come first).
+ * - leadMs: when (re)starting, seek this far ahead of the current angle
+ *   (time the seek takes), then correct the last fraction of a degree.
+ * - alphaCornerMax: a corner of the first frame must be at most this opaque
+ *   (0..255), else the browser shows the video without transparency (e.g.
+ *   Safari with VP9) and the next source / the frames are used.
+ * - stallFallbackMs: buffering longer than this switches to the frames.
+ * - retryAfterMs: after a stall, try the video again this much later.
+ * - swapMaxMs: on a hold the paused video stays up until the frames at that
+ *   angle are drawn (no frames are decoded while the video shows), at most
+ *   this long.
+ * - dropCheckMs / maxDropShare: every dropCheckMs the share of dropped video
+ *   frames is checked; above maxDropShare twice in a row (a phone that can't
+ *   decode it in time) the frames take over for good.
+ */
+export const VIEWER_VIDEO = {
+  enabled: true,
+  startDelayMs: 1200,
+  leadMs: 120,
+  alphaCornerMax: 24,
+  stallFallbackMs: 400,
+  retryAfterMs: 5000,
+  swapMaxMs: 600,
+  dropCheckMs: 2000,
+  maxDropShare: 0.2,
+};
+
 export const STAGE_ARENA = {
   color: "#ff2d55",
   background: "#0d0809",
