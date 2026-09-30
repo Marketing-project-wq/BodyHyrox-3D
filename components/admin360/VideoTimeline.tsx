@@ -1,12 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight, Crosshair, ListVideo, RotateCw } from "lucide-react";
+import { ChevronLeft, ChevronRight, Crosshair, Download, ListVideo, RotateCw } from "lucide-react";
 import { VIDEO_360 } from "@/lib/config";
 import { type Dict, errorMessage, fmt } from "@/lib/i18n";
 import {
   analyzeTurn,
   MARK_ORDER,
+  marksFile,
   marksInOrder,
   openVideo,
   stillBands,
@@ -97,6 +98,24 @@ export function VideoTimeline({ file, disabled, m }: { file: File; disabled?: bo
     setT(next);
   }, []);
   const stepFrame = (dir: 1 | -1) => go(t + dir / timelineFps);
+
+  // Save the marks as <video name>-marks.json (in the browser only).
+  function download() {
+    if (!marks || !analysis) return;
+    const text = marksFile(
+      marks,
+      bands.filter((b) => b.drop),
+      { video: file.name, duration: analysis.duration },
+    );
+    const url = URL.createObjectURL(new Blob([text], { type: "application/json" }));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${file.name.replace(/\.[^.]+$/, "")}-marks.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
 
   const dur = analysis?.duration ?? 0;
   const pct = (s: number) => `${dur ? (100 * s) / dur : 0}%`;
@@ -270,6 +289,11 @@ export function VideoTimeline({ file, disabled, m }: { file: File; disabled?: bo
               </ul>
             )}
           </div>
+          {/* The marks for the Mac video script: a local download, nothing is saved. */}
+          <button type="button" onClick={download} disabled={disabled || !ordered} className="btn mt-3 disabled:cursor-not-allowed disabled:opacity-50">
+            <Download className="h-4 w-4" />
+            {m.vid_tl_download}
+          </button>
           <p className="mt-3 text-xs text-faint">{m.vid_tl_note}</p>
         </div>
       </div>
