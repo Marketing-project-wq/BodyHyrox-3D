@@ -350,7 +350,22 @@ body {
 .stagecard-readout-deg {
   text-shadow:
     0 1px 2px rgba(0, 0, 0, var(--ro-shadow, 0.9)),
-    0 0 10px rgba(0, 0, 0, var(--ro-shadow, 0.9));
+    0 0 var(--ro-glow, 10px) rgba(0, 0, 0, var(--ro-shadow, 0.9));
+}
+/* STAGE_READOUT values arrive inline as -full / -compact; pick one here
+   (an inline --ro-scrim would beat the media query). */
+.stagecard-readout {
+  --ro-scrim: var(--ro-scrim-full);
+  --ro-shadow: var(--ro-shadow-full);
+  --ro-glow: var(--ro-glow-full);
+}
+/* Below lg: the softer compact readout (STAGE_READOUT.compact). */
+@media (max-width: 1023.98px) {
+  .stagecard-readout {
+    --ro-scrim: var(--ro-scrim-compact);
+    --ro-shadow: var(--ro-shadow-compact);
+    --ro-glow: var(--ro-glow-compact);
+  }
 }
 .stagecard-readout-name {
   font-size: clamp(1.35rem, 8cqw, 2rem);

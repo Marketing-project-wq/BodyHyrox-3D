@@ -502,21 +502,24 @@ export function AthleteStageCard({
         }}
       />
 
-      <div className="relative z-10 grid gap-4 p-[var(--stagecard-pad)] [--stagecard-pad:1.25rem] sm:[--stagecard-pad:1.75rem] lg:grid-cols-[minmax(0,340px)_1fr] lg:gap-6">
-        {/* ------------------------------------------------- LEFT: identity + stats */}
-        <div className="flex flex-col">
-          <div className="flex items-baseline gap-3">
+      <div className="relative z-10 grid gap-4 p-[var(--stagecard-pad)] [--stagecard-pad:1.25rem] max-lg:flex max-lg:flex-col max-lg:gap-0 sm:[--stagecard-pad:1.75rem] lg:grid-cols-[minmax(0,340px)_1fr] lg:gap-6">
+        {/* ------------------------------------------------- LEFT: identity + stats
+            Below lg this column dissolves (contents) so the stage comes right
+            after the name and the athlete keeps its full size; podium and
+            stats follow below the stage. */}
+        <div className="flex flex-col max-lg:contents">
+          <div className="flex items-baseline gap-3 max-lg:order-1">
             <span className="font-mono text-sm text-[#ff2d55]">
               {athlete.rank != null ? String(athlete.rank).padStart(2, "0") : "--"}
             </span>
             <h1 className="font-condensed text-4xl font-bold uppercase leading-[0.92] sm:text-5xl">{athlete.nama}</h1>
           </div>
-          <p className="mt-1.5 text-sm text-white/55">
+          <p className="mt-1.5 text-sm text-white/55 max-lg:order-2">
             {[athlete.discipline ?? tGender(m, athlete.gender), athlete.kota].filter(Boolean).join(" · ")}
           </p>
 
           {/* Podium + medal breakdown */}
-          <div className="mt-6 flex items-start gap-6">
+          <div className="mt-6 flex items-start gap-6 max-lg:order-4 max-lg:mt-2">
             <div>
               <div className="font-condensed text-5xl font-bold leading-none">{num(athlete.podiumCount, 0)}</div>
               <div className="eyebrow mt-1 text-white/45">{m.sc_podiumSeason}</div>
@@ -541,7 +544,7 @@ export function AthleteStageCard({
 
           {/* Profile stat grid (only filled cells) */}
           {(statCells.length > 0 || athlete.totalTerbaikKg != null) && (
-            <div className="mt-6 grid grid-cols-2 gap-x-6 gap-y-4">
+            <div className="mt-6 grid grid-cols-2 gap-x-6 gap-y-4 max-lg:order-5">
               {statCells.map((c) => (
                 <div key={c.label}>
                   <div className="eyebrow text-white/45">{c.label}</div>
@@ -579,7 +582,7 @@ export function AthleteStageCard({
         {/* ------------------------------------------------- RIGHT: 360 stage */}
         {/* container-type lets the platform (anchored inside the figure) size itself
             against this column's width; pb reserves room for the CTA below the ring. */}
-        <div className="relative flex min-h-[56vh] items-center justify-center pb-32 pt-14 supports-[height:1svh]:min-h-[56svh] sm:pt-10 [container-type:inline-size] lg:min-h-[72vh] lg:pt-0 lg:supports-[height:1svh]:min-h-[72svh]">
+        <div className="relative flex min-h-[56vh] items-center justify-center pb-32 pt-14 max-lg:order-3 max-lg:mt-2 supports-[height:1svh]:min-h-[56svh] sm:pt-10 [container-type:inline-size] lg:min-h-[72vh] lg:pt-0 lg:supports-[height:1svh]:min-h-[72svh]">
           {/* Spotlight cone behind everything, from the card's top edge */}
           <div className="stagecard-spot" aria-hidden />
 
@@ -592,10 +595,14 @@ export function AthleteStageCard({
               aria-live="polite"
               style={
                 {
-                  "--ro-scrim": STAGE_READOUT.scrimOpacity,
+                  "--ro-scrim-full": STAGE_READOUT.scrimOpacity,
                   "--ro-spread": `${STAGE_READOUT.scrimSpreadPx}px`,
-                  "--ro-shadow": STAGE_READOUT.textShadowOpacity,
+                  "--ro-shadow-full": STAGE_READOUT.textShadowOpacity,
                   "--ro-hint": STAGE_READOUT.hintOpacity,
+                  "--ro-glow-full": `${STAGE_READOUT.textGlowPx}px`,
+                  "--ro-scrim-compact": STAGE_READOUT.compact.scrimOpacity,
+                  "--ro-shadow-compact": STAGE_READOUT.compact.textShadowOpacity,
+                  "--ro-glow-compact": `${STAGE_READOUT.compact.textGlowPx}px`,
                 } as React.CSSProperties
               }
             >
