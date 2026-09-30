@@ -6,8 +6,9 @@ import { requireSession, requirePermission } from "@/lib/auth";
 import type { ActionResult } from "@/lib/action-result";
 import { fail, run } from "@/lib/action-error";
 import { SPONSOR_360_UPLOAD } from "@/lib/config";
-import { VIEW_KEYS, type ViewKey, type HotspotInput } from "@/lib/views";
+import { VIEW_KEYS, type ViewKey } from "@/lib/views";
 import type { DraftFrame, Foot, FrameMeta, FrameMetaMap, Media360Draft } from "@/lib/media360";
+import { draftFromLive, draftHotspotsByFile, followReplacedFrames, hotspotsToFrameNumbers, type SideHotspot } from "@/lib/media360-sides";
 import { randomUUID } from "crypto";
 import { readFile } from "fs/promises";
 import path from "path";
@@ -141,6 +142,19 @@ export async function saveDraft(athleteId: string, draft: Media360Draft): Promis
   return run(async () => {
     const s = await requireEditor();
     const d = cleanDraft(athleteId, draft);
+    // Sides and zone markers of the draft are owned by the sides picker / zone
+    // placer (saveDraftSides): keep what is stored, and let them follow a frame
+    // the studio replaced ("Ganti foto": the old file is the new one's last prev).
+    const { data: stored, error: sErr } = await db()
+      .from("smb_athlete_media_360")
+      .select("draft")
+      .eq("athlete_id", athleteId)
+      .maybeSingle<{ draft: Media360Draft | null }>();
+    if (sErr) throw new Error(sErr.message);
+    const keep = stored?.draft ?? null;
+    if (keep && keep.views !== undefined) d.views = keep.views;
+    if (keep && keep.hotspots !== undefined) d.hotspots = keep.hotspots;
+    followReplacedFrames(d);
     const { error } = await db().rpc("smb_save_athlete_media_draft", {
       p_athlete_id: athleteId,
       p_draft: d,
@@ -148,6 +162,66 @@ export async function saveDraft(athleteId: string, draft: Media360Draft): Promis
       p_actor_name: s.nama,
     });
     if (error) throw new Error(error.message);
+    return { ok: true, updatedAt: d.updatedAt! };
+  });
+}
+
+/**
+ * Admin only. Saves the viewer sides and/or zone markers INTO THE DRAFT (never
+ * live). Creates the draft from the live set when there is none. They go live
+ * with Publish, together with the frames.
+ */
+export async function saveDraftSides(
+  athleteId: string,
+  change: { views?: Record<ViewKey, string>; hotspots?: SideHotspot[] },
+): Promise<ActionResult<{ updatedAt: string }>> {
+  return run(async () => {
+    const s = await requireEditor();
+    if (!athleteId || (!change?.views && !change?.hotspots)) fail("missing_input");
+    const { data: row, error: rErr } = await db()
+      .from("smb_athlete_media_360")
+      .select("base_url,frames,frame_meta,views,hotspots,draft")
+      .eq("athlete_id", athleteId)
+      .maybeSingle<Pick<Row, "base_url" | "frames" | "frame_meta" | "views" | "hotspots" | "draft">>();
+    if (rErr) throw new Error(rErr.message);
+    if (!row) fail("media_missing");
+    const draft: Media360Draft = row!.draft ?? draftFromLive({ baseUrl: row!.base_url, frames: row!.frames ?? [], frameMeta: row!.frame_meta ?? {} });
+    const files = draft.frames.map((f) => f.file);
+    if (change.views) {
+      const views: Record<string, string> = {};
+      for (const k of VIEW_KEYS) {
+        const f = change.views[k];
+        if (typeof f !== "string" || !files.includes(f)) fail("views_invalid");
+        views[k] = f;
+      }
+      draft.views = views;
+    }
+    if (change.hotspots) {
+      if (!Array.isArray(change.hotspots)) fail("zones_invalid");
+      draft.hotspots = change.hotspots
+        .filter((h) => h && typeof h.athleteZoneId === "string" && h.athleteZoneId && h.points)
+        .map((h) => ({
+          athlete_zone_id: h.athleteZoneId,
+          label: String(h.label ?? "").slice(0, 80),
+          points: Object.fromEntries(
+            Object.entries(h.points)
+              .filter(([file]) => files.includes(file))
+              .map(([file, v]) => [file, { x: Math.min(1, Math.max(0, Number(v.x))), y: Math.min(1, Math.max(0, Number(v.y))) }]),
+          ),
+        }))
+        .filter((h) => Object.keys(h.points).length > 0);
+    }
+    // Changing only the sides leaves draft.hotspots unset: the markers keep
+    // following the live frames (by origin) until the placer saves its own.
+    const d = cleanDraft(athleteId, draft);
+    const { error } = await db().rpc("smb_save_athlete_media_draft", {
+      p_athlete_id: athleteId,
+      p_draft: d,
+      p_actor_id: s.sub,
+      p_actor_name: s.nama,
+    });
+    if (error) throw new Error(error.message);
+    revalidatePath(`/admin/atlet/${athleteId}`);
     return { ok: true, updatedAt: d.updatedAt! };
   });
 }
@@ -272,7 +346,10 @@ export async function publishDraft(athleteId: string): Promise<ActionResult<{ ve
     });
     let views: Record<string, string> | null;
     if (draft.views !== undefined) {
-      views = draft.views && VIEW_KEYS.every((k) => frames.includes(draft.views![k])) ? draft.views : null;
+      // A side set in the draft must point at a frame of the draft: never drop
+      // the sides silently (e.g. after its frame was deleted), ask to re-pick.
+      if (draft.views && !VIEW_KEYS.every((k) => frames.includes(draft.views![k]))) fail("views_invalid");
+      views = draft.views ?? null;
     } else if (row.views) {
       const mapped: Record<string, string> = {};
       for (const k of VIEW_KEYS) {
@@ -284,7 +361,8 @@ export async function publishDraft(athleteId: string): Promise<ActionResult<{ ve
 
     let hotspots: Row["hotspots"];
     if (draft.hotspots !== undefined) {
-      hotspots = (draft.hotspots as Row["hotspots"]).filter((h) => h && h.athlete_zone_id);
+      // Draft markers are keyed by frame file (legacy drafts: frame numbers).
+      hotspots = hotspotsToFrameNumbers(draft.hotspots, frames);
     } else {
       hotspots = (row.hotspots ?? []).map((h) => {
         const points: Record<string, { x: number; y: number }> = {};
@@ -331,7 +409,12 @@ export async function restoreVersion(athleteId: string, version: number): Promis
       frames: snap.frames.map((file) => ({ file, base: snap.base_url, origin: null })),
       meta: snap.frame_meta ?? {},
       views: snap.views,
-      hotspots: snap.hotspots ?? [],
+      // Markers of the snapshot keyed by file, so later reordering keeps them on their photo.
+      hotspots: draftHotspotsByFile(snap.hotspots ?? [], snap.frames).map((h) => ({
+        athlete_zone_id: h.athleteZoneId,
+        label: h.label,
+        points: h.points,
+      })),
       note: `v${version}`,
     };
     const d = cleanDraft(athleteId, draft);
@@ -342,65 +425,6 @@ export async function restoreVersion(athleteId: string, version: number): Promis
       p_actor_name: s.nama,
     });
     if (e2) throw new Error(e2.message);
-    revalidatePath(`/admin/atlet/${athleteId}`);
-    return { ok: true };
-  });
-}
-
-/** Admin only. Saves the zone markers placed on the view photos. */
-export async function setMediaHotspots(athleteId: string, hotspots: HotspotInput[]): Promise<ActionResult> {
-  return run(async () => {
-    const s = requireSession();
-    requirePermission(s, "athlete.edit");
-    if (!athleteId || !Array.isArray(hotspots)) fail("missing_input");
-    const payload = hotspots
-      .filter((h) => h && h.athleteZoneId && h.points && Object.keys(h.points).length > 0)
-      .map((h) => ({
-        athlete_zone_id: h.athleteZoneId,
-        label: String(h.label ?? ""),
-        points: Object.fromEntries(
-          Object.entries(h.points).map(([k, v]) => [
-            k,
-            { x: Math.min(1, Math.max(0, Number(v.x))), y: Math.min(1, Math.max(0, Number(v.y))) },
-          ]),
-        ),
-      }));
-    const { error } = await db().rpc("smb_set_athlete_media_hotspots", {
-      p_athlete_id: athleteId,
-      p_hotspots: payload,
-      p_actor_id: s.sub,
-      p_actor_name: s.nama,
-    });
-    if (error) throw new Error(error.message);
-    revalidatePath(`/atlet/${athleteId}`);
-    revalidatePath(`/admin/atlet/${athleteId}`);
-    return { ok: true };
-  });
-}
-
-/** Admin only. Saves which frame shows Depan / Kanan / Belakang / Kiri. */
-export async function setMediaViews(
-  athleteId: string,
-  views: Record<ViewKey, string>,
-): Promise<ActionResult> {
-  return run(async () => {
-    const s = requireSession();
-    requirePermission(s, "athlete.edit");
-    if (!athleteId) fail("missing_input");
-    const clean: Record<string, string> = {};
-    for (const k of VIEW_KEYS) {
-      const f = views?.[k];
-      if (typeof f !== "string" || !f) fail("views_invalid");
-      clean[k] = f;
-    }
-    const { error } = await db().rpc("smb_set_athlete_media_views", {
-      p_athlete_id: athleteId,
-      p_views: clean,
-      p_actor_id: s.sub,
-      p_actor_name: s.nama,
-    });
-    if (error) throw new Error(error.message);
-    revalidatePath(`/atlet/${athleteId}`);
     revalidatePath(`/admin/atlet/${athleteId}`);
     return { ok: true };
   });
