@@ -11,6 +11,7 @@ import { carryMarkersBySide, type MarkerCount } from "@/lib/media360-sides";
 import { measureBlob, prepareBackgroundRemover, preparePhoto, uploadDraftBlobs } from "@/lib/media360-upload";
 import { fitVideoFrames, grabFrame, openVideo, pickTimes, sidesOf } from "@/lib/media360-video";
 import type { Foot, FrameMetaMap } from "@/lib/media360";
+import { VideoTimeline } from "@/components/admin360/VideoTimeline";
 
 type Step = "idle" | "analyse" | "model" | "cutout" | "fit" | "upload" | "done" | "error";
 
@@ -217,6 +218,8 @@ export function Athlete360VideoAdmin({
           />
         )}
       </div>
+
+      {file && <VideoTimeline key={`${file.name}:${file.size}:${file.lastModified}`} file={file} disabled={busy} m={m} />}
 
       <label className="mt-3 flex min-h-11 items-center gap-2 text-sm text-text">
         <input type="checkbox" checked={reverse} onChange={(e) => setReverse(e.target.checked)} disabled={busy} className="accent-red-600" />
