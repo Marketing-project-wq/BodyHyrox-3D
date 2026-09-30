@@ -252,6 +252,33 @@ export function suggestMarks(a: TurnAnalysis): TurnMarks {
   return { start, front: start, right: reach(90), back: reach(180), left: reach(270), end: a.times[i1] };
 }
 
+/**
+ * The marks as the JSON file the Mac script (scripts/video360) reads: times in
+ * seconds (3 decimals), plus the standing-still bands to leave out.
+ */
+export function marksFile(
+  m: TurnMarks,
+  stills: { from: number; to: number }[],
+  info: { video: string; duration: number },
+): string {
+  const r = (s: number) => Math.round(s * 1000) / 1000;
+  return JSON.stringify(
+    {
+      video: info.video,
+      duration: r(info.duration),
+      start: r(m.start),
+      front: r(m.front),
+      right: r(m.right),
+      back: r(m.back),
+      left: r(m.left),
+      end: r(m.end),
+      stills: stills.map((b) => ({ from: r(b.from), to: r(b.to) })),
+    },
+    null,
+    2,
+  );
+}
+
 /** Marks must follow the turn: start ≤ front < right < back < left < end. */
 export function marksInOrder(m: TurnMarks): boolean {
   return m.start <= m.front && m.front < m.right && m.right < m.back && m.back < m.left && m.left < m.end;
