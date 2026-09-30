@@ -72,6 +72,7 @@ export function Admin360Studio({
   version,
   publishedAt,
   history,
+  frameTools = true,
   m,
 }: {
   athleteId: string;
@@ -81,6 +82,8 @@ export function Admin360Studio({
   version: number;
   publishedAt: string | null;
   history: Media360VersionRow[];
+  /** false = compact (set made from a video): no frame grid / per-frame tools. */
+  frameTools?: boolean;
   m: Dict;
 }) {
   const router = useRouter();
@@ -585,7 +588,7 @@ export function Admin360Studio({
             <span className="rounded-md border border-border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted">
               {m.m360_admin}
             </span>
-            <h2 className="text-sm font-semibold text-text">{m.st_title}</h2>
+            <h2 className="text-sm font-semibold text-text">{frameTools ? m.st_title : m.st_titleCompact}</h2>
           </div>
           <p className="mt-1 text-xs text-muted">
             {fmt(m.st_liveInfo, { v: version, n: live.frames.length })}
@@ -648,13 +651,17 @@ export function Admin360Studio({
       )}
 
       <div className="mt-3 flex flex-wrap items-center gap-4 text-sm">
-        <label className="flex min-h-11 items-center gap-2 text-text">
-          <input type="checkbox" checked={cutout} onChange={(e) => setCutout(e.target.checked)} className="accent-red-600" />
-          {m.st_cutoutReplace}
-        </label>
-        <button type="button" onClick={normalizeSet} disabled={!!busy || n === 0} title={m.st_normalizeHint} className="btn disabled:opacity-50">
-          <Wand2 className="h-4 w-4" /> {m.st_normalize}
-        </button>
+        {frameTools && (
+          <>
+            <label className="flex min-h-11 items-center gap-2 text-text">
+              <input type="checkbox" checked={cutout} onChange={(e) => setCutout(e.target.checked)} className="accent-red-600" />
+              {m.st_cutoutReplace}
+            </label>
+            <button type="button" onClick={normalizeSet} disabled={!!busy || n === 0} title={m.st_normalizeHint} className="btn disabled:opacity-50">
+              <Wand2 className="h-4 w-4" /> {m.st_normalize}
+            </button>
+          </>
+        )}
         <button type="button" onClick={() => setShowFlip((v) => !v)} className="btn">
           <Eye className="h-4 w-4" /> {showFlip ? m.st_hideFlip : m.st_showFlip}
         </button>
@@ -674,6 +681,8 @@ export function Admin360Studio({
         onChange={(e) => onFile(e.target.files)}
       />
 
+      {frameTools && (
+        <>
       {/* ---- gallery ---- */}
       <ol className="mt-4 grid grid-cols-2 gap-2.5 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8">
         {frames.map((f, i) => {
@@ -748,6 +757,9 @@ export function Admin360Studio({
         })}
       </ol>
       <p className="mt-2 text-xs text-faint">{m.st_galleryHint}</p>
+
+        </>
+      )}
 
       {/* ---- versions ---- */}
       {history.length > 0 && (
