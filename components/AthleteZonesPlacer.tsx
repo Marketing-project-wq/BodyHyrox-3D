@@ -6,7 +6,8 @@ import { Check, RotateCw, X } from "lucide-react";
 import { VIEW_KEYS, type Media360Views } from "@/lib/views";
 import type { SideHotspot } from "@/lib/media360-sides";
 import type { AdminZoneRow } from "@/lib/data";
-import { type Dict, fmt } from "@/lib/i18n";
+import { type Dict, fmt, errorMessage } from "@/lib/i18n";
+import { unwrap } from "@/lib/action-result";
 import { saveDraftSides } from "@/app/atlet/[id]/media-actions";
 
 type Point = { x: number; y: number };
@@ -90,11 +91,11 @@ export function AthleteZonesPlacer({
       .map(([athleteZoneId, p]) => ({ athleteZoneId, label: zoneName(athleteZoneId), points: p }));
     start(async () => {
       try {
-        await saveDraftSides(athleteId, { hotspots: payload });
+        unwrap(await saveDraftSides(athleteId, { hotspots: payload }));
         setOk(true);
         router.refresh();
       } catch (err) {
-        setError(err instanceof Error ? err.message : String(err));
+        setError(errorMessage(m, err));
       }
     });
   };

@@ -23,7 +23,8 @@ import {
 } from "lucide-react";
 import { SPONSOR_360_UPLOAD } from "@/lib/config";
 import { VIEW_KEYS, type Media360Views, type HotspotInput, type ViewKey } from "@/lib/views";
-import { type Dict, fmt } from "@/lib/i18n";
+import { type Dict, errorMessage, fmt } from "@/lib/i18n";
+import { unwrap } from "@/lib/action-result";
 import {
   footIsCurrent,
   isIdentity,
@@ -177,11 +178,11 @@ export function Admin360Studio({
     if (!d) return;
     setSave({ state: "saving" });
     try {
-      const r = await saveDraft(athleteId, withFeet(d));
+      const r = unwrap(await saveDraft(athleteId, withFeet(d)));
       setSave({ state: "saved", at: r.updatedAt });
     } catch (e) {
       setSave({ state: "error" });
-      setError(e instanceof Error ? e.message : String(e));
+      setError(errorMessage(m, e));
       throw e;
     }
   }, [athleteId, withFeet]);
@@ -284,7 +285,7 @@ export function Admin360Studio({
       const foot = await measureBlob(norm);
       setBusy(m.st_busyUpload);
       const [name] = await uploadDraftBlobs(athleteId, [norm]);
-      const signed = await signDraftFiles(athleteId, [name]);
+      const signed = unwrap(await signDraftFiles(athleteId, [name])).urls;
       setUrls((u) => ({ ...u, ...signed }));
       if (foot) setFeet((prev) => ({ ...prev, [name]: foot }));
       mutate((d) => {
@@ -299,7 +300,7 @@ export function Admin360Studio({
       });
       setNotice(p.mode === "replace" ? fmt(m.st_replaced, { n: p.index + 1 }) : fmt(m.st_inserted, { n: p.index + 1 }));
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(errorMessage(m, e));
     } finally {
       setBusy(null);
     }
@@ -311,7 +312,9 @@ export function Admin360Studio({
     const last = prevList[prevList.length - 1];
     if (!last) return;
     if (last.base === null && !urls[last.file]) {
-      const signed = await signDraftFiles(athleteId, [last.file]).catch(() => ({}));
+      const signed = await signDraftFiles(athleteId, [last.file])
+        .then((r) => (r.ok ? r.urls : {}))
+        .catch(() => ({}));
       setUrls((u) => ({ ...u, ...signed }));
     }
     mutate((d) => {
@@ -388,14 +391,14 @@ export function Admin360Studio({
     try {
       if (!latest.current) latest.current = { frames: clone(liveFrames), meta: clone(live.frameMeta) };
       await flush();
-      const r = await publishDraft(athleteId);
+      const r = unwrap(await publishDraft(athleteId));
       latest.current = null;
       setDraft(null);
       setSave({ state: "idle" });
       setNotice(fmt(m.st_published, { v: r.version }));
       router.refresh();
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(errorMessage(m, e));
     } finally {
       setBusy(null);
     }
@@ -406,13 +409,13 @@ export function Admin360Studio({
     try {
       if (saveTimer.current) clearTimeout(saveTimer.current);
       saveTimer.current = null;
-      await discardDraft(athleteId);
+      unwrap(await discardDraft(athleteId));
       latest.current = null;
       setDraft(null);
       setSave({ state: "idle" });
       router.refresh();
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(errorMessage(m, e));
     } finally {
       setBusy(null);
     }
@@ -423,10 +426,10 @@ export function Admin360Studio({
     try {
       if (saveTimer.current) clearTimeout(saveTimer.current);
       saveTimer.current = null;
-      await restoreVersion(athleteId, v);
+      unwrap(await restoreVersion(athleteId, v));
       router.refresh();
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(errorMessage(m, e));
     } finally {
       setBusy(null);
     }

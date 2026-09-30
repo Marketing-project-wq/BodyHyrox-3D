@@ -8,6 +8,7 @@ import { formatIDR, formatDayMonth, formatNumber } from "@/lib/format";
 import { Badge } from "@/components/ui";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { refundTransaction } from "@/app/admin/actions";
+import { ActionForm } from "@/components/ActionForm";
 
 export const dynamic = "force-dynamic";
 
@@ -116,7 +117,7 @@ export default async function TransaksiPage({
                 {canRefund && (
                   <td className="td text-right">
                     {t.status !== "refunded" ? (
-                      <form action={refundTransaction} className="inline">
+                      <ActionForm m={m} action={refundTransaction} className="inline">
                         <input type="hidden" name="id" value={t.id} />
                         <ConfirmButton
                           message={fmt(m.tx_confirmRefund, {
@@ -128,7 +129,7 @@ export default async function TransaksiPage({
                         >
                           {m.refund}
                         </ConfirmButton>
-                      </form>
+                      </ActionForm>
                     ) : (
                       <span className="text-xs text-faint">—</span>
                     )}

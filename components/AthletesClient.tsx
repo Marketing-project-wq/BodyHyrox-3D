@@ -10,6 +10,7 @@ import { formatIDRCompact, formatNumber } from "@/lib/format";
 import { Badge, Avatar, EmptyState } from "@/components/ui";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { createAthlete, setAthleteStatus } from "@/app/admin/actions";
+import { ActionForm } from "@/components/ActionForm";
 
 export function AthletesClient({
   athletes,
@@ -69,7 +70,7 @@ export function AthletesClient({
       </div>
 
       {showAdd && canEdit && (
-        <form action={createAthlete} className="card grid grid-cols-1 gap-3 p-4 sm:grid-cols-5">
+        <ActionForm m={m} action={createAthlete} className="card grid grid-cols-1 gap-3 p-4 sm:grid-cols-5">
           <input name="nama" required placeholder={m.ath_formName} className="input" />
           <input name="handle" required placeholder={m.ath_formHandle} className="input" />
           <input name="kota" required placeholder={m.city} className="input" />
@@ -84,7 +85,7 @@ export function AthletesClient({
           <div className="sm:col-span-5">
             <button className="btn btn-primary" type="submit">{m.ath_formSave}</button>
           </div>
-        </form>
+        </ActionForm>
       )}
 
       {total === 0 ? (
@@ -190,7 +191,7 @@ export function AthletesClient({
                           </Link>
                         )}
                         {canToggle && (
-                          <form action={setAthleteStatus} className="inline">
+                          <ActionForm m={m} action={setAthleteStatus} className="inline">
                             <input type="hidden" name="id" value={a.id} />
                             <input type="hidden" name="status" value={next} />
                             <ConfirmButton
@@ -203,7 +204,7 @@ export function AthletesClient({
                             >
                               {next === "inactive" ? m.deactivate : m.activate}
                             </ConfirmButton>
-                          </form>
+                          </ActionForm>
                         )}
                       </div>
                     </td>
