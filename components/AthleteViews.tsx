@@ -4,7 +4,9 @@ import { forwardRef, useCallback, useEffect, useImperativeHandle, useLayoutEffec
 import { useRouter } from "next/navigation";
 import type { Media360 } from "@/lib/data";
 import { VIEW_ANGLES, VIEW_KEYS, frameAngles } from "@/lib/views";
-import { STAGE_ARENA, VIEWER_360, VIEWER_360_FRAME_CLASS, VIEWER_VIEWS, viewer360FrameStyle } from "@/lib/config";
+import { STAGE_ARENA, VIEWER_360, VIEWER_360_FRAME_CLASS, VIEWER_SPIN, VIEWER_VIEWS, viewer360FrameStyle } from "@/lib/config";
+import { blendAmount, bracket, loadOrder, nearestSide, norm360 } from "@/lib/spin";
+import { FrameCache } from "@/lib/frame-cache";
 import { type Dict } from "@/lib/i18n";
 import { formatIDR } from "@/lib/format";
 import { footIsCurrent, frameCss, measureFrame, soleLifted, transformFoot, type Foot } from "@/lib/media360";
@@ -17,7 +19,7 @@ export type AthleteViewsHandle = {
   /**
    * Paint the athlete at this orbit angle (deg, any real number). `moving` hides
    * the zone markers; `turning` (a view change, not the idle spin) enables the
-   * fallback squeeze cue.
+   * squeeze cue of the 4-photo fallback.
    */
   render: (angleDeg: number, moving: boolean, turning?: boolean) => void;
 };
@@ -29,8 +31,6 @@ type DragCallbacks = {
   /** Release velocity (px/ms, + = right). */
   onDragEnd: (vxPxPerMs: number) => void;
 };
-
-const norm360 = (a: number) => ((a % 360) + 360) % 360;
 
 type GroundHit = { inside: boolean; scale: number };
 
@@ -46,12 +46,13 @@ const mixFoot = (p: Foot, q: Foot, t: number): Foot => ({
 });
 
 /**
- * Athlete photo, painted from one orbit angle. With the in-between frames loaded
- * the figure really turns (two nearest frames blended by the exact angle: the
- * lower one opaque, the upper fading in on top); until then — or if the frame
- * order can't be mapped to angles — only the four view photos are used, with a
- * subtle squeeze/shift as a "turn" cue. The four view photos load first; the
- * in-between frames stream in afterwards in the background.
+ * Athlete, painted from one orbit angle on two stacked canvases: the nearest
+ * frame below, the next one fading in on top (VIEWER_SPIN.crossfadeShare).
+ * Frames load progressively (the four sides first, then spread evenly round
+ * the turn) and every loaded frame is used right away, so the turn gets
+ * smoother while it loads. Only a few frames are decoded at a time (see
+ * FrameCache). If the frame order can't be mapped to angles, only the four
+ * side photos are used, with a subtle squeeze/shift as a "turn" cue.
  */
 export const AthleteViews = forwardRef<
   AthleteViewsHandle,
@@ -62,8 +63,12 @@ export const AthleteViews = forwardRef<
     view: number;
     m: Dict;
     label: string;
-    /** ←/→ keys: +1 = next (Kanan direction), -1 = previous. */
-    onStep: (delta: 1 | -1) => void;
+    /** ←/→ keys: turn by this many degrees (+ = toward Kanan). */
+    onKeyTurn: (deltaDeg: number) => void;
+    /** Space: play / pause the auto-rotation. */
+    onTogglePlay?: () => void;
+    /** Horizontal trackpad / wheel scroll over the athlete (px, deltaX). */
+    onWheelTurn?: (deltaXPx: number) => void;
     /** The four view photos are decoded and painted. */
     onReady?: () => void;
     /** The 3D arena (when running): tells whether each sole lands on the platform top. */
@@ -74,13 +79,13 @@ export const AthleteViews = forwardRef<
     onZoneCardChange?: (open: boolean) => void;
     /** Mouse over / off the athlete. */
     onHoverChange?: (over: boolean) => void;
-    /** A press on the athlete that did not become a drag (phones: tap). */
+    /** A press on the athlete that did not become a drag (tap / click). */
     onTap?: () => void;
     /** Keyboard focus on / off the athlete. */
     onFocusChange?: (focused: boolean) => void;
   } & DragCallbacks
 >(function AthleteViews(
-  { athleteId, media, view, m, label, onStep, onReady, onHoverChange, onTap, onFocusChange, onDragStart, onDragMove, onDragEnd, arena, debug, onZoneCardChange },
+  { athleteId, media, view, m, label, onKeyTurn, onTogglePlay, onWheelTurn, onReady, onHoverChange, onTap, onFocusChange, onDragStart, onDragMove, onDragEnd, arena, debug, onZoneCardChange },
   ref,
 ) {
   const rootRef = useRef<HTMLDivElement>(null);
@@ -96,9 +101,15 @@ export const AthleteViews = forwardRef<
   const frames = media.frames;
   const viewFiles = VIEW_KEYS.map((k) => media.views?.[k] ?? frames[0]);
   const viewIdx = viewFiles.map((f) => Math.max(0, frames.indexOf(f)));
+  const viewIdxRef = useRef(viewIdx);
+  viewIdxRef.current = viewIdx;
   const angles = useMemo(() => frameAngles(frames, media.views), [frames, media.views]);
 
-  const imgRefs = useRef<(HTMLImageElement | null)[]>([]);
+  // Two canvases: [0] = the frame below (opaque), [1] = the one fading in.
+  const canvasRefs = useRef<(HTMLCanvasElement | null)[]>([null, null]);
+  const layerFrame = useRef<number[]>([-1, -1]); // frame drawn on each canvas
+  const cacheRef = useRef<FrameCache | null>(null);
+  const repaintRaf = useRef(0);
   const stackRef = useRef<HTMLDivElement>(null);
   const markersRef = useRef<HTMLDivElement>(null);
   const shadowsRef = useRef<HTMLDivElement>(null);
@@ -111,31 +122,72 @@ export const AthleteViews = forwardRef<
   const feetRef = useRef<(Foot | null)[]>([]); // per frame index, after its transform
   const rawFeetRef = useRef<(Foot | null)[]>([]); // as measured (transform pivot)
   const meta = media.frameMeta ?? {};
-  const loadedRef = useRef<Set<number>>(new Set());
-  const fullRef = useRef(false); // all frames decoded and angle-mapped -> real turn
+  const loadedRef = useRef<Set<number>>(new Set()); // files downloaded (compressed)
   const lastRef = useRef<{ a: number; moving: boolean; turning: boolean }>({ a: 0, moving: false, turning: false });
   const [ready, setReady] = useState(false);
-  const [phase2, setPhase2] = useState(false); // in-between frames requested
 
   const url = useCallback((i: number) => `${base}/${frames[i]}`, [base, frames]);
 
-  const decode = (u: string) =>
-    new Promise<boolean>((res) => {
-      const img = new Image();
-      img.onload = () => {
-        if (typeof img.decode === "function") img.decode().then(() => res(true), () => res(true));
-        else res(true);
-      };
-      img.onerror = () => res(false);
-      img.src = u;
-    });
-
-  // Keyframes for the current mode: every frame (real turn) or the 4 views.
+  // Keyframes: every loaded frame at its angle (progressive), or only the 4
+  // side photos when the frame order can't be mapped to angles.
   const keyframes = useCallback((): { a: number; i: number }[] => {
-    if (fullRef.current && angles) return angles.map((a, i) => ({ a, i })).sort((x, y) => x.a - y.a);
+    const loaded = loadedRef.current;
+    if (angles) {
+      const k = angles.map((a, i) => ({ a: norm360(a), i })).filter((x) => loaded.has(x.i));
+      if (k.length) return k.sort((x, y) => x.a - y.a);
+    }
     return VIEW_ANGLES.map((a, k) => ({ a, i: viewIdx[k] }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [angles, viewIdx.join(",")]);
+
+  // Canvas backing size = its CSS size × DPR (capped); frames decode at that height.
+  const sizeCanvases = useCallback((box: DOMRect) => {
+    const dpr = Math.min(window.devicePixelRatio || 1, VIEWER_SPIN.maxDpr);
+    const w = Math.max(1, Math.round(box.width * dpr));
+    const h = Math.max(1, Math.round(box.height * dpr));
+    for (const c of canvasRefs.current) {
+      if (c && (c.width !== w || c.height !== h)) {
+        c.width = w;
+        c.height = h;
+        layerFrame.current = [-1, -1];
+      }
+    }
+    cacheRef.current?.setTargetHeight(h);
+  }, []);
+
+  // Draw frame i on canvas `layer` (only when it changes). Returns false if its
+  // bitmap isn't decoded yet (it is requested; the next paint draws it).
+  const drawLayer = (layer: number, i: number): boolean => {
+    const c = canvasRefs.current[layer];
+    const cache = cacheRef.current;
+    if (!c || !cache) return false;
+    if (layerFrame.current[layer] === i) return true;
+    const bmp = cache.get(i);
+    if (!bmp) {
+      cache.request(i).then((b) => {
+        if (b) schedulePaint();
+      });
+      return false;
+    }
+    const g = c.getContext("2d");
+    if (!g) return false;
+    g.imageSmoothingQuality = "high";
+    g.clearRect(0, 0, c.width, c.height);
+    g.drawImage(bmp, 0, 0, c.width, c.height);
+    layerFrame.current[layer] = i;
+    // The frame's own (non-destructive) transform pivots on its measured feet.
+    const fc = frameCss(meta[frames[i]]?.t, rawFeetRef.current[i] ?? meta[frames[i]]?.foot);
+    c.style.transformOrigin = fc.transformOrigin;
+    c.style.transform = fc.transform === "none" ? "" : fc.transform;
+    return true;
+  };
+  const schedulePaint = () => {
+    if (repaintRaf.current) return;
+    repaintRaf.current = requestAnimationFrame(() => {
+      repaintRaf.current = 0;
+      paintRef.current(lastRef.current.a, lastRef.current.moving, lastRef.current.turning);
+    });
+  };
 
   const paint = useCallback(
     (angleDeg: number, moving: boolean, turning = false) => {
@@ -146,53 +198,42 @@ export const AthleteViews = forwardRef<
         box = rootRef.current.getBoundingClientRect();
         boxRef.current = box;
       }
-      const imgs = imgRefs.current;
       const A = norm360(angleDeg);
       const kf = keyframes();
-      // Bracket A between two keyframes (wrapping 360 -> first).
-      let lo = kf[kf.length - 1];
-      let hi = { a: kf[0].a + 360, i: kf[0].i };
-      let loA = lo.a - 360;
-      for (let k = 0; k < kf.length; k++) {
-        const nextA = k + 1 < kf.length ? kf[k + 1].a : kf[0].a + 360;
-        if (A >= kf[k].a && A < nextA) {
-          lo = kf[k];
-          loA = kf[k].a;
-          hi = { a: nextA, i: k + 1 < kf.length ? kf[k + 1].i : kf[0].i };
-          break;
-        }
+      const fullTurn = !!angles && kf.length > 4;
+      const br = bracket(A, kf);
+      const t = Math.min(1, Math.max(0, br.t));
+      // Upper frame's share: a centred blend (crisp frames at both ends), or the
+      // whole step between the 4 side photos of the fallback.
+      let a = br.hi === br.lo ? 0 : angles ? blendAmount(t, VIEWER_SPIN.crossfadeShare) : t;
+      let base = br.lo;
+      if (a >= 1) {
+        base = br.hi; // past the blend: the next frame alone
+        a = 0;
       }
-      const span = hi.a - loA || 1;
-      const t = Math.min(1, Math.max(0, (A - loA) / span));
-      // How much of the upper frame shows (over the opaque lower one).
-      //  - view turn / swipe: blend across the whole step (fast, reads as motion)
-      //  - slow idle spin: hold one crisp photo and switch at mid-step with a
-      //    very short blend, so two different poses are never overlaid for long
-      //    (that long overlay is what reads as a "ghost" at 10°/s).
-      let a = t;
-      let base = lo.i;
-      if (moving && !turning) {
-        const blendDeg = Math.min(
-          span,
-          (360 / STAGE_ARENA.autoRotateSecPerTurn) * (STAGE_ARENA.idleBlendMs / 1000),
-        );
-        const mid = loA + span / 2;
-        const u = Math.min(1, Math.max(0, (A - (mid - blendDeg / 2)) / blendDeg));
-        a = u * u * (3 - 2 * u);
-        if (a >= 1) {
-          base = hi.i; // past the switch: the next photo alone
-          a = 0;
-        }
-      }
+      const lo = { i: base };
+      const hi = { i: br.hi };
+      // Draw: the frame below on canvas 0, the one fading in on canvas 1. A
+      // frame not decoded yet keeps the previous picture for a moment.
+      const cache = cacheRef.current;
       const EPS = 0.002;
-      for (let i = 0; i < imgs.length; i++) {
-        const el = imgs[i];
-        if (!el) continue;
-        const isLo = i === base;
-        const isHi = base === lo.i && i === hi.i && a > EPS && hi.i !== lo.i;
-        el.style.opacity = isLo ? "1" : isHi ? String(a) : "0";
-        el.style.zIndex = isHi ? "2" : isLo ? "1" : "0";
-        el.style.visibility = isLo || isHi ? "visible" : "hidden";
+      const showHi = base === br.lo && a > EPS && br.hi !== br.lo;
+      if (cache) {
+        cache.pin(showHi ? [base, br.hi] : [base]);
+        drawLayer(0, base);
+        const hiOk = showHi && drawLayer(1, br.hi);
+        const c0 = canvasRefs.current[0];
+        const c1 = canvasRefs.current[1];
+        if (c0) c0.style.opacity = "1";
+        if (c1) c1.style.opacity = hiOk ? String(a) : "0";
+        // ?debug=feet also shows how many frames are decoded (memory check).
+        if (debugOn.current && rootRef.current) rootRef.current.dataset.decoded = `${cache.decodedCount}/${cache.limit}`;
+        // Decode the next frames on both sides ahead of the turn.
+        const at = kf.findIndex((k) => k.i === base);
+        for (let d = 1; at >= 0 && d <= VIEWER_SPIN.prefetch; d++) {
+          cache.request(kf[(at + d) % kf.length].i);
+          cache.request(kf[(at - d + kf.length * 4) % kf.length].i);
+        }
       }
       // Feet on the platform: shift the photo (and its zone markers) so the
       // shown frame's sole line lands exactly on the platform surface line
@@ -202,13 +243,13 @@ export const AthleteViews = forwardRef<
       const feet = feetRef.current;
       const fallback: Foot = { toe: 1 - VIEWER_360.feetLinePct / 100, back: 1 - VIEWER_360.feetLinePct / 100, left: 0.3, right: 0.7 };
       const fBase = feet[base] ?? fallback;
-      const foot = base === lo.i && a > EPS && hi.i !== lo.i ? mixFoot(fBase, feet[hi.i] ?? fallback, a) : fBase;
+      const foot = showHi ? mixFoot(fBase, feet[hi.i] ?? fallback, a) : fBase;
       const line = 1 - VIEWER_360.feetLinePct / 100; // platform surface, fraction of the box from the top
       const shift = `translateY(calc(${((line - foot.toe) * 100).toFixed(3)}% + ${STAGE_ARENA.footOverlapPx}px))`;
       // Fallback "turn" cue (only when stepping between the 4 view photos).
       const stack = stackRef.current;
       if (stack) {
-        if (!fullRef.current && turning) {
+        if (!fullTurn && !angles && turning) {
           const s = Math.sin(Math.PI * t);
           stack.style.transform = `${shift} translateX(${(VIEWER_VIEWS.fallbackShiftPct * s).toFixed(2)}%) scaleX(${(
             1 -
@@ -218,11 +259,12 @@ export const AthleteViews = forwardRef<
           stack.style.transform = shift;
         }
       }
-      // Markers are stored on the untransformed photo: carry the settled
-      // frame's own transform so they stay on the body.
+      // Markers are stored on the untransformed photo of their side: carry
+      // that frame's own transform so they stay on the body.
       const mk0 = markersRef.current;
+      const sideFrame = viewIdxRef.current[nearestSide(A).side];
       if (mk0) {
-        const fc = frameCss(meta[frames[base]]?.t, rawFeetRef.current[base] ?? meta[frames[base]]?.foot);
+        const fc = frameCss(meta[frames[sideFrame]]?.t, rawFeetRef.current[sideFrame] ?? meta[frames[sideFrame]]?.foot);
         mk0.style.transformOrigin = fc.transformOrigin;
         mk0.style.transform = fc.transform === "none" ? shift : `${shift} ${fc.transform}`;
       }
@@ -233,7 +275,7 @@ export const AthleteViews = forwardRef<
       // the floor. A sole marked lifted in the studio, or off the platform:
       // faint, wider shadow. Plus a soft pool spanning the planted soles.
       const shadows = shadowsRef.current;
-      const lead = base === lo.i && a >= 0.5 && hi.i !== lo.i ? feet[hi.i] ?? foot : foot;
+      const lead = showHi && a >= 0.5 ? feet[hi.i] ?? foot : foot;
       const soles = lead.soles?.length ? lead.soles : [[lead.left, lead.right, lead.toe]];
       const S = STAGE_ARENA;
       const ground = arenaRef.current?.current.groundHit ?? null;
@@ -241,7 +283,7 @@ export const AthleteViews = forwardRef<
       // Raycasts are cached: redo them only for a new leading frame, a turn of
       // more than groundRecheckDeg, or a layout change.
       const hits: (GroundHit | null)[] = [];
-      const leadIdx = base === lo.i && a >= 0.5 && hi.i !== lo.i ? hi.i : base;
+      const leadIdx = showHi && a >= 0.5 ? hi.i : base;
       const gc = groundCacheRef.current;
       const key = `${leadIdx}|${feet[leadIdx] ? 1 : 0}|${ground ? 1 : 0}|${layoutVerRef.current}`;
       const dA = gc ? Math.abs(((A - gc.a + 540) % 360) - 180) : Infinity;
@@ -314,17 +356,23 @@ export const AthleteViews = forwardRef<
             })
             .join("");
       }
-      // Zone markers: hidden while turning, back on the settled view.
+      // Zone markers (option A): a side's markers show while the athlete is
+      // at rest within VIEWER_SPIN.markerWindowDeg of that side.
       const mk = markersRef.current;
       if (moving) closeCardRef.current();
+      const near = nearestSide(A).off <= VIEWER_SPIN.markerWindowDeg;
+      const showMk = !moving && near;
+      if (!near) closeCardRef.current();
       if (mk) {
-        mk.style.opacity = moving ? "0" : "1";
-        mk.style.visibility = moving ? "hidden" : "visible";
+        mk.style.opacity = showMk ? "1" : "0";
+        mk.style.visibility = showMk ? "visible" : "hidden";
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [keyframes],
+    [keyframes, angles],
   );
+  const paintRef = useRef(paint);
+  paintRef.current = paint;
 
   useImperativeHandle(ref, () => ({ render: paint }), [paint]);
 
@@ -369,13 +417,8 @@ export const AthleteViews = forwardRef<
       const setFoot = (f: Foot | null) => {
         rawFeetRef.current[i] = f;
         feetRef.current[i] = f ? transformFoot(f, fm?.t) : null;
-        // The transform pivots on the measured feet (same point the markers use).
-        const el = imgRefs.current[i];
-        if (el && fm?.t && f) {
-          const fc = frameCss(fm.t, f);
-          el.style.transformOrigin = fc.transformOrigin;
-          el.style.transform = fc.transform;
-        }
+        // The transform pivots on the measured feet: redraw a canvas showing i.
+        layerFrame.current = layerFrame.current.map((x) => (x === i ? -1 : x));
       };
       // Stored feet only when measured with the current (two-contact) rules
       // or placed by hand. Older ones anchor with their stored toe right away;
@@ -422,59 +465,47 @@ export const AthleteViews = forwardRef<
     [base, frames, url],
   );
 
-  // Phase 1: the four view photos (so the page is usable fast).
+  // Load: the four side photos first (then the stage is usable), the other
+  // frames spread evenly round the turn afterwards; each one is used as soon
+  // as it has arrived. Only compressed files are kept; FrameCache decodes the
+  // few that are drawn.
   useEffect(() => {
     let alive = true;
-    const uniq = Array.from(new Set(viewIdx));
-    Promise.all(
-      uniq.map((i) =>
-        decode(url(i))
-          .then((ok) => ok && loadedRef.current.add(i))
-          .then(() => ensureFoot(i)),
-      ),
-    ).then(() => {
+    const cache = new FrameCache(frames.map((_, i) => url(i)));
+    cacheRef.current = cache;
+    loadedRef.current = new Set();
+    layerFrame.current = [-1, -1];
+    const sides = Array.from(new Set(viewIdx));
+    const order = angles ? loadOrder(angles, sides) : sides;
+    let pending = new Set(sides);
+    const box = rootRef.current?.getBoundingClientRect();
+    if (box) sizeCanvases(box);
+    cache.load(order, (i, ok) => {
       if (!alive) return;
-      setReady(true);
-      setPhase2(true);
+      if (ok) loadedRef.current.add(i);
+      ensureFoot(i).then(() => alive && schedulePaint());
+      if (pending.has(i)) {
+        pending.delete(i);
+        if (pending.size === 0) {
+          pending = new Set();
+          // Ready once the first side is decoded and on screen.
+          cache.request(viewIdx[0]).then(() => {
+            if (!alive) return;
+            setReady(true);
+            schedulePaint();
+          });
+        }
+      } else schedulePaint();
     });
     return () => {
       alive = false;
+      cache.dispose();
+      if (cacheRef.current === cache) cacheRef.current = null;
+      if (repaintRaf.current) cancelAnimationFrame(repaintRaf.current);
+      repaintRaf.current = 0;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [base, frames.join("|"), viewIdx.join(",")]);
-
-  // Phase 2: in-between frames, decoded in the background. The real turn is
-  // switched on only while the figure is at rest, so a transition never changes
-  // mode half-way.
-  useEffect(() => {
-    if (!phase2 || !angles) return;
-    let alive = true;
-    (async () => {
-      for (let i = 0; i < frames.length; i++) {
-        if (!alive) return;
-        if (loadedRef.current.has(i)) continue;
-        if (await decode(url(i))) loadedRef.current.add(i);
-        await ensureFoot(i);
-      }
-      if (!alive || loadedRef.current.size < frames.length) return;
-      const arm = () => {
-        if (!alive) return;
-        // Switch to the real turn between view changes (the slow idle spin is
-        // fine to switch during; a fast view turn is not).
-        if (lastRef.current.turning) {
-          setTimeout(arm, 120);
-          return;
-        }
-        fullRef.current = true;
-        paint(lastRef.current.a, lastRef.current.moving, false);
-      };
-      arm();
-    })();
-    return () => {
-      alive = false;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phase2, angles]);
+  }, [base, frames.join("|"), viewIdx.join(","), angles]);
 
   // Layout changes invalidate the cached box and raycasts, then repaint once.
   useEffect(() => {
@@ -484,6 +515,7 @@ export const AthleteViews = forwardRef<
     const invalidate = () => {
       boxRef.current = null;
       layoutVerRef.current++;
+      sizeCanvases(root.getBoundingClientRect());
       if (raf || !ready) return;
       raf = requestAnimationFrame(() => {
         raf = 0;
@@ -500,7 +532,23 @@ export const AthleteViews = forwardRef<
       window.removeEventListener("resize", invalidate);
       if (raf) cancelAnimationFrame(raf);
     };
-  }, [paint, ready]);
+  }, [paint, ready, sizeCanvases]);
+
+  // Trackpad / wheel: a mostly horizontal scroll turns the athlete (vertical
+  // scrolling stays with the page). Native listener: React's is passive.
+  const onWheelTurnRef = useRef(onWheelTurn);
+  onWheelTurnRef.current = onWheelTurn;
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!root) return;
+    const onWheel = (e: WheelEvent) => {
+      if (!ready || Math.abs(e.deltaX) <= Math.abs(e.deltaY)) return;
+      e.preventDefault(); // also keeps Mac browsers from swiping back a page
+      onWheelTurnRef.current?.(e.deltaMode === 1 ? e.deltaX * 16 : e.deltaX);
+    };
+    root.addEventListener("wheel", onWheel, { passive: false });
+    return () => root.removeEventListener("wheel", onWheel);
+  }, [ready]);
 
   // Repaint once the view photos are ready (and whenever the image set changes).
   useEffect(() => {
@@ -664,10 +712,13 @@ export const AthleteViews = forwardRef<
       onKeyDown={(e) => {
         if (e.key === "ArrowRight") {
           e.preventDefault();
-          onStep(1);
+          onKeyTurn(VIEWER_SPIN.keyStepDeg);
         } else if (e.key === "ArrowLeft") {
           e.preventDefault();
-          onStep(-1);
+          onKeyTurn(-VIEWER_SPIN.keyStepDeg);
+        } else if (e.key === " " || e.key === "Spacebar") {
+          e.preventDefault();
+          onTogglePlay?.();
         }
       }}
     >
@@ -695,33 +746,17 @@ export const AthleteViews = forwardRef<
       </div>
 
       <div ref={stackRef} className="absolute inset-0" style={{ transformOrigin: "50% 100%" }}>
-        {frames.map((f, i) => {
-          const isView = viewIdx.includes(i);
-          const src = isView || phase2 ? url(i) : undefined;
-          const first = i === viewIdx[0];
-          const fc = frameCss(meta[f]?.t, meta[f]?.foot);
-          return (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              key={f}
-              ref={(el) => {
-                imgRefs.current[i] = el;
-              }}
-              src={src}
-              alt=""
-              draggable={false}
-              decoding="async"
-              className="pointer-events-none absolute inset-0 h-full w-full object-contain"
-              style={{
-                opacity: first ? 1 : 0,
-                visibility: first ? "visible" : "hidden",
-                zIndex: first ? 1 : 0,
-                transform: fc.transform,
-                transformOrigin: fc.transformOrigin,
-              }}
-            />
-          );
-        })}
+        {[0, 1].map((k) => (
+          <canvas
+            key={k}
+            ref={(el) => {
+              canvasRefs.current[k] = el;
+            }}
+            aria-hidden
+            className="pointer-events-none absolute inset-0 h-full w-full"
+            style={{ opacity: k === 0 ? 1 : 0, zIndex: k + 1 }}
+          />
+        ))}
       </div>
 
       {!ready && (

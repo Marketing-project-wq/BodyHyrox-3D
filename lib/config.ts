@@ -188,8 +188,6 @@ export const VIEWER_VIEWS = {
   dragPxPer90: 170,
   /** Movement (px) before a press becomes a horizontal drag. */
   dragStartPx: 8,
-  /** Release velocity (px/ms) that flicks to the next view even if not dragged halfway. */
-  flickVelocity: 0.45,
   /** Zone markers fade out while turning and back in on the new view (ms). */
   markerFadeMs: 160,
   /**
@@ -209,6 +207,41 @@ export const VIEWER_VIEWS = {
  * sits beyond `minSceneryRadiusM` (> camera distance) so it can never pass in
  * front of the (DOM) athlete.
  */
+/**
+ * Free rotation of the athlete (any angle, not only the 4 sides).
+ * - crossfadeShare: share of the step between two frames spent blending them
+ *   (1 = blend over the whole step; lower = each frame stays crisp longer and
+ *   the two poses overlap for less time, so a stepping athlete never ghosts).
+ * - inertiaTauMs / inertiaMin/MaxDegPerSec: a released drag keeps turning and
+ *   slows down (exponential, time constant tauMs) until it stops.
+ * - wheelDegPerPx: horizontal trackpad / wheel turn (deg per px of deltaX).
+ * - keyStepDeg: one ←/→ key press turns this much.
+ * - markerWindowDeg: zone markers of a side show while the athlete is at
+ *   rest within this many degrees of that side (option A).
+ * - sideReadoutDeg: the readout names the side within this many degrees.
+ * - maxDpr: canvas resolution cap (device px per CSS px).
+ * - cacheFrames: decoded frames kept in memory (ImageBitmap LRU) per device
+ *   class; everything else stays compressed (Blob).
+ * - loadConcurrency: frames downloaded at once (the 4 sides first, then the
+ *   others spread evenly around the turn).
+ * - prefetch: frames decoded ahead in the direction of the turn.
+ */
+export const VIEWER_SPIN = {
+  crossfadeShare: 0.5,
+  inertiaTauMs: 280,
+  inertiaMinDegPerSec: 4,
+  inertiaMaxDegPerSec: 540,
+  wheelDegPerPx: 0.35,
+  keyStepDeg: 15,
+  keyTurnMs: 180,
+  markerWindowDeg: 15,
+  sideReadoutDeg: 10,
+  maxDpr: 2,
+  cacheFrames: { phone: 12, tablet: 16, desktop: 32 },
+  loadConcurrency: 3,
+  prefetch: 3,
+};
+
 export const STAGE_ARENA = {
   color: "#ff2d55",
   background: "#0d0809",
@@ -258,8 +291,10 @@ export const STAGE_ARENA = {
    * turn per `autoRotateSecPerTurn`; direction 1 = the floor in front of the
    * athlete drifts to the right (camera orbits toward the athlete's right side),
    * -1 = the other way. Starts once the athlete photos and the arena are ready,
-   * easing in/out over `autoRotateEaseMs`; after a swipe it resumes
-   * `autoRotateResumeMs` later. Off under prefers-reduced-motion.
+   * easing in/out over `autoRotateEaseMs`. Runs only while the visitor's
+   * Play/Pause is on Play (a drag, tab, arrow or key turns it to Pause);
+   * starts on Pause under prefers-reduced-motion. `autoRotateResumeMs`: after
+   * a zone card closes the spin (when on Play) resumes this much later.
    */
   autoRotateSecPerTurn: 36,
   autoRotateDirection: 1,
@@ -267,15 +302,6 @@ export const STAGE_ARENA = {
   autoRotateResumeMs: 2500,
   /** Mouse leaves the athlete -> spin resumes after this (ms). */
   hoverResumeMs: 1200,
-  /** A tap on the athlete (phones) holds the spin on the nearest side this long (ms). */
-  tapHoldMs: 5000,
-  /**
-   * During the slow idle spin the athlete holds one crisp photo and switches to
-   * the next at mid-step with a blend this short (ms), instead of overlaying two
-   * poses for the whole step (which reads as a ghost/double image). View turns
-   * and swipes still blend across the step. Raise for softer switches.
-   */
-  idleBlendMs: 160,
   /** The feet sink this many px into the platform surface (no antialiasing hairline). */
   footOverlapPx: 2,
   /**
