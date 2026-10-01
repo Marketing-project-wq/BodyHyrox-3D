@@ -290,19 +290,39 @@ export const VIEWER_SPIN = {
 export const STAGE_MODE: "static-athlete" | "turntable" = "static-athlete";
 /**
  * "static-athlete" mode:
- * - secPerTurn / direction: one orbit of the scenery (the reference turns
- *   about 4 deg/s, ~88 s per turn); direction 1 or -1.
- * - easeMs: the orbit eases in / out over this long (Play / Pause, tab back).
- * - sideFadeMs: crossfade between two side photos (instant under reduced motion).
+ * - secPerTurn / direction: one orbit of the scenery (48 s = 12 s per side);
+ *   direction 1 or -1. The scenery angle works like a camera orbiting the
+ *   athlete: 0 = Front, 90 = Right, 180 = Back, 270 = Left (as the turntable).
+ * - autoSides: the athlete's photo follows the orbit, side by side (Front ->
+ *   Right -> Back -> Left with direction 1). false: only tabs / swipe / keys
+ *   switch the side.
+ * - autoFadeMs: crossfade between two sides during the orbit, centred on the
+ *   side boundary (45 / 135 / 225 / 315 deg).
+ * - turnToSideMs: a tab / swipe / key turns the scenery the shortest way to
+ *   that side over this long (the athlete crossfades meanwhile); the orbit
+ *   comes back resumeMs after it (or after a zone card closes).
+ * - prepNextMs: this long after a side settles, the side the orbit reaches
+ *   next is drawn ahead (hidden), so its crossfade starts without a draw.
+ * - easeMs: the orbit eases in / out over this long (Play / Pause, resume).
+ * - maxStepMs: longest frame step the orbit takes in full, so it keeps its
+ *   speed down to 1000 / maxStepMs fps (longer stalls are skipped, no jump).
+ * - sideFadeMs: crossfade for a tab / swipe / key with autoSides off
+ *   (instant under reduced motion).
  * - swipeMinPx: a horizontal swipe on the athlete at least this long switches side.
  * - cssLinePeriodPx / cssPeriodsPerTurn: no-WebGL fallback, neon lines behind
  *   the athlete that drift sideways as the scenery orbits (one turn = this
  *   many line periods).
  */
 export const STAGE_STATIC = {
-  secPerTurn: 88,
+  secPerTurn: 48,
   direction: 1 as 1 | -1,
+  autoSides: true,
+  autoFadeMs: 1200,
+  turnToSideMs: 1200,
+  resumeMs: 4500,
+  prepNextMs: 800,
   easeMs: 1200,
+  maxStepMs: 100,
   sideFadeMs: 450,
   swipeMinPx: 40,
   cssLinePeriodPx: 120,
