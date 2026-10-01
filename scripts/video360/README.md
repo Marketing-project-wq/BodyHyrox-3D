@@ -1,82 +1,134 @@
-# Video 360 atlet: membuat file video di Mac
+# Putaran 360° atlet: membuat urutan gambar di Mac
 
-Skrip ini mengubah video mentah (latar polos, dari kamera atau AI video generator) menjadi:
-- video transparan **WebM VP9 alpha** untuk Chrome, Edge dan Android;
-- video transparan **HEVC alpha** untuk Safari di Mac, iPad dan iPhone;
-- **72 keyframe WebP** (setiap 5°) untuk drag, tab, Pause, titik zona dan cadangan;
-- `feet.json`: posisi telapak sepatu di setiap frame video, supaya bayangan kontak di panggung tepat di bawah sepatu;
-- `poster.webp`, `contact.jpg` (36 pose untuk dicek mata) dan `meta.json`.
+Di panggung, atlet **berdiri diam menghadap depan**. Hanya latarnya yang berputar, seperti kamera
+yang berjalan mengelilingi atlet. Skrip ini membuat urutan gambarnya dari satu video putar:
 
-Hasilnya diunggah ke draft lewat studio (tahap V4, butuh SQL). Skrip ini tidak menyentuh data
-atau Storage.
+1. **Hapus latar dari frame ASLI, tentukan sudutnya, lalu ambil hanya frame berdiri.** Sudut
+   tiap frame dihitung dari penanda (Depan/Kanan/Belakang/Kiri), gerakannya, dan bentuk badan
+   (pinggul dan bahu paling lebar dari depan/belakang, paling sempit dari samping). Frame saat
+   atlet melangkah atau mengangkat kaki dibuang.
+2. **Isi celah sudut**, dari yang paling tajam:
+   - **cermin** (`GAP_FILL=mirror`, bawaan): celah di atas 10° diisi frame berdiri dari sisi
+     seberang yang dibalik kiri-kanan (frame di sudut a, dibalik, menjadi sudut 360 − a);
+   - **RIFE bertahap**: celah yang masih di atas 6° diberi frame bantu (frame asli yang paling
+     mendekati pose berdiri), supaya RIFE tidak pernah menjembatani celah lebar;
+   - **RIFE** (interpolasi) untuk setiap sudut di antaranya.
+3. **Badan 100% padat**: lubang kecil diisi, bagian badan tidak ada yang tembus pandang; hanya
+   tepi luar dan rambut yang halus.
+4. **Cek kualitas setiap gambar**: bagian tembus pandang, dan bentuk badan atau sepatu yang
+   berubah mendadak dibanding gambar tetangganya. Gambar yang gagal diganti: sepatunya diambil
+   dari frame asli terdekat, atau seluruh gambar diganti frame asli terdekat. Semuanya
+   dilaporkan.
+5. **Setiap gambar dikunci** di tempat yang sama: garis telapak, tinggi badan dan tengah badan
+   persis sama (selisih di bawah 1 px).
+6. **Gambar pertama = Depan (0°).** Satu putaran penuh dengan jarak sudut rata, lalu kembali ke
+   Depan tanpa sambungan. Gambar ke-k = sudut 360 × k / n, sama dengan sudut latar saat gambar itu
+   tampil.
+
+**Yang ikut terbalik di gambar cermin:** jam tangan pindah ke pergelangan sebelah, logo di baju dan
+legging terbalik dan pindah sisi, arah kibasan rambut, dan belahan atau lipatan baju yang tidak
+simetris. Kalau ini mengganggu, pakai `GAP_FILL=anchor` (tanpa cermin; bagian yang melangkah
+lebih banyak) atau rekam ulang.
+
+Hasil (bawaan: 60 detik per putaran, 24 gambar per detik = 1.440 gambar):
+- **WebM VP9 alpha** (Chrome, Edge, Android) dan **HEVC alpha** (Safari Mac/iPad/iPhone, hanya
+  bisa dibuat di Mac);
+- **72 keyframe WebP** (setiap 5°) untuk drag, tab, Pause dan titik zona;
+- `feet.json` (telapak tiap gambar, untuk bayangan), `poster.webp`, `contact.jpg` (24 gambar
+  setiap 15°, ukuran penuh, dengan garis kunci) dan `meta.json` (termasuk hasil cek kunci dan cek
+  kualitas).
+
+Skrip ini tidak menyentuh data atau Storage. Hasilnya diunggah ke draft lewat studio (tahap V4).
 
 ## 1. Sekali saja: instal alat
 ```
 brew install ffmpeg python@3.12
 python3 -m venv ~/v360
 source ~/v360/bin/activate
-pip install "rembg[cli]" pillow numpy
+pip install "rembg[cli]" pillow numpy scipy
 ```
-- Homebrew: https://brew.sh.
-- ffmpeg dari Homebrew berisi `hevc_videotoolbox`, encoder Apple yang bisa membuat HEVC dengan alpha. Encoder ini hanya ada di macOS.
+**RIFE** (interpolasi frame, memakai GPU Mac):
+1. Unduh `rife-ncnn-vulkan-20221029-macos.zip` dari
+   https://github.com/nihui/rife-ncnn-vulkan/releases.
+2. Di Terminal:
+   ```
+   unzip ~/Downloads/rife-ncnn-vulkan-20221029-macos.zip -d ~/v360/
+   mv ~/v360/rife-ncnn-vulkan-20221029-macos ~/v360/rife
+   xattr -dr com.apple.quarantine ~/v360/rife
+   ```
 
 ## 2. Tandai video di studio
-1. Buka Admin → atlet → Video 360°, pilih video, lalu klik **Buka timeline**.
-2. Cek penanda Awal, Depan, Kanan, Belakang, Kiri, Akhir, dan pita diam yang dibuang.
-3. Klik **Unduh penanda (JSON)**, lalu simpan file `…-marks.json` di samping videonya.
+1. Admin → atlet → Video 360°, pilih video, lalu klik **Buka timeline**.
+2. Cek penanda **Depan** (atlet tepat menghadap kamera), Kanan, Belakang, Kiri, **Akhir** (kembali
+   tepat menghadap kamera) dan pita diam.
+3. Klik **Unduh penanda (JSON)** dan simpan di samping videonya.
 
 ## 3. Jalankan
 ```
 source ~/v360/bin/activate
 cd BodyHyrox-3D/scripts/video360
-TURN_SEC=24 ./make_360_video.sh ~/Movies/atlet.mov ~/Movies/atlet-marks.json ~/Movies/atlet-out
+RIFE_BIN=~/v360/rife/rife-ncnn-vulkan ./make_360_video.sh ~/Movies/atlet.mp4 ~/Movies/atlet-marks.json ~/Movies/atlet-out
 ```
 
 | Pengaturan | Bawaan | Arti |
 |---|---|---|
-| `TURN_SEC` | 24 | Lama satu putaran di hasil akhir (detik) |
-| `FPS` | 30 | Frame per detik hasil akhir |
-| `CANVAS` | 714x1680 | Ukuran frame; ~1,5× frame sekarang, tajam di Retina/DPR 3 |
-| `SPEED` | motion | Di dalam tiap seperempat putaran, sudut mengikuti gerakan yang terukur, sehingga putaran yang cepat-lambat tetap rata. `linear` = kecepatan tetap di antara dua penanda |
-| `DEDUPE` | 1 | Buang frame ganda (umum di video AI dan konversi 24→30 fps) |
-| `INTERP` | 0 | 2–4 = buat frame sisipan sebelum hapus-latar (untuk klip AI pendek dengan sedikit pose). Cek `contact.jpg`: tangan dan kaki bisa melengkung |
-| `INTERP_GUARD` | 1.15 | Bersama `INTERP`: frame sisipan tidak dibuat di bagian video saat kaki bergerak jauh lebih banyak daripada badan atas (atlet menggeser kaki). Di situ interpolasi membuat "kaki bayangan", jadi frame aslinya yang dipakai. `0` = sisipkan di semua bagian |
-| `FIT` | set | `set` = satu transform untuk seluruh putaran (kamera diam). `frame` = tiap frame dipaskan sendiri (kamera AI yang zoom/bergeser; kaki tetap di garis, ukuran bisa sedikit berdenyut) |
-| `REMBG_MODEL` | birefnet-general-lite | `birefnet-general` lebih tajam, tapi unduh ~1 GB dan butuh RAM ≥16 GB |
+| `TURN_SEC` | 60 | Lama satu putaran (detik) |
+| `FPS` | 24 | Gambar per detik (60 × 24 = 1.440 gambar) |
+| `CANVAS` | 714x1680 | Ukuran gambar |
+| `GAP_FILL` | mirror | `mirror` (cermin + RIFE bertahap), `anchor` (RIFE bertahap tanpa cermin), `rife` (hanya frame berdiri + RIFE) |
+| `RIFE_BIN` | rife-ncnn-vulkan | Lokasi program RIFE |
+| `STEP_TOL` | 0.006 | Garis telapak bergeser ≥0,6% tinggi badan antar frame = melangkah |
+| `LEG_GUARD` | 1.8 | Kaki berubah ≥1,8× lebih banyak dari badan atas (median 3 pasang frame) = melangkah |
+| `SHARPEN` | 0 | Penajaman ringan pada warna (0 = mati, 0.3–0.6 = ringan) |
+| `REMBG_MODEL` | birefnet-general-lite | `isnet-general-use` ±10× lebih cepat, sedikit lebih kasar |
 
-Lama proses: sekitar 0,5–2 detik per pose di Mac Apple Silicon, jadi 10–25 menit untuk 720 frame.
+Lama proses di Mac Apple Silicon: ±20–40 menit (hapus latar ±1 detik per gambar).
 
 ## 4. Baca laporannya
-- `distinct poses`: jumlah pose berbeda. **WARNING** muncul kalau jauh lebih sedikit dari jumlah frame hasil; putarannya akan patah-patah. Solusinya: video lebih panjang/lambat, `TURN_SEC` lebih kecil, atau `INTERP=2..4`.
-- `body height … varies`: kalau lebih dari 4%, kamera ber-zoom atau bergeser. Coba `FIT=frame`.
-- `check sole line`: garis telapak di semua frame harus dekat target (±2–3 px). Kalau melebar, atlet melangkah, kakinya "meluncur", atau bayangan lantai ikut terpotong.
-- `check loop seam`: loncatan frame terakhir → pertama harus setara satu langkah biasa. Kalau ada WARNING, geser penanda **Akhir** 1–3 frame di timeline, unduh ulang, lalu jalankan lagi.
-- `check colours`: sudut-sudut yang warna badannya berbeda, misalnya baju atau rambut berubah di sisi belakang pada video AI.
+- `standing: N; dropped M` dan daftar sudut yang dibuang beserta alasannya (melangkah atau kaki
+  terangkat).
+- `gap … standing frames of the other side, flipped`: celah yang diisi gambar cermin.
+- `widest RIFE gaps`: celah terlebar yang masih dijembatani RIFE (idealnya ≤ 6–10°).
+- `check quality`: jumlah gambar yang gagal cek (tembus pandang, bentuk badan atau sepatu yang
+  meloncat) dan cara perbaikannya. Daftar lengkapnya ada di `meta.json` → `qualityCheck`.
+- `check lock`: rentang garis telapak, tinggi badan dan posisi tengah di semua gambar. Targetnya
+  0–1 px.
+- `check loop seam`: sambungan gambar terakhir → pertama. Kalau ada WARNING, geser penanda
+  **Akhir** 1–3 frame, unduh ulang penanda, lalu jalankan lagi.
 - `athlete-vp9.webm: alpha OK`.
-- **Selalu buka `contact.jpg`**: cek wajah, rambut, logo baju dan sepatu di setiap 10°.
+- **Selalu buka `contact.jpg`:** 24 gambar setiap 15°. Garis biru = garis telapak, puncak kepala
+  dan tengah badan. Atlet harus berdiri tegak di garis yang sama di semua sudut.
 
-Cek HEVC alpha: buka `athlete-hevc.mov` di Safari di atas halaman berwarna. Latarnya harus transparan, bukan hitam.
+## 4b. Ketajaman
+- Langkah paling aman: **perbesar frame asli dulu dengan Real-ESRGAN** (di Mac memakai GPU), lalu
+  jalankan skrip pada hasilnya. Contoh:
+  `ffmpeg -i atlet.mp4 frames/%05d.png`, lalu
+  `realesrgan-ncnn-vulkan -i frames -o frames2x -n realesrgan-x4plus -s 2`, lalu
+  `ffmpeg -framerate 30 -i frames2x/%05d.png -c:v libx264 -crf 12 -pix_fmt yuv420p atlet-2x.mp4`.
+  Cek wajah dan tulisan di `contact.jpg`: Real-ESRGAN kadang membuat kulit terlalu halus.
+- `SHARPEN=0.4` menajamkan warna sedikit setelah interpolasi, tanpa menyentuh tepi transparan.
+- Model hapus latar `birefnet-general-lite` (bawaan) memberi tepi lebih rapi (rambut, sela jari)
+  daripada `isnet-general-use`.
+
+Cek HEVC alpha: buka `athlete-hevc.mov` di Safari di atas halaman berwarna. Latarnya harus
+transparan, bukan hitam.
 
 ## 5. Video dari AI video generator
-
-### Spesifikasi
-- **Mode:** image-to-video dari **foto asli atlet** (menghadap kamera, seluruh badan), supaya wajah dan baju sesuai. Kalau alatnya bisa memakai **frame awal dan frame akhir**, pakai foto yang **sama** untuk keduanya: sambungan loop jadi mulus.
-- **Durasi:** sepanjang yang bisa (10–20 detik) untuk **tepat satu putaran**. Lebih banyak pose berarti lebih halus. Jangan lebih dari satu putaran.
-- **Resolusi:** portrait **1080×1920** minimal (4K kalau tersedia). Atlet mengisi ~85% tinggi frame, dengan seluruh badan dan kaki terlihat.
-- **fps:** 30 kalau ada (24 juga bisa). Jangan pakai "slow motion" buatan alat.
-- **Kamera:** diam total (tanpa zoom, pan, dolly atau goyang), setinggi pinggul, lurus ke depan.
-- **Latar:** polos, abu-abu muda atau putih, rata, tanpa lantai bertekstur, tanpa bayangan keras. Kalau baju atau sepatu putih, pakai latar abu-abu atau hijau.
-- **Gerak:** atlet **diam dengan pose yang sama** di atas **meja putar** yang berputar pelan dan rata. Kaki tidak melangkah, tangan tidak bergerak.
-- **Contoh prompt (EN):** "Full-body shot of the same athlete standing perfectly still on a slowly rotating turntable, one complete 360-degree clockwise rotation at constant speed over the whole clip, feet planted, arms relaxed at the sides, static locked-off camera at hip height, plain seamless light-grey studio background, soft even lighting, no shadows, no camera movement, no zoom, same outfit and hairstyle from every angle, starts and ends facing the camera."
-
-### Yang ditangani skrip, dan yang tidak
-- **Frame ganda: ditangani.** `DEDUPE=1` membuangnya sebelum sudut dihitung.
-- **Kecepatan tidak rata: ditangani.** `SPEED=motion` meratakan di dalam tiap seperempat putaran, memakai penanda Depan/Kanan/Belakang/Kiri. Makin tepat penandanya, makin rata hasilnya.
-- **Terlalu sedikit pose** (klip pendek): **sebagian**. `INTERP=2..4` menambah frame sisipan; cek `contact.jpg`.
-- **Kamera zoom/bergeser: sebagian.** Terdeteksi (`body height varies`), dan `FIT=frame` menjaga kaki di garis.
-- **Wajah, rambut atau baju berubah di sisi belakang: TIDAK bisa diperbaiki skrip.** Skrip hanya menandai (`check colours`) dan menampilkannya di `contact.jpg`. Solusinya generate ulang; beri foto referensi sisi dan belakang kalau alatnya mendukung.
-- **Kaki meluncur atau "melayang": TIDAK bisa diperbaiki**, hanya terlihat di `check sole line`. Solusinya generate ulang dengan prompt meja putar.
-- **Loop:** penanda Akhir menentukan satu putaran tepat, dan `check loop seam` memberi tahu kalau sambungannya meloncat.
+- **Mode:** image-to-video dari **foto depan asli atlet** (seluruh badan). Kalau bisa, pakai foto
+  yang sama sebagai frame awal dan frame akhir.
+- **Durasi:** sepanjang mungkin (10–20 detik) untuk **tepat satu putaran**.
+- **Resolusi:** portrait minimal 1080×1920; atlet mengisi ±85% tinggi frame.
+- **Kamera:** diam total, setinggi pinggul. **Latar:** polos abu-abu muda atau putih.
+- **Contoh prompt (EN):** "Full-body shot of the same athlete standing perfectly still on a slowly
+  rotating turntable, one complete 360-degree rotation at constant speed over the whole clip, feet
+  planted together, arms relaxed at the sides, static locked-off camera at hip height, plain
+  seamless light-grey studio background, soft even lighting, no camera movement, no zoom, same
+  outfit and hairstyle from every angle, starts and ends facing the camera."
+- **Yang ditangani skrip:** kecepatan tidak rata, frame ganda, langkah atau kaki terangkat
+  (dibuang dan diisi RIFE), ukuran dan posisi yang berubah (dikunci).
+- **Yang TIDAK bisa diperbaiki skrip:** wajah, rambut atau baju yang berubah di sisi belakang.
+  Generate ulang video AI-nya.
 
 ## 6. Tes skrip tanpa rembg
-`BG=colorkey` memakai colour key putih sederhana. Mode ini hanya untuk mengecek alur skrip, bukan untuk hasil akhir.
+`BG=colorkey` memakai colour key putih sederhana. Mode ini hanya untuk mengecek alur skrip, bukan
+untuk hasil akhir. Tanpa GPU: `RIFE_GPU=-1` (CPU, lambat).
