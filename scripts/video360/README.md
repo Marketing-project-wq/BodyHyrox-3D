@@ -3,21 +3,39 @@
 Di panggung, atlet **berdiri diam menghadap depan**. Hanya latarnya yang berputar, seperti kamera
 yang berjalan mengelilingi atlet. Skrip ini membuat urutan gambarnya dari satu video putar:
 
-1. **Hanya frame berdiri.** Frame saat atlet melangkah atau mengangkat kaki dibuang.
-2. **Celah diisi interpolasi (RIFE)** di antara dua frame berdiri yang mengapitnya, jadi setiap
-   gambar tetap pose berdiri.
-3. **Setiap gambar dikunci** di tempat yang sama: garis telapak, tinggi badan dan posisi tengah
-   badan persis sama (tidak naik-turun, membesar-mengecil atau geser).
-4. **Gambar pertama = Depan (0°).** Satu putaran penuh dengan jarak sudut rata, lalu kembali ke
+1. **Hapus latar dari frame ASLI, lalu ambil hanya frame berdiri.** Frame saat atlet melangkah
+   atau mengangkat kaki dibuang.
+2. **Isi celah sudut**, dari yang paling tajam:
+   - **cermin** (`GAP_FILL=mirror`, bawaan): celah di atas 10° diisi frame berdiri dari sisi
+     seberang yang dibalik kiri-kanan. Sambungannya dipasang di frame yang bentuknya paling mirip,
+     jadi putaran selalu maju ke satu arah;
+   - **RIFE bertahap**: celah yang masih di atas 6° diberi frame bantu (frame asli yang paling
+     mendekati pose berdiri), supaya RIFE tidak pernah menjembatani celah lebar;
+   - **RIFE** (interpolasi) untuk setiap sudut di antaranya.
+3. **Badan 100% padat**: lubang kecil diisi, bagian badan tidak ada yang tembus pandang; hanya
+   tepi luar dan rambut yang halus.
+4. **Cek kualitas setiap gambar**: bagian tembus pandang, dan bentuk badan atau sepatu yang
+   berubah mendadak dibanding gambar tetangganya. Gambar yang gagal diganti: sepatunya diambil
+   dari frame asli terdekat, atau seluruh gambar diganti frame asli terdekat. Semuanya
+   dilaporkan.
+5. **Setiap gambar dikunci** di tempat yang sama: garis telapak, tinggi badan dan tengah badan
+   persis sama (selisih di bawah 1 px).
+6. **Gambar pertama = Depan (0°).** Satu putaran penuh dengan jarak sudut rata, lalu kembali ke
    Depan tanpa sambungan. Gambar ke-k = sudut 360 × k / n, sama dengan sudut latar saat gambar itu
    tampil.
+
+**Yang ikut terbalik di gambar cermin:** jam tangan pindah ke pergelangan sebelah, logo di baju dan
+legging terbalik dan pindah sisi, arah kibasan rambut, dan belahan atau lipatan baju yang tidak
+simetris. Kalau ini mengganggu, pakai `GAP_FILL=anchor` (tanpa cermin; bagian yang melangkah
+lebih banyak) atau rekam ulang.
 
 Hasil (bawaan: 60 detik per putaran, 24 gambar per detik = 1.440 gambar):
 - **WebM VP9 alpha** (Chrome, Edge, Android) dan **HEVC alpha** (Safari Mac/iPad/iPhone, hanya
   bisa dibuat di Mac);
 - **72 keyframe WebP** (setiap 5°) untuk drag, tab, Pause dan titik zona;
 - `feet.json` (telapak tiap gambar, untuk bayangan), `poster.webp`, `contact.jpg` (24 gambar
-  setiap 15° dengan garis kunci) dan `meta.json` (termasuk hasil cek kunci).
+  setiap 15°, ukuran penuh, dengan garis kunci) dan `meta.json` (termasuk hasil cek kunci dan cek
+  kualitas).
 
 Skrip ini tidak menyentuh data atau Storage. Hasilnya diunggah ke draft lewat studio (tahap V4).
 
@@ -26,7 +44,7 @@ Skrip ini tidak menyentuh data atau Storage. Hasilnya diunggah ke draft lewat st
 brew install ffmpeg python@3.12
 python3 -m venv ~/v360
 source ~/v360/bin/activate
-pip install "rembg[cli]" pillow numpy
+pip install "rembg[cli]" pillow numpy scipy
 ```
 **RIFE** (interpolasi frame, memakai GPU Mac):
 1. Unduh `rife-ncnn-vulkan-20221029-macos.zip` dari
@@ -56,9 +74,11 @@ RIFE_BIN=~/v360/rife/rife-ncnn-vulkan ./make_360_video.sh ~/Movies/atlet.mp4 ~/M
 | `TURN_SEC` | 60 | Lama satu putaran (detik) |
 | `FPS` | 24 | Gambar per detik (60 × 24 = 1.440 gambar) |
 | `CANVAS` | 714x1680 | Ukuran gambar |
+| `GAP_FILL` | mirror | `mirror` (cermin + RIFE bertahap), `anchor` (RIFE bertahap tanpa cermin), `rife` (hanya frame berdiri + RIFE) |
 | `RIFE_BIN` | rife-ncnn-vulkan | Lokasi program RIFE |
 | `STEP_TOL` | 0.006 | Garis telapak bergeser ≥0,6% tinggi badan antar frame = melangkah |
 | `LEG_GUARD` | 1.8 | Kaki berubah ≥1,8× lebih banyak dari badan atas (median 3 pasang frame) = melangkah |
+| `SHARPEN` | 0 | Penajaman ringan pada warna (0 = mati, 0.3–0.6 = ringan) |
 | `REMBG_MODEL` | birefnet-general-lite | `isnet-general-use` ±10× lebih cepat, sedikit lebih kasar |
 
 Lama proses di Mac Apple Silicon: ±20–40 menit (hapus latar ±1 detik per gambar).
@@ -66,8 +86,11 @@ Lama proses di Mac Apple Silicon: ±20–40 menit (hapus latar ±1 detik per gam
 ## 4. Baca laporannya
 - `standing: N; dropped M` dan daftar sudut yang dibuang beserta alasannya (melangkah atau kaki
   terangkat).
-- `largest gaps filled by interpolation`: celah terbesar yang diisi RIFE. Celah di atas ±20° bisa
-  terlihat kurang tajam; cek `contact.jpg` di sudut itu.
+- `gap … flipped frames …`: celah yang diisi gambar cermin, dan seberapa mirip sambungannya
+  (`splice match`, 1 = sama persis).
+- `widest RIFE gaps`: celah terlebar yang masih dijembatani RIFE (idealnya ≤ 6–10°).
+- `check quality`: jumlah gambar yang gagal cek (tembus pandang, bentuk badan atau sepatu yang
+  meloncat) dan cara perbaikannya. Daftar lengkapnya ada di `meta.json` → `qualityCheck`.
 - `check lock`: rentang garis telapak, tinggi badan dan posisi tengah di semua gambar. Targetnya
   0–1 px.
 - `check loop seam`: sambungan gambar terakhir → pertama. Kalau ada WARNING, geser penanda
@@ -75,6 +98,17 @@ Lama proses di Mac Apple Silicon: ±20–40 menit (hapus latar ±1 detik per gam
 - `athlete-vp9.webm: alpha OK`.
 - **Selalu buka `contact.jpg`:** 24 gambar setiap 15°. Garis biru = garis telapak, puncak kepala
   dan tengah badan. Atlet harus berdiri tegak di garis yang sama di semua sudut.
+
+## 4b. Ketajaman
+- Langkah paling aman: **perbesar frame asli dulu dengan Real-ESRGAN** (di Mac memakai GPU), lalu
+  jalankan skrip pada hasilnya. Contoh:
+  `ffmpeg -i atlet.mp4 frames/%05d.png`, lalu
+  `realesrgan-ncnn-vulkan -i frames -o frames2x -n realesrgan-x4plus -s 2`, lalu
+  `ffmpeg -framerate 30 -i frames2x/%05d.png -c:v libx264 -crf 12 -pix_fmt yuv420p atlet-2x.mp4`.
+  Cek wajah dan tulisan di `contact.jpg`: Real-ESRGAN kadang membuat kulit terlalu halus.
+- `SHARPEN=0.4` menajamkan warna sedikit setelah interpolasi, tanpa menyentuh tepi transparan.
+- Model hapus latar `birefnet-general-lite` (bawaan) memberi tepi lebih rapi (rambut, sela jari)
+  daripada `isnet-general-use`.
 
 Cek HEVC alpha: buka `athlete-hevc.mov` di Safari di atas halaman berwarna. Latarnya harus
 transparan, bukan hitam.

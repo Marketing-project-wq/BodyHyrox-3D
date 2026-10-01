@@ -4,7 +4,7 @@
 # One-time setup (Terminal):
 #   brew install ffmpeg python@3.12
 #   python3 -m venv ~/v360 && source ~/v360/bin/activate
-#   pip install "rembg[cli]" pillow numpy
+#   pip install "rembg[cli]" pillow numpy scipy
 #   RIFE (frame interpolation): rife-ncnn-vulkan, see README.md section 1
 # Output in out/: athlete-vp9.webm (Chrome/Edge/Android), athlete-hevc.mov (Safari Mac/iPad/iPhone),
 #   poster.webp, keyframes/000.webp..355.webp (72 frames), feet.json, contact.jpg, meta.json.
