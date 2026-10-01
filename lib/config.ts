@@ -276,6 +276,64 @@ export const VIEWER_SPIN = {
   fastTurnFrames: 24,
 };
 
+/**
+ * Hybrid viewer: a set with a transparent turn video (media.video) plays it
+ * while the athlete auto-rotates at full speed; any hold (hover, drag, tab,
+ * key, Pause, zone card, hidden tab, offscreen) shows the frames at the same
+ * angle, and the video takes over again once its frame at that angle is
+ * painted. Never used under prefers-reduced-motion or Save-Data, or when the
+ * auto-rotation runs the other way (a video only plays forward).
+ * - startDelayMs: wait after the four side frames are ready before loading
+ *   the video (they come first).
+ * - leadMs: when (re)starting, seek this far ahead of the current angle
+ *   (time the seek takes), then correct the last fraction of a degree.
+ * - alphaCornerMax: a corner of the first frame must be at most this opaque
+ *   (0..255), else the browser shows the video without transparency (e.g.
+ *   Safari with VP9) and the next source / the frames are used.
+ * - stallFallbackMs: buffering longer than this switches to the frames.
+ * - retryAfterMs: after a stall, try the video again this much later.
+ * - swapMaxMs: on a hold the paused video stays up until the frames at that
+ *   angle are drawn (no frames are decoded while the video shows), at most
+ *   this long.
+ * - dropCheckMs / maxDropShare: every dropCheckMs the share of dropped video
+ *   frames is checked; above maxDropShare twice in a row (a phone that can't
+ *   decode it in time) the frames take over for good.
+ */
+export const VIEWER_VIDEO = {
+  enabled: true,
+  startDelayMs: 1200,
+  leadMs: 120,
+  alphaCornerMax: 24,
+  stallFallbackMs: 400,
+  retryAfterMs: 5000,
+  swapMaxMs: 600,
+  dropCheckMs: 2000,
+  maxDropShare: 0.2,
+};
+
+/**
+ * Turn videos shipped with the site (public/media/...), per athlete id, used
+ * while the database can't hold one yet (video column + Storage). The data's
+ * own video (media.video) always wins. `video` has the shape of
+ * media.video: { sources: [{ file, type }], poster, fps, frames, duration }.
+ */
+export const STAGE_VIDEO_BUNDLED: Record<string, { baseUrl: string; video: unknown }> = {
+  // Calysta: from her turn video (AI background removal, scripts/video360,
+  // INTERP=3, FIT=frame): one turn, 720 frames, 24 s. VP9 alpha only for now
+  // (Chrome, Edge, Android); Safari / iPhone keep the frames until an HEVC
+  // file (made on a Mac) is added as a second source.
+  "f328e4e0-98c2-483d-b9ae-4be7fd6bf635": {
+    baseUrl: "/media/atlet-360/calysta-video",
+    video: {
+      sources: [{ file: "athlete-vp9.webm", type: 'video/webm; codecs="vp9"' }],
+      poster: "poster.webp",
+      fps: 30,
+      frames: 720,
+      duration: 24,
+    },
+  },
+};
+
 export const STAGE_ARENA = {
   color: "#ff2d55",
   background: "#0d0809",
