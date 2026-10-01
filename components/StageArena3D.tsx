@@ -4,7 +4,7 @@ import { Component, useEffect, useMemo, useRef, type MutableRefObject, type Reac
 import { Canvas, useThree, useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
-import { STAGE_ARENA as A } from "@/lib/config";
+import { STAGE_ARENA as A, STAGE_PLATFORM_ROUND } from "@/lib/config";
 
 /**
  * Shared, mutable link between the stage card and the arena. The card writes the
@@ -26,11 +26,16 @@ export type ArenaHandle = {
   outline: (() => [number, number][]) | null;
 };
 
-/** Top face of the hexagon platform in world space (matches <Platform/>). */
-function topFaceVertices(): THREE.Vector3[] {
+export type PlatformShape = "hex" | "round";
+/** Sides of the platform outline: a hexagon, or a polygon fine enough to read as a circle. */
+const sidesOf = (shape: PlatformShape) => (shape === "round" ? STAGE_PLATFORM_ROUND.roundSegments : 6);
+
+/** Top face of the platform in world space (matches <Platform/>). */
+function topFaceVertices(shape: PlatformShape): THREE.Vector3[] {
   const r = A.platformRadiusM * 0.97;
-  return Array.from({ length: 6 }, (_, k) => {
-    const a = Math.PI / 2 + (k * Math.PI) / 3;
+  const n = sidesOf(shape);
+  return Array.from({ length: n }, (_, k) => {
+    const a = Math.PI / 2 + (k * 2 * Math.PI) / n;
     return new THREE.Vector3(Math.cos(a) * r, 0, -Math.sin(a) * r);
   });
 }
@@ -58,6 +63,8 @@ type Props = {
   /** The figure box (its height = the photo frame height). */
   figureRef: RefObject<HTMLElement>;
   onReady: () => void;
+  /** Platform shape (STAGE_PLATFORM, or the ?platform= preview). */
+  platform: PlatformShape;
   onFail: () => void;
 };
 
@@ -76,7 +83,7 @@ function seeded(i: number) {
  * matches the photo's scale, and a view offset so the platform centre lands
  * exactly on the athlete's feet line. Refitted whenever the layout changes.
  */
-function Rig({ handle, anchorRef, figureRef }: Pick<Props, "handle" | "anchorRef" | "figureRef">) {
+function Rig({ handle, anchorRef, figureRef, platform }: Pick<Props, "handle" | "anchorRef" | "figureRef" | "platform">) {
   const { camera, gl, invalidate, size, setDpr } = useThree();
   const cam = camera as THREE.PerspectiveCamera;
   const d = A.cameraDistanceM;
@@ -87,7 +94,7 @@ function Rig({ handle, anchorRef, figureRef }: Pick<Props, "handle" | "anchorRef
     const h = handle.current;
     h.invalidate = invalidate;
     h.setDpr = setDpr;
-    const verts = topFaceVertices();
+    const verts = topFaceVertices(platform);
     const ray = new THREE.Raycaster();
     const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
     const hit = new THREE.Vector3();
@@ -242,8 +249,9 @@ function useGlowTexture() {
   }, []);
 }
 
-function Platform({ handle }: Pick<Props, "handle">) {
+function Platform({ handle, platform }: Pick<Props, "handle" | "platform">) {
   const R = A.platformRadiusM;
+  const n = sidesOf(platform);
   const glowTex = useGlowTexture();
   const poolTex = usePoolTexture();
   // The feet stand A.feetForward toward the viewer (see Rig), so the light
@@ -256,13 +264,13 @@ function Platform({ handle }: Pick<Props, "handle">) {
   });
   return (
     <group>
-      {/* Body + top face (hexagonal: 6 radial segments) */}
+      {/* Body + top face (hexagon: 6 radial segments; round: many) */}
       <mesh position={[0, -0.05, 0]}>
-        <cylinderGeometry args={[R, R * 1.05, 0.1, 6]} />
+        <cylinderGeometry args={[R, R * 1.05, 0.1, n]} />
         <meshBasicMaterial color="#1c0c11" />
       </mesh>
       <mesh position={[0, 0.001, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <circleGeometry args={[R * 0.97, 6, Math.PI / 2]} />
+        <circleGeometry args={[R * 0.97, n, Math.PI / 2]} />
         <meshBasicMaterial color={A.topFaceColor} />
       </mesh>
       {/* Spotlight pool under the feet (the athlete stands on a lit floor) */}
@@ -279,20 +287,28 @@ function Platform({ handle }: Pick<Props, "handle">) {
           fog={false}
         />
       </mesh>
-      {/* Neon hexagon rim (torus with 6 tubular segments = hexagon), aligned to the body */}
+      {/* Neon rim (torus with 6 tubular segments = hexagon, many = ring), aligned to the body */}
       <group rotation={[0, Math.PI / 2, 0]}>
         <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.004, 0]}>
-          <torusGeometry args={[R, 0.013, 6, 6]} />
+          <torusGeometry args={[R, 0.013, 6, n]} />
           <meshBasicMaterial color={A.color} toneMapped={false} />
         </mesh>
         <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.004, 0]}>
-          <torusGeometry args={[R, 0.07, 6, 6]} />
+          <torusGeometry args={[R, 0.07, 6, n]} />
           <meshBasicMaterial color={A.color} transparent opacity={0.22} blending={THREE.AdditiveBlending} depthWrite={false} toneMapped={false} fog={false} />
         </mesh>
         <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.095, 0]}>
-          <torusGeometry args={[R * 1.05, 0.01, 6, 6]} />
+          <torusGeometry args={[R * 1.05, 0.01, 6, n]} />
           <meshBasicMaterial color={A.color} transparent opacity={0.7} toneMapped={false} />
         </mesh>
+        {/* Round: thin glowing rings on the top face (a lit ring stage) */}
+        {platform === "round" &&
+          STAGE_PLATFORM_ROUND.roundInnerRings.map((f) => (
+            <mesh key={f} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.003, 0]}>
+              <torusGeometry args={[R * f, 0.006, 6, n]} />
+              <meshBasicMaterial color={A.color} transparent opacity={STAGE_PLATFORM_ROUND.innerRingOpacity} toneMapped={false} />
+            </mesh>
+          ))}
       </group>
       {/* Floor glow under the platform */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.098, 0]}>
@@ -303,7 +319,7 @@ function Platform({ handle }: Pick<Props, "handle">) {
   );
 }
 
-function Floor() {
+function Floor({ platform }: Pick<Props, "platform">) {
   const lines = useMemo(() => {
     const pts: number[] = [];
     const y = -0.097;
@@ -313,18 +329,19 @@ function Floor() {
       const a = (i / spokes) * Math.PI * 2;
       pts.push(Math.sin(a) * 1.5, y, Math.cos(a) * 1.5, Math.sin(a) * 20, y, Math.cos(a) * 20);
     }
-    // Concentric hexagon rings
+    // Concentric rings, the platform's shape (hexagons or circles)
+    const n = platform === "round" ? 64 : 6;
     for (const r of [2.2, 3.6, 5.4, 8.5, 12.5]) {
-      for (let k = 0; k < 6; k++) {
-        const a0 = (k / 6) * Math.PI * 2;
-        const a1 = ((k + 1) / 6) * Math.PI * 2;
+      for (let k = 0; k < n; k++) {
+        const a0 = (k / n) * Math.PI * 2;
+        const a1 = ((k + 1) / n) * Math.PI * 2;
         pts.push(Math.sin(a0) * r, y, Math.cos(a0) * r, Math.sin(a1) * r, y, Math.cos(a1) * r);
       }
     }
     const g = new THREE.BufferGeometry();
     g.setAttribute("position", new THREE.Float32BufferAttribute(pts, 3));
     return g;
-  }, []);
+  }, [platform]);
   return (
     <group>
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.1, 0]}>
@@ -461,7 +478,7 @@ class ArenaBoundary extends Component<{ onFail: () => void; children: ReactNode 
 }
 
 /** The 3D arena canvas. Purely decorative: no pointer events, aria-hidden. */
-export function StageArena3D({ handle, anchorRef, figureRef, onReady, onFail }: Props) {
+export function StageArena3D({ handle, anchorRef, figureRef, onReady, onFail, platform }: Props) {
   const coarse = typeof window !== "undefined" && window.matchMedia("(pointer: coarse)").matches;
   return (
     <ArenaBoundary onFail={onFail}>
@@ -479,9 +496,9 @@ export function StageArena3D({ handle, anchorRef, figureRef, onReady, onFail }: 
           onReady();
         }}
       >
-        <Rig handle={handle} anchorRef={anchorRef} figureRef={figureRef} />
-        <Floor />
-        <Platform handle={handle} />
+        <Rig handle={handle} anchorRef={anchorRef} figureRef={figureRef} platform={platform} />
+        <Floor platform={platform} />
+        <Platform handle={handle} platform={platform} />
         <Scenery />
       </Canvas>
     </ArenaBoundary>
