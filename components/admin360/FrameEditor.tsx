@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, Wand2, RotateCcw, X, Layers, Ruler, Footprints, Plus, Trash2 } from "lucide-react";
 import { type Dict, fmt } from "@/lib/i18n";
-import { IDENTITY, autoAlign, pivotOf, soleLifted, transformFoot, type Foot, type FrameTransform } from "@/lib/media360";
+import { FOOT_VERSION, IDENTITY, autoAlign, pivotOf, soleLifted, transformFoot, type Foot, type FrameTransform } from "@/lib/media360";
 import { FrameStage, placeFrame } from "./FrameStage";
 
 export type EditorFrame = {
@@ -18,7 +18,7 @@ export type EditorFrame = {
 
 /** Feet with the given soles, marked hand-placed; toe/back follow the soles. */
 function withSoles(base: Foot, soles: number[][], settle: boolean): Foot {
-  const out: Foot = { ...base, soles, manual: true, v: 3 };
+  const out: Foot = { ...base, soles, manual: true, v: FOOT_VERSION };
   if (settle && soles.length) {
     out.toe = Math.max(...soles.map((s) => s[2]));
     out.back = Math.min(...soles.map((s) => s[2]));
