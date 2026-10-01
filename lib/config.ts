@@ -278,13 +278,23 @@ export const VIEWER_SPIN = {
 
 /**
  * Hybrid viewer: a set with a transparent turn video (media.video) plays it
- * while the athlete auto-rotates at full speed; any hold (hover, drag, tab,
+ * while the athlete auto-rotates (also while the spin eases in or out: the
+ * video's playback rate follows the spin speed); any hold (hover, drag, tab,
  * key, Pause, zone card, hidden tab, offscreen) shows the frames at the same
  * angle, and the video takes over again once its frame at that angle is
  * painted. Never used under prefers-reduced-motion or Save-Data, or when the
  * auto-rotation runs the other way (a video only plays forward).
  * - startDelayMs: wait after the four side frames are ready before loading
  *   the video (they come first).
+ * - firstWaitMaxMs: on page load the athlete waits (still, facing front) for
+ *   the video to be playable before the first turn, at most this long after
+ *   the frames are ready; then the frames turn until the video is there.
+ * - minSpeedShare: the video plays while the spin runs at least this share
+ *   of its full speed (lower: frames; browsers can't play slower than
+ *   1/16x). rateStep: the playback rate is updated when the speed changes by
+ *   more than this share.
+ * - holdBackDeg: when the video is up to this far behind the stage, the
+ *   stage waits for it instead of turning back.
  * - leadMs: when (re)starting, seek this far ahead of the current angle
  *   (time the seek takes), then correct the last fraction of a degree.
  * - alphaCornerMax: a corner of the first frame must be at most this opaque
@@ -302,7 +312,11 @@ export const VIEWER_SPIN = {
  */
 export const VIEWER_VIDEO = {
   enabled: true,
-  startDelayMs: 1200,
+  startDelayMs: 0,
+  firstWaitMaxMs: 6000,
+  minSpeedShare: 0.1,
+  rateStep: 0.02,
+  holdBackDeg: 3,
   leadMs: 120,
   alphaCornerMax: 24,
   stallFallbackMs: 400,
