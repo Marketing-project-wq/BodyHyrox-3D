@@ -443,3 +443,22 @@ body {
   background: #d3d3d7;
   border-radius: 999px;
 }
+
+/* "static-athlete" stage without WebGL: thin neon lines behind the athlete,
+   moved sideways by the stage clock as the scenery orbits (period from
+   STAGE_STATIC.cssLinePeriodPx). Faded at the top and bottom. */
+.stagecard-bglines {
+  -webkit-mask-image: linear-gradient(to bottom, transparent 4%, #000 30%, #000 62%, transparent 88%);
+  mask-image: linear-gradient(to bottom, transparent 4%, #000 30%, #000 62%, transparent 88%);
+}
+.stagecard-bglines-track {
+  width: calc(100% + 2 * var(--bgl-period));
+  will-change: transform;
+  background-image: repeating-linear-gradient(
+    90deg,
+    transparent 0,
+    transparent calc(var(--bgl-period) - 2px),
+    rgba(255, 45, 85, 0.32) calc(var(--bgl-period) - 2px),
+    rgba(255, 45, 85, 0.32) var(--bgl-period)
+  );
+}

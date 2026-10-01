@@ -5,7 +5,7 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { ChevronLeft, ChevronRight, Pause, Play, RotateCcw } from "lucide-react";
 import type { PublicAthleteDetail } from "@/lib/data";
-import { STAGE_ARENA, STAGE_PLATFORM, STAGE_READOUT, VIEWER_360, VIEWER_360_FRAME_CLASS, VIEWER_SPIN, VIEWER_VIDEO, VIEWER_VIEWS, stageFitVars, viewer360FrameStyle } from "@/lib/config";
+import { STAGE_ARENA, STAGE_MODE, STAGE_PLATFORM, STAGE_READOUT, STAGE_STATIC, VIEWER_360, VIEWER_360_FRAME_CLASS, VIEWER_SPIN, VIEWER_VIDEO, VIEWER_VIEWS, stageFitVars, viewer360FrameStyle } from "@/lib/config";
 import { decayVelocity, degreeLabel, nearestSide, nextSideTarget, norm360, shortestDelta, sideTarget } from "@/lib/spin";
 import { VIEW_KEYS } from "@/lib/views";
 import { type Dict, fmt } from "@/lib/i18n";
@@ -70,6 +70,11 @@ export function AthleteStageCard({
   const [debugVideo, setDebugVideo] = useState(false);
   // Platform shape: STAGE_PLATFORM, or ?platform=round|hex to preview the other.
   const [platform, setPlatform] = useState<"hex" | "round">(STAGE_PLATFORM);
+  // Stage mode: STAGE_MODE, or ?stage=turntable|static to preview the other.
+  const [stageMode, setStageMode] = useState<"static-athlete" | "turntable">(STAGE_MODE);
+  const isStatic = stageMode === "static-athlete";
+  const staticRef = useRef(isStatic);
+  staticRef.current = isStatic;
   useEffect(() => {
     const debug = (new URLSearchParams(window.location.search).get("debug") ?? "").split(",");
     setDebugFeet(debug.includes("feet"));
@@ -78,6 +83,9 @@ export function AthleteStageCard({
     setDebugVideo(debug.includes("video"));
     const shape = new URLSearchParams(window.location.search).get("platform");
     if (shape === "round" || shape === "hex") setPlatform(shape);
+    const mode = new URLSearchParams(window.location.search).get("stage");
+    if (mode === "turntable") setStageMode("turntable");
+    if (mode === "static") setStageMode("static-athlete");
   }, []);
   const platformRef = useRef<HTMLDivElement>(null);
   const figureRef = useRef<HTMLDivElement>(null);
@@ -112,7 +120,13 @@ export function AthleteStageCard({
   const autoAngleRef = useRef(0);
   const autoFactorRef = useRef(0); // 0..1 eased speed factor
   // "video": the first turn waits for the turn video (AthleteViews settles it).
-  const pausesRef = useRef(new Set<string>(has360 ? ["loading", "video"] : ["loading"]));
+  const pausesRef = useRef(new Set<string>(has360 && STAGE_MODE === "turntable" ? ["loading", "video"] : ["loading"]));
+  // "static-athlete": the side on screen (index into VIEW_KEYS) and a running
+  // crossfade to another side; the scenery behind orbits on autoAngle.
+  const sideRef = useRef(0);
+  const fadeRef = useRef<{ from: number; to: number; t0: number } | null>(null);
+  const sidePaintRef = useRef(-1); // side painted at rest (-1 = repaint)
+  const bgLinesRef = useRef<HTMLDivElement>(null);
   const rafRef = useRef<number | null>(null);
   const lastTRef = useRef(0);
   const lastViewPaintRef = useRef<{ a: number; moving: boolean } | null>(null);
@@ -154,6 +168,73 @@ export function AthleteStageCard({
     (now: number) => {
       const dt = Math.min(0.05, Math.max(0, (now - lastTRef.current) / 1000)); // s, clamped
       lastTRef.current = now;
+
+      // "static-athlete": the athlete stays on its side (crossfading to a new
+      // one); only the scenery orbits, held by Pause, a hidden tab, the card
+      // off screen or loading (not by hover, a swipe or a zone card).
+      if (staticRef.current) {
+        const p = pausesRef.current;
+        const wantBg = playingRef.current && !p.has("hidden") && !p.has("offscreen") && !p.has("loading") ? 1 : 0;
+        const tauS = STAGE_STATIC.easeMs / 1000 / 3;
+        let fs = autoFactorRef.current + (wantBg - autoFactorRef.current) * (1 - Math.exp(-dt / tauS));
+        if (Math.abs(wantBg - fs) < 0.002) fs = wantBg;
+        autoFactorRef.current = fs;
+        autoAngleRef.current += (STAGE_STATIC.direction * 360 * dt * fs) / STAGE_STATIC.secPerTurn;
+        const bg = autoAngleRef.current;
+        const hs = arenaHandle.current;
+        hs.angleDeg = bg;
+        const halfRateS = qualityRef.current.level >= 2;
+        frameParityRef.current ^= 1;
+        if (!halfRateS || frameParityRef.current === 0) hs.invalidate?.();
+        // No WebGL: neon lines behind the athlete drift sideways instead.
+        const lines = bgLinesRef.current;
+        if (lines) {
+          const period = STAGE_STATIC.cssLinePeriodPx;
+          const off = (((bg / 360) * STAGE_STATIC.cssPeriodsPerTurn * period) % period + period) % period;
+          lines.style.transform = `translate3d(${(-off).toFixed(2)}px,0,0)`;
+        }
+        // Side crossfade (sides only change on a tab / swipe / key).
+        const fd = fadeRef.current;
+        if (fd) {
+          const t = Math.min(1, (now - fd.t0) / STAGE_STATIC.sideFadeMs);
+          if (t < 1) viewsRef.current?.renderSide(fd.from, fd.to, t);
+          else {
+            fadeRef.current = null;
+            sidePaintRef.current = -1;
+          }
+        }
+        if (!fadeRef.current && sidePaintRef.current !== sideRef.current && viewsRef.current) {
+          viewsRef.current.renderSide(sideRef.current, sideRef.current, 0);
+          sidePaintRef.current = sideRef.current;
+        }
+        // Adaptive quality while the scenery turns (same rules as the turn).
+        if (!clockStartRef.current && fs > 0.5) clockStartRef.current = now;
+        const warmS = clockStartRef.current > 0 && now - clockStartRef.current > STAGE_ARENA.qualityWarmupMs;
+        if (hs.invalidate && fs > 0.5 && warmS) {
+          const q = qualityRef.current;
+          if (!q.t0) q.t0 = now;
+          q.frames += 1;
+          if (now - q.t0 >= STAGE_ARENA.qualityWindowMs) {
+            const fps = (q.frames * 1000) / (now - q.t0);
+            if (fps < STAGE_ARENA.dprDropFps && q.level < 1) {
+              q.level = 1;
+              hs.setDpr?.(1);
+            } else if (fps < STAGE_ARENA.halfRateFps && q.level < 2) {
+              q.level = 2;
+            } else if (fps < STAGE_ARENA.minTurnFps && q.level >= 2) {
+              q.slow += 1;
+              if (q.slow >= STAGE_ARENA.slowWindowsToDisable) disableArena();
+            } else {
+              q.slow = 0;
+            }
+            q.t0 = now;
+            q.frames = 0;
+          }
+        }
+        const busyS = fs > 0 || wantBg > 0 || !!fadeRef.current || (!!viewsRef.current && sidePaintRef.current !== sideRef.current);
+        rafRef.current = busyS ? requestAnimationFrame(tick) : null;
+        return;
+      }
 
       // View angle: tween, finger, or at rest.
       let moving = false;
@@ -397,6 +478,30 @@ export function AthleteStageCard({
     inertiaRef.current = 0;
   }, [holdNow]);
 
+  // "static-athlete": switch to a side (crossfade; instant under reduced
+  // motion). The tabs, readout and label follow at once; the scenery keeps
+  // turning.
+  const changeSide = useCallback(
+    (target: number) => {
+      const to = ((target % 4) + 4) % 4;
+      const fd = fadeRef.current;
+      const from = fd ? fd.to : sideRef.current;
+      if (to === from) return;
+      sideRef.current = to;
+      viewRef.current = to;
+      setView(to);
+      if (degRef.current) degRef.current.textContent = `${to * 90}°`;
+      if (liveRef.current) liveRef.current.textContent = viewNames[to];
+      const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      fadeRef.current = reduced ? null : { from, to, t0: performance.now() };
+      sidePaintRef.current = -1;
+      ensureLoop();
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [ensureLoop],
+  );
+  const swipeRef = useRef(0);
+
   const combined = () => autoAngleRef.current + viewAngleRef.current;
   // Where the athlete is heading (end of a running turn) or is.
   const aimed = () => (tweenRef.current ? autoAngleRef.current + tweenRef.current.to : combined());
@@ -430,34 +535,41 @@ export function AthleteStageCard({
   // Tabs: shortest way round through the frames in between.
   const goTo = useCallback(
     (target: number) => {
+      if (staticRef.current) return changeSide(target);
       takeOver();
       turnTo(sideTarget(aimed(), target), { toSide: true });
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [turnTo, takeOver],
+    [turnTo, takeOver, changeSide],
   );
   // Arrows (lg): the next side in that direction (+1 = toward Kanan).
   const step = useCallback(
     (delta: 1 | -1) => {
+      if (staticRef.current) return changeSide(sideRef.current + delta);
       takeOver();
       turnTo(nextSideTarget(aimed(), delta), { toSide: true });
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [turnTo, takeOver],
+    [turnTo, takeOver, changeSide],
   );
   // ←/→ keys on the athlete: a few degrees per press (holding repeats).
   const onKeyTurn = useCallback(
     (deltaDeg: number) => {
+      if (staticRef.current) {
+        if (!fadeRef.current) changeSide(sideRef.current + Math.sign(deltaDeg)); // a held key: one side per crossfade
+        return;
+      }
       const from = tweenRef.current && !tweenRef.current.toSide ? aimed() : combined();
       takeOver();
       turnTo(from + deltaDeg, { toSide: false, ms: VIEWER_SPIN.keyTurnMs });
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [turnTo, takeOver],
+    [turnTo, takeOver, changeSide],
   );
   // Horizontal trackpad / wheel: turns like a drag (the OS momentum is the inertia).
   const onWheelTurn = useCallback(
     (dx: number) => {
+      if (staticRef.current) return; // sides switch on tabs / swipe / keys only
       takeOver();
       tweenRef.current = null;
       viewAngleRef.current -= dx * VIEWER_SPIN.wheelDegPerPx;
@@ -469,6 +581,7 @@ export function AthleteStageCard({
   // Mouse / pen over the athlete: hold the spin while there (no snapping).
   const onHoverChange = useCallback(
     (over: boolean) => {
+      if (staticRef.current) return; // the scenery keeps turning
       if (over) holdNow("hover");
       else resumeLater("hover", STAGE_ARENA.hoverResumeMs);
     },
@@ -476,12 +589,14 @@ export function AthleteStageCard({
   );
   // A tap / click on the athlete (not a drag): hold it where it is for a moment.
   const onTap = useCallback(() => {
+    if (staticRef.current) return;
     takeOver();
     if (!manualTurnRef.current) releaseManualRef.current();
   }, [takeOver]);
   // A zone card is open (touch): no spin until it closes.
   const onZoneCardChange = useCallback(
     (open: boolean) => {
+      if (staticRef.current) return; // the scenery may keep turning behind a zone card
       if (open) holdNow("zone");
       else resumeLater("zone", STAGE_ARENA.autoRotateResumeMs);
     },
@@ -494,12 +609,15 @@ export function AthleteStageCard({
   // release it keeps turning a little and slows down (inertia), then stays
   // exactly there (no snapping to a side) until the spin comes back.
   const onDragStart = useCallback(() => {
+    swipeRef.current = 0;
+    if (staticRef.current) return;
     takeOver();
     tweenRef.current = null;
     dragRef.current = { base: viewAngleRef.current, angle: viewAngleRef.current };
   }, [takeOver]);
   const onDragMove = useCallback(
     (dx: number) => {
+      swipeRef.current = dx;
       const d = dragRef.current;
       if (!d) return;
       d.angle = d.base + (dx / VIEWER_VIEWS.dragPxPer90) * 90;
@@ -509,6 +627,12 @@ export function AthleteStageCard({
   );
   const onDragEnd = useCallback(
     (vx: number) => {
+      if (staticRef.current) {
+        // A swipe: right = the next side toward Kanan (as the turn's drag).
+        const dx = swipeRef.current;
+        if (Math.abs(dx) >= STAGE_STATIC.swipeMinPx) changeSide(sideRef.current + (dx > 0 ? 1 : -1));
+        return;
+      }
       const d = dragRef.current;
       dragRef.current = null;
       if (d) viewAngleRef.current = d.angle;
@@ -518,7 +642,7 @@ export function AthleteStageCard({
       inertiaRef.current = reduced || Math.abs(v) < VIEWER_SPIN.inertiaMinDegPerSec ? 0 : Math.max(-cap, Math.min(cap, v));
       ensureLoop();
     },
-    [ensureLoop],
+    [ensureLoop, changeSide],
   );
   const tickAngles = useMemo(
     () => Array.from({ length: VIEWER_360.ringTicks }, (_, i) => (i * 360) / VIEWER_360.ringTicks),
@@ -571,10 +695,22 @@ export function AthleteStageCard({
             figureRef={figureRef}
             onReady={() => setArenaOn(true)}
             platform={platform}
+            platformLocked={isStatic}
             onFail={() => {
               setArenaOn(false);
               setArenaWanted(false);
             }}
+          />
+        </div>
+      )}
+      {/* "static-athlete" without WebGL: neon lines behind the athlete drift
+          sideways as the scenery orbits (the CSS ring platform stays still). */}
+      {isStatic && has360 && !arenaOn && (
+        <div className="stagecard-bglines pointer-events-none absolute inset-0 z-0 overflow-hidden" aria-hidden>
+          <div
+            ref={bgLinesRef}
+            className="stagecard-bglines-track absolute inset-y-0 left-0"
+            style={{ ["--bgl-period" as string]: `${STAGE_STATIC.cssLinePeriodPx}px` }}
           />
         </div>
       )}
@@ -700,7 +836,7 @@ export function AthleteStageCard({
               <div ref={degRef} className="stagecard-readout-deg font-mono text-xs text-[#ff2d55] tabular-nums">
                 0°
               </div>
-              <p className="stagecard-readout-hint font-mono text-[11px] leading-snug">{m.sc_hint}</p>
+              <p className="stagecard-readout-hint font-mono text-[11px] leading-snug">{isStatic ? m.sc_hintStatic : m.sc_hint}</p>
             </div>
           )}
 
@@ -756,16 +892,25 @@ export function AthleteStageCard({
                 onHoverChange={onHoverChange}
                 onTap={onTap}
                 onFocusChange={onFocusChange}
-                onReady={() => setPhotosReady(true)}
+                onReady={() => {
+                  setPhotosReady(true);
+                  sidePaintRef.current = -1; // paint the side once its photo is in
+                  ensureLoop();
+                }}
+                staticSides={isStatic}
                 onVideoSettled={() => resume("video")}
                 onZoneCardChange={onZoneCardChange}
                 arena={arenaOn ? arenaHandle : undefined}
                 debug={debugFeet}
                 debugPerf={debugPerf}
                 debugVideo={debugVideo}
-                describe={(a) => fmt(m.sc_stageImg, { name: athlete.nama, side: viewNames[nearestSide(a).side], deg: degreeLabel(a) })}
+                describe={(a) =>
+                  isStatic
+                    ? fmt(m.sc_stageSide, { name: athlete.nama, side: viewNames[nearestSide(a).side].toLocaleLowerCase(intl) })
+                    : fmt(m.sc_stageImg, { name: athlete.nama, side: viewNames[nearestSide(a).side], deg: degreeLabel(a) })
+                }
                 m={m}
-                label={`${athlete.nama}. ${m.sc_keysHint}`}
+                label={`${athlete.nama}. ${isStatic ? m.sc_keysHintStatic : m.sc_keysHint}`}
               />
             ) : (
               <div className={`relative mx-auto ${VIEWER_360_FRAME_CLASS}`} style={figureStyle}>
@@ -804,9 +949,9 @@ export function AthleteStageCard({
               <button
                 type="button"
                 onClick={togglePlay}
-                aria-label={m.sc_autoRotate}
+                aria-label={isStatic ? m.sc_bgRotate : m.sc_autoRotate}
                 aria-pressed={playing}
-                title={playing ? m.sc_pause : m.sc_play}
+                title={isStatic ? (playing ? m.sc_pauseBg : m.sc_playBg) : playing ? m.sc_pause : m.sc_play}
                 className="group flex h-11 w-11 shrink-0 items-center justify-center"
               >
                 <span className="flex h-8 w-8 items-center justify-center rounded-full border border-white/15 bg-black/50 text-white/80 backdrop-blur [@media(pointer:coarse)]:bg-black/65 [@media(pointer:coarse)]:backdrop-blur-none transition-colors group-hover:border-white/40 group-hover:text-white">
@@ -894,7 +1039,7 @@ export function AthleteStageCard({
       {/* Reduced-motion / no-JS friendly rotate hint under the readout is optional; the
           Viewer360 already renders its own counter + hint when active. */}
       <span className="sr-only">
-        <RotateCcw size={12} /> {m.sc_dragOnly}
+        <RotateCcw size={12} /> {isStatic ? m.sc_dragOnlyStatic : m.sc_dragOnly}
       </span>
       <span ref={liveRef} className="sr-only" aria-live="polite" />
       {debugViewport && <ViewportDebug sectionRef={sectionRef} />}

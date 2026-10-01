@@ -27,6 +27,7 @@ export type ArenaHandle = {
 };
 
 export type PlatformShape = "hex" | "round";
+const UP = new THREE.Vector3(0, 1, 0);
 /** Sides of the platform outline: a hexagon, or a polygon fine enough to read as a circle. */
 const sidesOf = (shape: PlatformShape) => (shape === "round" ? STAGE_PLATFORM_ROUND.roundSegments : 6);
 
@@ -65,6 +66,11 @@ type Props = {
   onReady: () => void;
   /** Platform shape (STAGE_PLATFORM, or the ?platform= preview). */
   platform: PlatformShape;
+  /**
+   * "static-athlete" stage: the platform turns with the camera, so it stays
+   * still on screen (under the still athlete) while the scenery orbits.
+   */
+  platformLocked?: boolean;
   onFail: () => void;
 };
 
@@ -83,7 +89,7 @@ function seeded(i: number) {
  * matches the photo's scale, and a view offset so the platform centre lands
  * exactly on the athlete's feet line. Refitted whenever the layout changes.
  */
-function Rig({ handle, anchorRef, figureRef, platform }: Pick<Props, "handle" | "anchorRef" | "figureRef" | "platform">) {
+function Rig({ handle, anchorRef, figureRef, platform, platformLocked }: Pick<Props, "handle" | "anchorRef" | "figureRef" | "platform" | "platformLocked">) {
   const { camera, gl, invalidate, size, setDpr } = useThree();
   const cam = camera as THREE.PerspectiveCamera;
   const d = A.cameraDistanceM;
@@ -117,16 +123,18 @@ function Rig({ handle, anchorRef, figureRef, platform }: Pick<Props, "handle" | 
       if (!ray.ray.intersectPlane(plane, hit)) return null;
       const f = A.feetForward * A.platformRadiusM; // the feet point (see fit)
       const feet = new THREE.Vector3(Math.sin(phi) * f, 0, Math.cos(phi) * f);
+      // A locked platform turned with the camera: test in its own frame.
+      const local = platformLocked ? hit.clone().applyAxisAngle(UP, -phi) : hit;
       return {
-        inside: insideTopFace(hit, verts, A.contactMarginM),
+        inside: insideTopFace(local, verts, A.contactMarginM),
         scale: cam.position.distanceTo(feet) / cam.position.distanceTo(hit),
       };
     };
     h.outline = () => {
       const c = gl.domElement.getBoundingClientRect();
-      sync();
+      const phi = sync();
       return verts.map((v) => {
-        const q = v.clone().project(cam);
+        const q = (platformLocked ? v.clone().applyAxisAngle(UP, phi) : v.clone()).project(cam);
         return [c.left + ((q.x + 1) / 2) * c.width, c.top + ((1 - q.y) / 2) * c.height] as [number, number];
       });
     };
@@ -136,7 +144,7 @@ function Rig({ handle, anchorRef, figureRef, platform }: Pick<Props, "handle" | 
       h.groundHit = null;
       h.outline = null;
     };
-  }, [handle, invalidate, setDpr, cam, gl, d, camY, lookY]);
+  }, [handle, invalidate, setDpr, cam, gl, d, camY, lookY, platform, platformLocked]);
 
   const lastAnchorRef = useRef({ x: NaN, y: NaN, h: NaN });
   const fitRef = useRef<() => void>(() => {});
@@ -249,9 +257,10 @@ function useGlowTexture() {
   }, []);
 }
 
-function Platform({ handle, platform }: Pick<Props, "handle" | "platform">) {
+function Platform({ handle, platform, platformLocked }: Pick<Props, "handle" | "platform" | "platformLocked">) {
   const R = A.platformRadiusM;
   const n = sidesOf(platform);
+  const groupRef = useRef<THREE.Group>(null);
   const glowTex = useGlowTexture();
   const poolTex = usePoolTexture();
   // The feet stand A.feetForward toward the viewer (see Rig), so the light
@@ -260,10 +269,17 @@ function Platform({ handle, platform }: Pick<Props, "handle" | "platform">) {
   useFrame(() => {
     const phi = A.orbitDirection * rad(handle.current.angleDeg);
     const d = A.feetForward * R;
-    poolRef.current?.position.set(Math.sin(phi) * d, 0.002, Math.cos(phi) * d);
+    if (platformLocked) {
+      // Turn the whole platform with the camera: it stays still on screen.
+      groupRef.current?.rotation.set(0, phi, 0);
+      poolRef.current?.position.set(0, 0.002, d);
+    } else {
+      groupRef.current?.rotation.set(0, 0, 0);
+      poolRef.current?.position.set(Math.sin(phi) * d, 0.002, Math.cos(phi) * d);
+    }
   });
   return (
-    <group>
+    <group ref={groupRef}>
       {/* Body + top face (hexagon: 6 radial segments; round: many) */}
       <mesh position={[0, -0.05, 0]}>
         <cylinderGeometry args={[R, R * 1.05, 0.1, n]} />
@@ -478,7 +494,7 @@ class ArenaBoundary extends Component<{ onFail: () => void; children: ReactNode 
 }
 
 /** The 3D arena canvas. Purely decorative: no pointer events, aria-hidden. */
-export function StageArena3D({ handle, anchorRef, figureRef, onReady, onFail, platform }: Props) {
+export function StageArena3D({ handle, anchorRef, figureRef, onReady, onFail, platform, platformLocked = false }: Props) {
   const coarse = typeof window !== "undefined" && window.matchMedia("(pointer: coarse)").matches;
   return (
     <ArenaBoundary onFail={onFail}>
@@ -496,9 +512,9 @@ export function StageArena3D({ handle, anchorRef, figureRef, onReady, onFail, pl
           onReady();
         }}
       >
-        <Rig handle={handle} anchorRef={anchorRef} figureRef={figureRef} platform={platform} />
+        <Rig handle={handle} anchorRef={anchorRef} figureRef={figureRef} platform={platform} platformLocked={platformLocked} />
         <Floor platform={platform} />
-        <Platform handle={handle} platform={platform} />
+        <Platform handle={handle} platform={platform} platformLocked={platformLocked} />
         <Scenery />
       </Canvas>
     </ArenaBoundary>

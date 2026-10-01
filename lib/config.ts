@@ -278,6 +278,38 @@ export const VIEWER_SPIN = {
 };
 
 /**
+ * What the stage does (same for every athlete):
+ * - "static-athlete" (default, until the new turntable videos are ready): the
+ *   athlete stands still on one side photo (Front first); only the scenery
+ *   behind (pillars, neon frames, floor grid) orbits slowly round the
+ *   athlete. The platform, contact shadows, spotlight, readout and UI stay
+ *   put. Tabs / swipe / arrow keys switch the side with a crossfade.
+ * - "turntable": the athlete and the scenery turn together (frames, and the
+ *   turn video where there is one).
+ */
+export const STAGE_MODE: "static-athlete" | "turntable" = "static-athlete";
+/**
+ * "static-athlete" mode:
+ * - secPerTurn / direction: one orbit of the scenery (the reference turns
+ *   about 4 deg/s, ~88 s per turn); direction 1 or -1.
+ * - easeMs: the orbit eases in / out over this long (Play / Pause, tab back).
+ * - sideFadeMs: crossfade between two side photos (instant under reduced motion).
+ * - swipeMinPx: a horizontal swipe on the athlete at least this long switches side.
+ * - cssLinePeriodPx / cssPeriodsPerTurn: no-WebGL fallback, neon lines behind
+ *   the athlete that drift sideways as the scenery orbits (one turn = this
+ *   many line periods).
+ */
+export const STAGE_STATIC = {
+  secPerTurn: 88,
+  direction: 1 as 1 | -1,
+  easeMs: 1200,
+  sideFadeMs: 450,
+  swipeMinPx: 40,
+  cssLinePeriodPx: 120,
+  cssPeriodsPerTurn: 12,
+};
+
+/**
  * Shape of the 3D stage platform: "hex" (neon hexagon) or "round" (neon
  * ring: looks the same from every angle, so the turn shows only in the
  * scenery and the feet always stand in the same place on it). Same colours
