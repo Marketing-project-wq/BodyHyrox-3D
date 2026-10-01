@@ -25,6 +25,11 @@ export type AthleteViewsHandle = {
    */
   render: (angleDeg: number, moving: boolean, turning?: boolean) => void;
   /**
+   * "static-athlete" stage: show side `to` (0 Front, 1 Right, 2 Back, 3 Left),
+   * crossfading from side `from` (t = 0..1; 1 = only `to`).
+   */
+  renderSide: (from: number, to: number, t: number) => void;
+  /**
    * Hybrid viewer (sets with media.video): `speed` = the auto-rotation's
    * share of its full speed (0 = held or turned by hand). Returns the angle of
    * the video frame on screen while the video shows (the stage then follows
@@ -83,6 +88,11 @@ export const AthleteViews = forwardRef<
     onReady?: () => void;
     /** Once: the turn video can play through, or there is none / it can't be used. */
     onVideoSettled?: () => void;
+    /**
+     * "static-athlete" stage: only the four side photos are loaded and shown
+     * (renderSide); no turn, no turn video.
+     */
+    staticSides?: boolean;
     /** The 3D arena (when running): tells whether each sole lands on the platform top. */
     arena?: MutableRefObject<ArenaHandle>;
     /** ?debug=feet: draw the platform top face and each foot's contact point. */
@@ -103,7 +113,7 @@ export const AthleteViews = forwardRef<
     onFocusChange?: (focused: boolean) => void;
   } & DragCallbacks
 >(function AthleteViews(
-  { athleteId, media, view, m, label, onKeyTurn, onTogglePlay, onWheelTurn, onReady, onVideoSettled, onHoverChange, onTap, onFocusChange, onDragStart, onDragMove, onDragEnd, arena, debug, debugPerf, debugVideo, describe, onZoneCardChange },
+  { athleteId, media, view, m, label, onKeyTurn, onTogglePlay, onWheelTurn, onReady, onVideoSettled, staticSides = false, onHoverChange, onTap, onFocusChange, onDragStart, onDragMove, onDragEnd, arena, debug, debugPerf, debugVideo, describe, onZoneCardChange },
   ref,
 ) {
   const rootRef = useRef<HTMLDivElement>(null);
@@ -212,12 +222,23 @@ export const AthleteViews = forwardRef<
     g.clearRect(0, 0, c.width, c.height);
     g.drawImage(bmp, 0, 0, c.width, c.height);
     layerFrame.current[layer] = i;
-    // The frame's own (non-destructive) transform pivots on its measured feet.
+    // The frame's own (non-destructive) transform pivots on its measured feet;
+    // paint puts the feet shift in front of it.
     const fc = frameCss(meta[frames[i]]?.t, rawFeetRef.current[i] ?? meta[frames[i]]?.foot);
     c.style.transformOrigin = fc.transformOrigin;
-    c.style.transform = fc.transform === "none" ? "" : fc.transform;
+    layerCss.current[layer] = fc.transform === "none" ? "" : fc.transform;
+    c.style.transform = `${layerShift.current[layer]} ${layerCss.current[layer]}`.trim();
     return true;
   };
+  // Per canvas: the frame's own transform, and the feet shift put in front of it.
+  const layerCss = useRef(["", ""]);
+  const layerShift = useRef(["", ""]);
+  const setLayerShift = (layer: number, shift: string) => {
+    const c = canvasRefs.current[layer];
+    layerShift.current[layer] = shift;
+    if (c) c.style.transform = `${shift} ${layerCss.current[layer]}`.trim();
+  };
+  const forceRef = useRef<{ lo: number; hi: number; a: number } | null>(null);
   const schedulePaint = () => {
     if (repaintRaf.current) return;
     repaintRaf.current = requestAnimationFrame(() => {
@@ -262,7 +283,7 @@ export const AthleteViews = forwardRef<
         a = 0;
       }
       const lo = { i: base };
-      const hi = { i: br.hi };
+      const hi = { i: forceRef.current ? forceRef.current.hi : br.hi };
       // At rest the picture settles on the nearer of the two frames (eased over
       // restCrispMs, repainting until done); moving, it follows the angle.
       const dissolve = dissolveRef.current;
@@ -274,11 +295,17 @@ export const AthleteViews = forwardRef<
       if (Math.abs(wantCrisp - cr.k) < 0.01) cr.k = wantCrisp;
       else schedulePaint();
       a += ((a < 0.5 ? 0 : 1) - a) * cr.k;
+      // "static-athlete": two given frames (the sides) and their crossfade.
+      const force = forceRef.current;
+      if (force) {
+        base = force.lo;
+        a = force.a;
+      }
       // Draw: the frame below on canvas 0, the one fading in on canvas 1. A
       // frame not decoded yet keeps the previous picture for a moment.
       const cache = cacheRef.current;
       const EPS = 0.002;
-      const showHi = base === br.lo && a > EPS && br.hi !== br.lo;
+      const showHi = force ? a > EPS && hi.i !== base : base === br.lo && a > EPS && br.hi !== br.lo;
       // While the turn video shows, no frame is decoded or drawn (it covers
       // them); after it pauses it stays up until the frames here are drawn.
       const vs = vid.current;
@@ -363,11 +390,8 @@ export const AthleteViews = forwardRef<
           stack.style.transform = perPicture ? "" : shift;
         }
       }
-      if (perPicture) {
-        const [c0, c1] = canvasRefs.current;
-        if (c0) c0.style.transform = shiftOf(fBase.toe);
-        if (c1) c1.style.transform = shiftOf(fHi.toe);
-      }
+      setLayerShift(0, perPicture ? shiftOf(fBase.toe) : "");
+      setLayerShift(1, perPicture ? shiftOf(fHi.toe) : "");
       const vEl = videoElRef.current;
       if (vEl) vEl.style.transform = perPicture ? shiftOf(vFoot ? vFoot.toe : foot.toe) : "";
       // Markers are stored on the untransformed photo of their side: carry
@@ -509,7 +533,10 @@ export const AthleteViews = forwardRef<
   // The data's own video wins; else a video shipped with the site for this
   // athlete (STAGE_VIDEO_BUNDLED), until the database can hold one.
   const bundled = STAGE_VIDEO_BUNDLED[athleteId];
-  const stageVideo = useMemo(() => media.video ?? (bundled ? parseStageVideo(bundled.video) : null), [media.video, bundled]);
+  const stageVideo = useMemo(
+    () => (staticSides ? null : media.video ?? (bundled ? parseStageVideo(bundled.video) : null)),
+    [staticSides, media.video, bundled],
+  );
   const videoBase = media.video || !bundled ? base : bundled.baseUrl.replace(/\/$/, "");
   const videoElRef = useRef<HTMLVideoElement>(null);
   const vid = useRef({
@@ -792,7 +819,16 @@ export const AthleteViews = forwardRef<
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, stageVideo, videoBase]);
 
-  useImperativeHandle(ref, () => ({ render: paint, video: videoTick }), [paint, videoTick]);
+  const renderSide = useCallback(
+    (from: number, to: number, t: number) => {
+      const vi = viewIdxRef.current;
+      forceRef.current = { lo: vi[from], hi: vi[to], a: t };
+      // At rest on `to` (zone markers, label); mid-crossfade counts as moving.
+      paint(VIEW_ANGLES[t < 0.5 ? from : to], t > 0 && t < 1, false);
+    },
+    [paint],
+  );
+  useImperativeHandle(ref, () => ({ render: paint, renderSide, video: videoTick }), [paint, renderSide, videoTick]);
 
   // Feet metrics: the precomputed feet.json next to the frames, else measure
   // each decoded frame in the browser, else the config feet line.
@@ -894,7 +930,8 @@ export const AthleteViews = forwardRef<
     loadedRef.current = new Set();
     layerFrame.current = [-1, -1];
     const sides = Array.from(new Set(viewIdx));
-    const order = angles ? loadOrder(angles, sides) : sides;
+    // "static-athlete": the four sides are all it ever shows.
+    const order = angles && !staticSides ? loadOrder(angles, sides) : sides;
     let pending = new Set(sides);
     const box = rootRef.current?.getBoundingClientRect();
     if (box) sizeCanvases(box);
@@ -923,7 +960,7 @@ export const AthleteViews = forwardRef<
       repaintRaf.current = 0;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [base, frames.join("|"), viewIdx.join(","), angles]);
+  }, [base, frames.join("|"), viewIdx.join(","), angles, staticSides]);
 
   // Layout changes invalidate the cached box and raycasts, then repaint once.
   useEffect(() => {

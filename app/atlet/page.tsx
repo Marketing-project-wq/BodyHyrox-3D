@@ -3,7 +3,7 @@ import { getPublicAthletes } from "@/lib/data";
 import { isConfigured } from "@/lib/supabase";
 import { getMessages, getLocale } from "@/lib/i18n-server";
 import { fmt, tGender } from "@/lib/i18n";
-import { formatNumber } from "@/lib/format";
+import { formatNumber, initials } from "@/lib/format";
 import { PublicHeader } from "@/components/PublicHeader";
 import { NotConfigured } from "@/components/ui";
 
@@ -39,9 +39,11 @@ export default async function AtletPage() {
                   <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-white/10 bg-white/5 text-[10px] text-white/30">
                     {a.photoUrl ? (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img src={a.photoUrl} alt={a.nama} className="h-full w-full object-cover" />
+                      <img src={a.photoUrl} alt={a.nama} loading="lazy" decoding="async" className="h-full w-full object-cover" />
                     ) : (
-                      "FOTO"
+                      <span className="font-condensed text-lg font-bold text-white/30" aria-hidden>
+                        {initials(a.nama)}
+                      </span>
                     )}
                   </div>
                   <div className="min-w-0 flex-1">
