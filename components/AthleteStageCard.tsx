@@ -5,7 +5,7 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { ChevronLeft, ChevronRight, Pause, Play, RotateCcw } from "lucide-react";
 import type { PublicAthleteDetail } from "@/lib/data";
-import { STAGE_ARENA, STAGE_READOUT, VIEWER_360, VIEWER_360_FRAME_CLASS, VIEWER_SPIN, VIEWER_VIDEO, VIEWER_VIEWS, stageFitVars, viewer360FrameStyle } from "@/lib/config";
+import { STAGE_ARENA, STAGE_PLATFORM, STAGE_READOUT, VIEWER_360, VIEWER_360_FRAME_CLASS, VIEWER_SPIN, VIEWER_VIDEO, VIEWER_VIEWS, stageFitVars, viewer360FrameStyle } from "@/lib/config";
 import { decayVelocity, degreeLabel, nearestSide, nextSideTarget, norm360, shortestDelta, sideTarget } from "@/lib/spin";
 import { VIEW_KEYS } from "@/lib/views";
 import { type Dict, fmt } from "@/lib/i18n";
@@ -68,12 +68,16 @@ export function AthleteStageCard({
   const [debugViewport, setDebugViewport] = useState(false);
   const [debugPerf, setDebugPerf] = useState(false);
   const [debugVideo, setDebugVideo] = useState(false);
+  // Platform shape: STAGE_PLATFORM, or ?platform=round|hex to preview the other.
+  const [platform, setPlatform] = useState<"hex" | "round">(STAGE_PLATFORM);
   useEffect(() => {
     const debug = (new URLSearchParams(window.location.search).get("debug") ?? "").split(",");
     setDebugFeet(debug.includes("feet"));
     setDebugViewport(debug.includes("viewport"));
     setDebugPerf(debug.includes("perf"));
     setDebugVideo(debug.includes("video"));
+    const shape = new URLSearchParams(window.location.search).get("platform");
+    if (shape === "round" || shape === "hex") setPlatform(shape);
   }, []);
   const platformRef = useRef<HTMLDivElement>(null);
   const figureRef = useRef<HTMLDivElement>(null);
@@ -566,6 +570,7 @@ export function AthleteStageCard({
             anchorRef={platformRef}
             figureRef={figureRef}
             onReady={() => setArenaOn(true)}
+            platform={platform}
             onFail={() => {
               setArenaOn(false);
               setArenaWanted(false);

@@ -278,6 +278,21 @@ export const VIEWER_SPIN = {
 };
 
 /**
+ * Shape of the 3D stage platform: "hex" (neon hexagon) or "round" (neon
+ * ring: looks the same from every angle, so the turn shows only in the
+ * scenery and the feet always stand in the same place on it). Same colours
+ * either way. Preview the other one with ?platform=round / ?platform=hex.
+ * roundSegments: smoothness of the round outline; roundInnerRings: extra
+ * thin glowing rings on the round top face (share of the radius).
+ */
+export const STAGE_PLATFORM: "hex" | "round" = "hex";
+export const STAGE_PLATFORM_ROUND = {
+  roundSegments: 96,
+  roundInnerRings: [0.62, 0.84] as number[],
+  innerRingOpacity: 0.45,
+};
+
+/**
  * Hybrid viewer: a set with a transparent turn video (media.video) plays it
  * while the athlete auto-rotates (also while the spin eases in or out: the
  * video's playback rate follows the spin speed); any hold (hover, drag, tab,
