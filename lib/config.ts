@@ -295,9 +295,10 @@ export const VIEWER_SPIN = {
  * - swapMaxMs: on a hold the paused video stays up until the frames at that
  *   angle are drawn (no frames are decoded while the video shows), at most
  *   this long.
- * - dropCheckMs / maxDropShare: every dropCheckMs the share of dropped video
- *   frames is checked; above maxDropShare twice in a row (a phone that can't
- *   decode it in time) the frames take over for good.
+ * - dropCheckMs / maxDropShare / dropBadChecks: every dropCheckMs the share
+ *   of dropped video frames is checked; above maxDropShare dropBadChecks
+ *   times in a row (a device that really can't decode it in time) the frames
+ *   take over, and the video is tried again after dropRetryMs.
  */
 export const VIEWER_VIDEO = {
   enabled: true,
@@ -308,7 +309,9 @@ export const VIEWER_VIDEO = {
   retryAfterMs: 5000,
   swapMaxMs: 600,
   dropCheckMs: 2000,
-  maxDropShare: 0.2,
+  maxDropShare: 0.5,
+  dropBadChecks: 3,
+  dropRetryMs: 30000,
 };
 
 /**
