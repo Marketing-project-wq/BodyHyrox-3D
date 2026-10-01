@@ -501,10 +501,13 @@ export const AthleteViews = forwardRef<
   });
   const videoDebugOn = useRef(!!debugVideo);
   videoDebugOn.current = !!debugVideo;
+  const videoBadgeRef = useRef<HTMLDivElement>(null);
   const showVideoDebug = () => {
     const v = vid.current;
-    if (videoDebugOn.current && rootRef.current)
-      rootRef.current.dataset.video = `${v.state}|${v.srcs[v.srcIdx]?.file ?? "-"}|${v.reason}`;
+    if (!videoDebugOn.current || !rootRef.current) return;
+    rootRef.current.dataset.video = `${v.state}|${v.srcs[v.srcIdx]?.file ?? "-"}|${v.reason}`;
+    // ?debug=video: the same, readable on the stage (no developer tools needed).
+    if (videoBadgeRef.current) videoBadgeRef.current.textContent = `video: ${v.state}${v.reason ? ` (${v.reason})` : ""}`;
   };
   // Frames and video swap visibility; the canvases keep being painted (at
   // the same angle) so the swap back is instant.
@@ -637,7 +640,7 @@ export const AthleteViews = forwardRef<
       }
       if (v.state !== "on") return null;
       // A phone that can't decode it in time (many dropped frames in two
-      // checks in a row): frames for good.
+      // checks in a row): the frames take over, the video is tried again later.
       if (now - v.q.at > VIEWER_VIDEO.dropCheckMs) {
         const q = typeof el.getVideoPlaybackQuality === "function" ? el.getVideoPlaybackQuality() : null;
         let bad = 0;
@@ -645,11 +648,10 @@ export const AthleteViews = forwardRef<
           const total = q.totalVideoFrames - v.q.total;
           const dropped = q.droppedVideoFrames - v.q.dropped;
           bad = total >= 10 && dropped / total > VIEWER_VIDEO.maxDropShare ? v.q.bad + 1 : 0;
-          if (bad >= 2) {
+          if (bad >= VIEWER_VIDEO.dropBadChecks) {
             v.reason = `dropping:${dropped}/${total}`;
+            v.blockedUntil = now + VIEWER_VIDEO.dropRetryMs;
             stopVideo();
-            v.state = "failed";
-            showVideoDebug();
             return null;
           }
         }
@@ -1069,6 +1071,15 @@ export const AthleteViews = forwardRef<
         }
       }}
     >
+      {debugVideo && (
+        <div
+          ref={videoBadgeRef}
+          className="pointer-events-none absolute left-2 top-2 z-30 rounded bg-black/70 px-2 py-1 font-mono text-[11px] text-white"
+          aria-hidden
+        >
+          {stageVideo ? "video: off" : "video: none for this athlete"}
+        </div>
+      )}
       {debug && (
         <svg
           ref={debugRef}
