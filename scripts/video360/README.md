@@ -3,12 +3,13 @@
 Di panggung, atlet **berdiri diam menghadap depan**. Hanya latarnya yang berputar, seperti kamera
 yang berjalan mengelilingi atlet. Skrip ini membuat urutan gambarnya dari satu video putar:
 
-1. **Hapus latar dari frame ASLI, lalu ambil hanya frame berdiri.** Frame saat atlet melangkah
-   atau mengangkat kaki dibuang.
+1. **Hapus latar dari frame ASLI, tentukan sudutnya, lalu ambil hanya frame berdiri.** Sudut
+   tiap frame dihitung dari penanda (Depan/Kanan/Belakang/Kiri), gerakannya, dan bentuk badan
+   (pinggul dan bahu paling lebar dari depan/belakang, paling sempit dari samping). Frame saat
+   atlet melangkah atau mengangkat kaki dibuang.
 2. **Isi celah sudut**, dari yang paling tajam:
    - **cermin** (`GAP_FILL=mirror`, bawaan): celah di atas 10° diisi frame berdiri dari sisi
-     seberang yang dibalik kiri-kanan. Sambungannya dipasang di frame yang bentuknya paling mirip,
-     jadi putaran selalu maju ke satu arah;
+     seberang yang dibalik kiri-kanan (frame di sudut a, dibalik, menjadi sudut 360 − a);
    - **RIFE bertahap**: celah yang masih di atas 6° diberi frame bantu (frame asli yang paling
      mendekati pose berdiri), supaya RIFE tidak pernah menjembatani celah lebar;
    - **RIFE** (interpolasi) untuk setiap sudut di antaranya.
@@ -86,8 +87,7 @@ Lama proses di Mac Apple Silicon: ±20–40 menit (hapus latar ±1 detik per gam
 ## 4. Baca laporannya
 - `standing: N; dropped M` dan daftar sudut yang dibuang beserta alasannya (melangkah atau kaki
   terangkat).
-- `gap … flipped frames …`: celah yang diisi gambar cermin, dan seberapa mirip sambungannya
-  (`splice match`, 1 = sama persis).
+- `gap … standing frames of the other side, flipped`: celah yang diisi gambar cermin.
 - `widest RIFE gaps`: celah terlebar yang masih dijembatani RIFE (idealnya ≤ 6–10°).
 - `check quality`: jumlah gambar yang gagal cek (tembus pandang, bentuk badan atau sepatu yang
   meloncat) dan cara perbaikannya. Daftar lengkapnya ada di `meta.json` → `qualityCheck`.

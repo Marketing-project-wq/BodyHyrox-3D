@@ -4,12 +4,13 @@
 
 The athlete stands still facing front; the stage camera orbits round her. This makes that
 picture sequence from a turn video:
-  1. cut out every ORIGINAL frame and keep only the frames where the athlete STANDS (a step
-     shows as the sole line moving or the legs changing much more than the upper body);
+  1. cut out every ORIGINAL frame; give each its angle (the marks, the measured movement, and
+     the body shape: hips and shoulders are widest from the front / back, narrowest in
+     profile); keep only the frames where the athlete STANDS (a step shows as the sole line
+     moving or the legs changing much more than the upper body);
   2. fill every gap between standing frames:
-     - GAP_FILL=mirror (default): a gap wider than 10 deg is filled with the frames of the
-       other side flipped (left side for the right and back), spliced in and out where the
-       flipped frames look most like the real ones, so the turn always moves one way;
+     - GAP_FILL=mirror (default): a gap wider than 10 deg is filled with the standing frames
+       of the other side, flipped (a frame at angle a, flipped, shows 360 - a);
      - then RIFE frame interpolation between neighbouring frames, through "anchor" frames
        (the frames nearest to standing, of the same side) wherever a gap is still wider than
        6 deg, so RIFE never bridges a wide gap;
@@ -128,6 +129,73 @@ def angles_for(times, frames, marks):
                 frac = sum(motion[j] for j in idx if times[j] <= t) / total if total > 0 else (t - t0) / max(1e-6, t1 - t0)
                 out.append(a0 + (a1 - a0) * min(1.0, frac))
                 break
+    return out
+
+
+QUARTERS = (("front", "right", 0), ("right", "back", 90), ("back", "left", 180), ("left", "end", 270))
+
+
+def widths(alpha):
+    """Hip and shoulder width of the body (share of its height): widest from the front / back,
+    narrowest in profile."""
+    a = alpha >= 128
+    ys = np.where(a.sum(axis=1) >= 3)[0]
+    if len(ys) == 0:
+        return 0.0, 0.0
+    top, h = ys[0], max(1, ys[-1] - ys[0])
+
+    def w(fr):
+        vals = [(xs[-1] - xs[0]) / h for r in range(int(top + (fr - 0.01) * h), int(top + (fr + 0.01) * h) + 1)
+                for xs in [np.where(a[r])[0]] if len(xs)]
+        return float(np.median(vals)) if vals else 0.0
+
+    return w(0.50), w(0.22)
+
+
+def in_quarter(t, k0, k1, marks):
+    return marks[k0] <= t <= marks[k1] or (k1 == "end" and t >= marks[k0])
+
+
+def shape_correct(times, motion_ang, wid, marks):
+    """The motion-based angles, re-timed per quarter so they agree with the body shape where the
+    shape is a reliable cue (20..70 deg from the front / back pose): a width w between the wide
+    pose W and the profile D sits acos(sqrt((w^2 - D^2) / (W^2 - D^2))) from the wide pose (an
+    ellipse turning). The marks stay at 0 / 90 / 180 / 270 / 360. This keeps the left and right
+    sides consistent with each other (needed for the mirror fill) and with the scenery."""
+    n = len(times)
+    near = lambda t0, span: [i for i in range(n) if abs(times[i] - t0) <= span]  # noqa: E731
+    est = np.zeros((n, 2))
+    for c in (0, 1):
+        w = np.array([x[c] for x in wid])
+        wide = {0: max(w[i] for i in near(marks["front"], 0.12) + near(marks["end"], 0.12)),
+                180: max(w[i] for i in near(marks["back"], 0.4))}
+        narrow = {90: min(w[i] for i in near(marks["right"], 0.25)), 270: min(w[i] for i in near(marks["left"], 0.25))}
+        for i, t in enumerate(times):
+            for k0, k1, a0 in QUARTERS:
+                if in_quarter(t, k0, k1, marks):
+                    W = wide[0 if a0 in (0, 270) else 180]
+                    D = narrow[90 if a0 in (0, 90) else 270]
+                    off = float(np.degrees(np.arccos(np.sqrt(np.clip((w[i] ** 2 - D ** 2) / max(1e-6, W ** 2 - D ** 2), 0, 1)))))
+                    est[i, c] = a0 + (off if a0 in (0, 180) else 90 - off)
+                    break
+    shape_ang = est.mean(axis=1)
+    out = list(motion_ang)
+    for k0, k1, a0 in QUARTERS:
+        idx = [i for i, t in enumerate(times) if in_quarter(t, k0, k1, marks)]
+        pts = sorted((motion_ang[i], shape_ang[i]) for i in idx if 20 <= shape_ang[i] - a0 <= 70)
+        if len(pts) < 3:
+            continue
+        xs, ys = [a0] + [p[0] for p in pts] + [a0 + 90], [a0] + [p[1] for p in pts] + [a0 + 90]
+        ux, uy = [], []
+        for x, y in zip(xs, ys):
+            y = max(y, uy[-1]) if uy else y  # monotone
+            if ux and x <= ux[-1]:
+                uy[-1] = max(uy[-1], y)
+                continue
+            ux.append(x)
+            uy.append(y)
+        for i in idx:
+            out[i] = float(np.interp(motion_ang[i], ux, uy))
     return out
 
 
@@ -256,47 +324,32 @@ class Src:
         return f"{self.kind}{'(mirror)' if self.mirrored else ''}@{self.ang:.1f}"
 
 
-def plan(ang, ok, score, masks, mmasks, mode, log):
-    """The source pictures of the turn, by angle (see the module doc, step 2)."""
+def plan(ang, ok, score, mode, log):
+    """The source pictures of the turn, by angle (see the module doc, step 2). A flipped frame
+    of angle a shows the turn at 360 - a."""
     n = len(ang)
-    iou = lambda a, b: float((a & b).sum()) / max(1, (a | b).sum())  # noqa: E731
     real = [i for i in range(n) if ok[i] and ang[i] < 359.5]
     ring = [Src(i, ang[i], "real") for i in real]
-    mir, mir_anchor = [], []
+    mir_anchor = []
     if mode == "mirror":
-        nom = lambda j: (360 - ang[j]) % 360  # noqa: E731  (a flipped frame shows about 360 - its angle)
-        within = lambda x, lo, hi: lo <= (x if x >= lo else x + 360) <= hi  # noqa: E731
-        for a, b in zip(real, real[1:] + real[:1]):
-            a0, a1 = ang[a], ang[b] + (360 if b == real[0] else 0)
-            if a1 - a0 <= BIG_GAP:
+        angs = [ang[i] for i in real] + [ang[real[0]] + 360]
+        gaps = [(a0, a1) for a0, a1 in zip(angs, angs[1:]) if a1 - a0 > BIG_GAP]
+        inside = lambda m: next(((a0, a1) for a0, a1 in gaps if a0 < m < a1 or a0 < m + 360 < a1), None)  # noqa: E731
+        filled = {}
+        for j in range(n):
+            if ang[j] >= 359.5 or ang[j] <= 0.5:
                 continue
-            cand = [j for j in range(n) if ang[j] < 359.5 and within(nom(j), a0 - 25, a1 + 25)]
-            if not cand:
+            m = (360 - ang[j]) % 360
+            g = inside(m)
+            if g is None:
                 continue
-            jin = max([j for j in cand if within(nom(j), a0 - 25, a0 + 25)] or cand, key=lambda j: iou(masks[a], mmasks[j]))
-            jout = max([j for j in cand if within(nom(j), a1 - 25, a1 + 25)] or cand, key=lambda j: iou(masks[b], mmasks[j]))
-            seg = sorted([j for j in cand if ang[jout] <= ang[j] <= ang[jin]], key=lambda j: -ang[j])
-            st = [j for j in seg if ok[j]]
-            if len(seg) < 2 or not st:
-                continue
-            v = sorted(ang[j] for j in [seg[0]] + st + [seg[-1]])
-            if max(y - x for x, y in zip(v, v[1:])) >= a1 - a0:
-                continue  # the flipped frames do not cover this gap better than RIFE alone
-            span = ang[seg[0]] - ang[seg[-1]] or 1.0
-            for j in seg:  # angles spread over the gap by the flipped frames' own spacing
-                A = a0 + (a1 - a0) * (ang[seg[0]] - ang[j]) / span
-                if a0 < A < a1:
-                    (mir if ok[j] else mir_anchor).append(Src(j, A % 360, "standing" if ok[j] else "anchor", True))
-            log(f"  gap {a0:.1f}->{a1:.1f} deg: flipped frames of {360 - ang[seg[0]]:.0f}..{360 - ang[seg[-1]]:.0f} deg "
-                f"(splice match in {iou(masks[a], mmasks[jin]):.2f}, out {iou(masks[b], mmasks[jout]):.2f}), {len(st)} standing")
-        if mir:  # one source per stretch: real frames inside a flipped stretch are left out
-            spans = []
-            for a, b in zip(real, real[1:] + real[:1]):
-                a0, a1 = ang[a], ang[b] + (360 if b == real[0] else 0)
-                inn = [s.ang if s.ang >= a0 else s.ang + 360 for s in mir if a0 < s.ang < a1 or a0 < s.ang + 360 < a1]
-                if inn:
-                    spans.append((min(inn), max(inn)))
-            ring = [s for s in ring if not any(lo < s.ang < hi or lo < s.ang + 360 < hi for lo, hi in spans)] + mir
+            if ok[j]:
+                ring.append(Src(j, m, "standing", True))
+                filled[g] = filled.get(g, 0) + 1
+            else:
+                mir_anchor.append(Src(j, m, "anchor", True))
+        for (a0, a1), c in sorted(filled.items()):
+            log(f"  gap {a0:.1f}->{a1 % 360:.1f} deg: {c} standing frames of the other side, flipped")
     ring.sort(key=lambda s: s.ang)
     if mode in ("mirror", "anchor"):  # anchors where a gap is still wider than MAX_GAP
         real_anchor = [Src(i, ang[i], "anchor") for i in range(n) if not ok[i] and ang[i] < 359.5]
@@ -364,7 +417,6 @@ def main():
             keep.append(i)
         prev = g
     files, times = [files[i] for i in keep], [times[i] for i in keep]
-    angles = angles_for(times, files, marks)
 
     # 1. Cut out the ORIGINAL frames (and their flipped copies); standing frames only.
     cuts = []
@@ -372,6 +424,7 @@ def main():
         cuts.append(cutter(Image.open(f)))
         print(f"  background removed {i + 1}/{len(files)}", end="\r", flush=True)
     print()
+    angles = shape_correct(times, angles_for(times, files, marks), [widths(np.asarray(c)[:, :, 3]) for c in cuts], marks)
     ok, why, score = standing(fb, cuts, float(env("STEP_TOL", "0.006")), float(env("LEG_GUARD", "1.8")))
     if not ok[0]:
         ok[0], why[0] = True, ""  # frame 0 is Front (the mark), always kept
@@ -381,16 +434,13 @@ def main():
         Image.open(f).transpose(Image.FLIP_LEFT_RIGHT).save(p)
         raws[(i, True)] = p
     cut_of = lambda s: cuts[s.i].transpose(Image.FLIP_LEFT_RIGHT) if s.mirrored else cuts[s.i]  # noqa: E731
-    small = lambda im: np.asarray(lock(im, body(np.asarray(im)[:, :, 3]), cw, ch).resize((cw // 6, ch // 6)))[:, :, 3] >= 128  # noqa: E731
-    masks = {i: small(c) for i, c in enumerate(cuts)}
-    mmasks = {i: small(c.transpose(Image.FLIP_LEFT_RIGHT)) for i, c in enumerate(cuts)} if mode == "mirror" else {}
     stood = [i for i in range(len(files)) if ok[i] and angles[i] < 359.5]
     dropped = [(round(angles[i]), why[i]) for i in range(len(files)) if not ok[i] and angles[i] < 359.5]
     print(f"source: {len(files)} distinct frames at {sfps:g} fps; standing: {len(stood)}; dropped {len(dropped)}")
     print("dropped (deg: reason): " + ", ".join(f"{a}: {w}" for a, w in dropped[:60]) + (" ..." if len(dropped) > 60 else ""))
 
     # 2. Sources of the turn; one picture per 360/n degrees from them.
-    ring = plan(angles, ok, score, masks, mmasks, mode, print)
+    ring = plan(angles, ok, score, mode, print)
     angs = [s.ang for s in ring] + [ring[0].ang + 360]
     gaps = sorted(((b - a, a) for a, b in zip(angs, angs[1:])), reverse=True)[:4]
     kinds = {k: sum(1 for s in ring if (s.kind, s.mirrored) == k) for k in {(s.kind, s.mirrored) for s in ring}}
