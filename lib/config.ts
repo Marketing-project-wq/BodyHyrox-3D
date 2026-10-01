@@ -322,13 +322,14 @@ export const VIEWER_VIDEO = {
  */
 export const STAGE_VIDEO_BUNDLED: Record<string, { baseUrl: string; video: unknown }> = {
   // Calysta: from her turn video (AI background removal, scripts/video360,
-  // INTERP=3, FIT=frame): one turn, 720 frames, 24 s. VP9 alpha only for now
-  // (Chrome, Edge, Android); Safari / iPhone keep the frames until an HEVC
-  // file (made on a Mac) is added as a second source.
+  // INTERP=3 with INTERP_GUARD=1.15 so stepping feet keep their real frames
+  // instead of smeared "ghost legs", FIT=frame): one turn, 720 frames, 24 s.
+  // VP9 alpha only for now (Chrome, Edge, Android); Safari / iPhone keep the
+  // frames until an HEVC file (made on a Mac) is added as a second source.
   "f328e4e0-98c2-483d-b9ae-4be7fd6bf635": {
     baseUrl: "/media/atlet-360/calysta-video",
     video: {
-      sources: [{ file: "athlete-vp9.webm", type: 'video/webm; codecs="vp9"' }],
+      sources: [{ file: "athlete-vp9-d.webm", type: 'video/webm; codecs="vp9"' }],
       poster: "poster.webp",
       fps: 30,
       frames: 720,

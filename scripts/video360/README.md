@@ -39,6 +39,7 @@ TURN_SEC=24 ./make_360_video.sh ~/Movies/atlet.mov ~/Movies/atlet-marks.json ~/M
 | `SPEED` | motion | Di dalam tiap seperempat putaran, sudut mengikuti gerakan yang terukur, sehingga putaran yang cepat-lambat tetap rata. `linear` = kecepatan tetap di antara dua penanda |
 | `DEDUPE` | 1 | Buang frame ganda (umum di video AI dan konversi 24→30 fps) |
 | `INTERP` | 0 | 2–4 = buat frame sisipan sebelum hapus-latar (untuk klip AI pendek dengan sedikit pose). Cek `contact.jpg`: tangan dan kaki bisa melengkung |
+| `INTERP_GUARD` | 1.15 | Bersama `INTERP`: frame sisipan tidak dibuat di bagian video saat kaki bergerak jauh lebih banyak daripada badan atas (atlet menggeser kaki). Di situ interpolasi membuat "kaki bayangan", jadi frame aslinya yang dipakai. `0` = sisipkan di semua bagian |
 | `FIT` | set | `set` = satu transform untuk seluruh putaran (kamera diam). `frame` = tiap frame dipaskan sendiri (kamera AI yang zoom/bergeser; kaki tetap di garis, ukuran bisa sedikit berdenyut) |
 | `REMBG_MODEL` | birefnet-general-lite | `birefnet-general` lebih tajam, tapi unduh ~1 GB dan butuh RAM ≥16 GB |
 
