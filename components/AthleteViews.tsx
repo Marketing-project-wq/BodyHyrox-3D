@@ -24,12 +24,13 @@ export type AthleteViewsHandle = {
    */
   render: (angleDeg: number, moving: boolean, turning?: boolean) => void;
   /**
-   * Hybrid viewer (sets with media.video): `want` = the stage auto-rotates at
-   * full speed. Returns the angle of the video frame on screen while the video
-   * shows (the stage then follows it), else null (the frames show; the video
-   * starts at `envDeg` once it can).
+   * Hybrid viewer (sets with media.video): `speed` = the auto-rotation's
+   * share of its full speed (0 = held or turned by hand). Returns the angle of
+   * the video frame on screen while the video shows (the stage then follows
+   * it), else null (the frames show; the video starts at `envDeg` once it
+   * can). The video's playback rate follows `speed`.
    */
-  video: (want: boolean, envDeg: number, now: number) => number | null;
+  video: (speed: number, envDeg: number, now: number) => number | null;
 };
 
 type DragCallbacks = {
@@ -79,6 +80,8 @@ export const AthleteViews = forwardRef<
     onWheelTurn?: (deltaXPx: number) => void;
     /** The four view photos are decoded and painted. */
     onReady?: () => void;
+    /** Once: the turn video can play through, or there is none / it can't be used. */
+    onVideoSettled?: () => void;
     /** The 3D arena (when running): tells whether each sole lands on the platform top. */
     arena?: MutableRefObject<ArenaHandle>;
     /** ?debug=feet: draw the platform top face and each foot's contact point. */
@@ -99,7 +102,7 @@ export const AthleteViews = forwardRef<
     onFocusChange?: (focused: boolean) => void;
   } & DragCallbacks
 >(function AthleteViews(
-  { athleteId, media, view, m, label, onKeyTurn, onTogglePlay, onWheelTurn, onReady, onHoverChange, onTap, onFocusChange, onDragStart, onDragMove, onDragEnd, arena, debug, debugPerf, debugVideo, describe, onZoneCardChange },
+  { athleteId, media, view, m, label, onKeyTurn, onTogglePlay, onWheelTurn, onReady, onVideoSettled, onHoverChange, onTap, onFocusChange, onDragStart, onDragMove, onDragEnd, arena, debug, debugPerf, debugVideo, describe, onZoneCardChange },
   ref,
 ) {
   const rootRef = useRef<HTMLDivElement>(null);
@@ -509,6 +512,15 @@ export const AthleteViews = forwardRef<
     // ?debug=video: the same, readable on the stage (no developer tools needed).
     if (videoBadgeRef.current) videoBadgeRef.current.textContent = `video: ${v.state}${v.reason ? ` (${v.reason})` : ""}`;
   };
+  // The stage card holds the first turn until the video can play (or can't be used).
+  const settledRef = useRef(false);
+  const onVideoSettledRef = useRef(onVideoSettled);
+  onVideoSettledRef.current = onVideoSettled;
+  const settleVideo = () => {
+    if (settledRef.current) return;
+    settledRef.current = true;
+    onVideoSettledRef.current?.();
+  };
   // Frames and video swap visibility; the canvases keep being painted (at
   // the same angle) so the swap back is instant.
   const showVideo = (on: boolean) => {
@@ -548,6 +560,7 @@ export const AthleteViews = forwardRef<
       el.load();
       showVideo(false);
       showVideoDebug();
+      settleVideo();
       return;
     }
     v.srcIdx = i;
@@ -591,13 +604,13 @@ export const AthleteViews = forwardRef<
     showVideo(true);
     showVideoDebug();
   };
-  const startVideo = (envDeg: number) => {
+  const startVideo = (envDeg: number, speed: number) => {
     const v = vid.current;
     const el = videoElRef.current;
     if (!el || !stageVideo) return;
-    const leadDeg = (VIEWER_VIDEO.leadMs / 1000) * (360 / STAGE_ARENA.autoRotateSecPerTurn);
+    const leadDeg = (VIEWER_VIDEO.leadMs / 1000) * (360 / STAGE_ARENA.autoRotateSecPerTurn) * speed;
     v.state = "starting";
-    el.playbackRate = stageVideo.duration / STAGE_ARENA.autoRotateSecPerTurn;
+    el.playbackRate = (stageVideo.duration / STAGE_ARENA.autoRotateSecPerTurn) * speed;
     el.currentTime = timeForAngle(envDeg + leadDeg, stageVideo.duration);
     showVideoDebug();
     const watch = () => {
@@ -626,18 +639,21 @@ export const AthleteViews = forwardRef<
     });
   };
   const videoTick = useCallback(
-    (want: boolean, envDeg: number, now: number): number | null => {
+    (speed: number, envDeg: number, now: number): number | null => {
       const v = vid.current;
       const el = videoElRef.current;
       if (!el || !stageVideo || v.state === "off" || v.state === "failed") return null;
-      if (!want) {
+      if (speed < VIEWER_VIDEO.minSpeedShare) {
         if (v.state === "on" || v.state === "starting") stopVideo();
         return null;
       }
       if (v.state === "ready") {
-        if (now >= v.blockedUntil) startVideo(envDeg);
+        if (now >= v.blockedUntil) startVideo(envDeg, speed);
         return null;
       }
+      // The spin eases in / out: the video plays at the same share of its speed.
+      const fullRate = stageVideo.duration / STAGE_ARENA.autoRotateSecPerTurn;
+      if (Math.abs(el.playbackRate - fullRate * speed) > fullRate * VIEWER_VIDEO.rateStep) el.playbackRate = fullRate * speed;
       if (v.state !== "on") return null;
       // A phone that can't decode it in time (many dropped frames in two
       // checks in a row): the frames take over, the video is tried again later.
@@ -667,7 +683,11 @@ export const AthleteViews = forwardRef<
   // Pick the source once the four sides are on screen (they load first).
   useEffect(() => {
     const el = videoElRef.current;
-    if (!ready || !stageVideo || !el || !VIEWER_VIDEO.enabled) return;
+    if (!ready) return;
+    if (!stageVideo || !el || !VIEWER_VIDEO.enabled) {
+      settleVideo(); // no video: the stage card doesn't wait for one
+      return;
+    }
     const v = vid.current;
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const saveData = (navigator as Navigator & { connection?: { saveData?: boolean } }).connection?.saveData === true;
@@ -675,6 +695,7 @@ export const AthleteViews = forwardRef<
       v.state = "failed";
       v.reason = reduced ? "reduced-motion" : saveData ? "save-data" : "direction";
       showVideoDebug();
+      settleVideo();
       return;
     }
     v.rvfc = "requestVideoFrameCallback" in el;
@@ -695,6 +716,7 @@ export const AthleteViews = forwardRef<
       if (v.stall) clearTimeout(v.stall);
       v.stall = 0;
     };
+    const onCanPlay = () => settleVideo();
     const onError = () => {
       if (v.state === "failed") return;
       v.reason = `error:${v.srcs[v.srcIdx]?.file ?? ""}`;
@@ -704,6 +726,7 @@ export const AthleteViews = forwardRef<
     el.addEventListener("waiting", onWaiting);
     el.addEventListener("playing", onPlaying);
     el.addEventListener("error", onError);
+    el.addEventListener("canplaythrough", onCanPlay);
     const t = setTimeout(() => loadSource(0), VIEWER_VIDEO.startDelayMs);
     return () => {
       clearTimeout(t);
@@ -711,6 +734,7 @@ export const AthleteViews = forwardRef<
       el.removeEventListener("waiting", onWaiting);
       el.removeEventListener("playing", onPlaying);
       el.removeEventListener("error", onError);
+      el.removeEventListener("canplaythrough", onCanPlay);
       el.pause();
       v.state = "off";
       showVideo(false);

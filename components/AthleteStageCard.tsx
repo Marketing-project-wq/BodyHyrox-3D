@@ -5,7 +5,7 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { ChevronLeft, ChevronRight, Pause, Play, RotateCcw } from "lucide-react";
 import type { PublicAthleteDetail } from "@/lib/data";
-import { STAGE_ARENA, STAGE_READOUT, VIEWER_360, VIEWER_360_FRAME_CLASS, VIEWER_SPIN, VIEWER_VIEWS, stageFitVars, viewer360FrameStyle } from "@/lib/config";
+import { STAGE_ARENA, STAGE_READOUT, VIEWER_360, VIEWER_360_FRAME_CLASS, VIEWER_SPIN, VIEWER_VIDEO, VIEWER_VIEWS, stageFitVars, viewer360FrameStyle } from "@/lib/config";
 import { decayVelocity, degreeLabel, nearestSide, nextSideTarget, norm360, shortestDelta, sideTarget } from "@/lib/spin";
 import { VIEW_KEYS } from "@/lib/views";
 import { type Dict, fmt } from "@/lib/i18n";
@@ -107,7 +107,8 @@ export function AthleteStageCard({
   const sideNameRef = useRef<HTMLDivElement>(null);
   const autoAngleRef = useRef(0);
   const autoFactorRef = useRef(0); // 0..1 eased speed factor
-  const pausesRef = useRef(new Set<string>(["loading"]));
+  // "video": the first turn waits for the turn video (AthleteViews settles it).
+  const pausesRef = useRef(new Set<string>(has360 ? ["loading", "video"] : ["loading"]));
   const rafRef = useRef<number | null>(null);
   const lastTRef = useRef(0);
   const lastViewPaintRef = useRef<{ a: number; moving: boolean } | null>(null);
@@ -179,11 +180,17 @@ export function AthleteStageCard({
       if (Math.abs(want - f) < 0.002) f = want;
       autoFactorRef.current = f;
       autoAngleRef.current += (STAGE_ARENA.autoRotateDirection * 360 * dt * f) / STAGE_ARENA.autoRotateSecPerTurn;
-      // A set with a turn video plays it while auto-rotating at full speed; then
-      // the video's angle drives the stage (the arena follows the athlete).
-      const videoWanted = f === 1 && want === 1 && !moving;
-      const va = viewsRef.current?.video(videoWanted, autoAngleRef.current + viewAngleRef.current, now) ?? null;
-      if (va != null) autoAngleRef.current += shortestDelta(norm360(autoAngleRef.current + viewAngleRef.current), va);
+      // A set with a turn video plays it while auto-rotating (at the spin's
+      // current speed); then the video's angle drives the stage (the arena
+      // follows the athlete).
+      const va = viewsRef.current?.video(moving ? 0 : f, autoAngleRef.current + viewAngleRef.current, now) ?? null;
+      if (va != null) {
+        // Follow the video; a small step back (its clock vs ours while the
+        // rate changes) waits for the video instead, so the arena never
+        // turns backwards.
+        const d = shortestDelta(norm360(autoAngleRef.current + viewAngleRef.current), va);
+        autoAngleRef.current += d < 0 && d > -VIEWER_VIDEO.holdBackDeg ? 0 : d;
+      }
 
       // Paint: stage AND athlete follow the same combined angle (turntable).
       const env = autoAngleRef.current + viewAngleRef.current;
@@ -348,6 +355,12 @@ export function AthleteStageCard({
     const t = setTimeout(() => resume("loading"), 4000);
     return () => clearTimeout(t);
   }, [photosReady, arenaWanted, arenaOn, resume]);
+  // The turn video: don't hold the first turn forever either (slow network).
+  useEffect(() => {
+    if (!photosReady) return;
+    const t = setTimeout(() => resume("video"), VIEWER_VIDEO.firstWaitMaxMs);
+    return () => clearTimeout(t);
+  }, [photosReady, resume]);
 
   // Play / Pause (the button eases the spin in / out). Play also ends a
   // manual-turn hold at once.
@@ -738,6 +751,7 @@ export function AthleteStageCard({
                 onTap={onTap}
                 onFocusChange={onFocusChange}
                 onReady={() => setPhotosReady(true)}
+                onVideoSettled={() => resume("video")}
                 onZoneCardChange={onZoneCardChange}
                 arena={arenaOn ? arenaHandle : undefined}
                 debug={debugFeet}
