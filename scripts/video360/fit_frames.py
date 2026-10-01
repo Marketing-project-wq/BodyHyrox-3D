@@ -25,6 +25,9 @@ Env (all optional):
   INTERP=0            make in-between frames before cutting out: 2, 3, 4 = that many times the
                       frame rate (ffmpeg motion interpolation; check contact.jpg, it can warp
                       hands and feet). For short AI clips with too few poses.
+  INTERP_GUARD=1.15   with INTERP: no in-between frames where the legs move much more than the
+                      upper body (the athlete shifts a foot; motion interpolation smears it into a
+                      ghost leg). Those gaps keep the real frames. 0 = interpolate everywhere.
   FIT=set             set: one transform for the whole turn (feet stay put when the camera does);
                       frame: fit every frame on its own (camera that zooms or drifts, as AI video
                       can: feet stay on the line, the size may pulse slightly)
@@ -60,6 +63,22 @@ def source_fps(raw):
 def grey_small(path, w=96):
     im = Image.open(path).convert("L")
     return np.asarray(im.resize((w, max(1, round(w * im.height / im.width))))).astype(np.float32)
+
+
+def guard_steps(files, interp, guard):
+    """Motion interpolation smears a foot that steps into a ghost leg. Where the lower half of
+    the picture changes much more than the upper half between two real frames (every interp-th
+    frame), the in-between frames become copies of the nearest real frame."""
+    files, held = list(files), 0
+    for r in range(0, len(files) - interp, interp):
+        a, b = grey_small(files[r]), grey_small(files[r + interp])
+        h = a.shape[0] // 2
+        legs, top = float(np.abs(a[h:] - b[h:]).mean()), float(np.abs(a[:h] - b[:h]).mean())
+        if legs > 0.5 and legs > guard * top:
+            for k in range(1, interp):
+                files[r + k] = files[r] if k * 2 < interp else files[r + interp]
+                held += 1
+    return files, held
 
 
 def in_still(t, stills):
@@ -158,6 +177,10 @@ def main():
     run(["ffmpeg", "-y", "-ss", f"{t0:.3f}", "-to", f"{marks['end']:.3f}", "-i", raw, "-vf", vf, "-an", str(src / "%05d.png")])
     files = sorted(src.glob("*.png"))
     times = [t0 + i / sfps for i in range(len(files))]
+    guard = float(env("INTERP_GUARD", "1.15"))
+    if interp > 1 and guard > 0:
+        files, held = guard_steps(files, interp, guard)
+        print(f"interpolation guard: {held} of {len(files)} in-between frames replaced by real frames (feet moving)")
 
     # Repeated frames (AI video, frame-rate conversions): keep the first of each run.
     dropped = 0
