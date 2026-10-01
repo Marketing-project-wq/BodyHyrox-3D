@@ -4,6 +4,7 @@ Skrip ini mengubah video mentah (latar polos, dari kamera atau AI video generato
 - video transparan **WebM VP9 alpha** untuk Chrome, Edge dan Android;
 - video transparan **HEVC alpha** untuk Safari di Mac, iPad dan iPhone;
 - **72 keyframe WebP** (setiap 5°) untuk drag, tab, Pause, titik zona dan cadangan;
+- `feet.json`: posisi telapak sepatu di setiap frame video, supaya bayangan kontak di panggung tepat di bawah sepatu;
 - `poster.webp`, `contact.jpg` (36 pose untuk dicek mata) dan `meta.json`.
 
 Hasilnya diunggah ke draft lewat studio (tahap V4, butuh SQL). Skrip ini tidak menyentuh data

@@ -7,10 +7,11 @@ import { VIEW_ANGLES, VIEW_KEYS, frameAngles } from "@/lib/views";
 import { STAGE_ARENA, STAGE_VIDEO_BUNDLED, VIEWER_360, VIEWER_360_FRAME_CLASS, VIEWER_SPIN, VIEWER_VIDEO, VIEWER_VIEWS, viewer360FrameStyle } from "@/lib/config";
 import { alphaLooksRight, isHevc, parseStageVideo, sourceOrder, timeForAngle, videoAngle, type StageVideoSource } from "@/lib/stage-video";
 import { blendAmount, bracket, loadOrder, nearestSide, norm360 } from "@/lib/spin";
+import { contactsOf, footShift, mixContacts, parseVideoFeet, videoFootAt, type VideoFeet } from "@/lib/stage-feet";
 import { FrameCache } from "@/lib/frame-cache";
 import { type Dict } from "@/lib/i18n";
 import { formatIDR } from "@/lib/format";
-import { footIsCurrent, frameCss, measureFrame, soleLifted, transformFoot, type Foot } from "@/lib/media360";
+import { footIsCurrent, frameCss, measureFrame, transformFoot, type Foot } from "@/lib/media360";
 import type { ArenaHandle } from "@/components/StageArena3D";
 import type { MutableRefObject } from "react";
 import { X } from "lucide-react";
@@ -155,6 +156,8 @@ export const AthleteViews = forwardRef<
   const soleRefs = useRef<(HTMLDivElement | null)[]>([]);
   const feetRef = useRef<(Foot | null)[]>([]); // per frame index, after its transform
   const rawFeetRef = useRef<(Foot | null)[]>([]); // as measured (transform pivot)
+  // The turn video's own soles (one entry per video frame); "loading" holds the video back.
+  const videoFeetRef = useRef<{ state: "none" | "loading" | "ok"; track: VideoFeet | null }>({ state: "none", track: null });
   const meta = media.frameMeta ?? {};
   const loadedRef = useRef<Set<number>>(new Set()); // files downloaded (compressed)
   const lastRef = useRef<{ a: number; moving: boolean; turning: boolean }>({ a: 0, moving: false, turning: false });
@@ -329,19 +332,26 @@ export const AthleteViews = forwardRef<
           if (d <= behind) cache.request(at2(dir >= 0 ? -d : d));
         }
       }
-      // Feet on the platform: shift the photo (and its zone markers) so the
-      // shown frame's sole line lands exactly on the platform surface line
-      // (the feet line), sinking FOOT_OVERLAP px into it so antialiasing never
-      // leaves a hairline gap. Values are fractions of the box, so it holds at
-      // any size. Blends mix the two frames' feet the same way as the photos.
+      // Feet on the platform: every picture is shifted on its own so its sole
+      // line lands exactly on the platform surface line (the feet line),
+      // sinking FOOT_OVERLAP px into it so antialiasing never leaves a hairline
+      // gap: the frame below, the frame fading in, and the turn video (with its
+      // own soles per video frame). Values are fractions of the box, so it
+      // holds at any size.
       const feet = feetRef.current;
       const fallback: Foot = { toe: 1 - VIEWER_360.feetLinePct / 100, back: 1 - VIEWER_360.feetLinePct / 100, left: 0.3, right: 0.7 };
       const fBase = feet[base] ?? fallback;
-      const foot = showHi ? mixFoot(fBase, feet[hi.i] ?? fallback, a) : fBase;
+      const fHi = feet[hi.i] ?? fallback;
+      const foot = showHi ? mixFoot(fBase, fHi, a) : fBase;
       const line = 1 - VIEWER_360.feetLinePct / 100; // platform surface, fraction of the box from the top
-      const shift = `translateY(calc(${((line - foot.toe) * 100).toFixed(3)}% + ${STAGE_ARENA.footOverlapPx}px))`;
+      const shiftOf = (toe: number) => `translateY(calc(${(footShift(toe, line) * 100).toFixed(3)}% + ${STAGE_ARENA.footOverlapPx}px))`;
+      const shift = shiftOf(foot.toe);
+      const track = videoFeetRef.current.track;
+      const videoUp = vs.state === "on" || vs.swapFrom > 0; // the video is what's on screen
+      const vFoot = track ? videoFootAt(track, A) : null;
       // Fallback "turn" cue (only when stepping between the 4 view photos).
       const stack = stackRef.current;
+      const perPicture = !!angles;
       if (stack) {
         if (!fullTurn && !angles && turning) {
           const s = Math.sin(Math.PI * t);
@@ -350,9 +360,16 @@ export const AthleteViews = forwardRef<
             VIEWER_VIEWS.fallbackSqueeze * s
           ).toFixed(4)})`;
         } else {
-          stack.style.transform = shift;
+          stack.style.transform = perPicture ? "" : shift;
         }
       }
+      if (perPicture) {
+        const [c0, c1] = canvasRefs.current;
+        if (c0) c0.style.transform = shiftOf(fBase.toe);
+        if (c1) c1.style.transform = shiftOf(fHi.toe);
+      }
+      const vEl = videoElRef.current;
+      if (vEl) vEl.style.transform = perPicture ? shiftOf(vFoot ? vFoot.toe : foot.toe) : "";
       // Markers are stored on the untransformed photo of their side: carry
       // that frame's own transform so they stay on the body.
       const mk0 = markersRef.current;
@@ -362,31 +379,38 @@ export const AthleteViews = forwardRef<
         mk0.style.transformOrigin = fc.transformOrigin;
         mk0.style.transform = fc.transform === "none" ? shift : `${shift} ${fc.transform}`;
       }
-      // Contact shadows (drawn in the photo's own coordinates, shifted with it),
-      // one per sole, from whichever frame dominates the blend. A sole whose
+      // Contact shadows, one per sole, where the soles on screen are: the
+      // video's own soles while it shows, else the two frames' soles mixed by
+      // the crossfade (so they glide with it instead of jumping). A sole whose
       // contact point lands on the platform's top face (asked of the 3D camera)
       // is planted: tight dark shadow right under it, smaller further back like
       // the floor. A sole marked lifted in the studio, or off the platform:
       // faint, wider shadow. Plus a soft pool spanning the planted soles.
       const shadows = shadowsRef.current;
-      const lead = showHi && a >= 0.5 ? feet[hi.i] ?? foot : foot;
-      const soles = lead.soles?.length ? lead.soles : [[lead.left, lead.right, lead.toe]];
+      const lead = showHi && a >= 0.5 ? fHi : fBase;
+      const onScreen =
+        videoUp && vFoot
+          ? contactsOf(vFoot, line)
+          : !perPicture // 4-photo fallback: one shift for the stack, the leading photo's soles
+            ? contactsOf(lead, line).map((c) => ({ ...c, y: c.y - footShift(lead.toe, line) + footShift(foot.toe, line) }))
+            : showHi
+              ? mixContacts(contactsOf(fBase, line), contactsOf(fHi, line), a)
+              : contactsOf(fBase, line);
       const S = STAGE_ARENA;
       const ground = arenaRef.current?.current.groundHit ?? null;
-      const shiftFrac = line - foot.toe; // same shift as the photo
-      // Raycasts are cached: redo them only for a new leading frame, a turn of
-      // more than groundRecheckDeg, or a layout change.
+      // Raycasts are cached: redo them only for a new picture, a turn of more
+      // than groundRecheckDeg, or a layout change.
       const hits: (GroundHit | null)[] = [];
-      const leadIdx = showHi && a >= 0.5 ? hi.i : base;
+      const leadIdx = videoUp && vFoot ? "v" : showHi && a >= 0.5 ? hi.i : base;
       const gc = groundCacheRef.current;
-      const key = `${leadIdx}|${feet[leadIdx] ? 1 : 0}|${ground ? 1 : 0}|${layoutVerRef.current}`;
+      const key = `${leadIdx}|${onScreen.length}|${feet[base] ? 1 : 0}|${ground ? 1 : 0}|${layoutVerRef.current}`;
       const dA = gc ? Math.abs(((A - gc.a + 540) % 360) - 180) : Infinity;
       const recheck = !gc || gc.key !== key || dA > S.groundRecheckDeg;
-      const contacts = soles.map((sole, k) => {
-        const [x0, x1, b] = sole;
+      const contacts = onScreen.map((c, k) => {
+        const { x0, x1, y } = c;
         const cx = box ? box.left + ((x0 + x1) / 2) * box.width : 0;
-        const cy = box ? box.top + (b + shiftFrac) * box.height + S.footOverlapPx : 0;
-        let planted = !soleLifted(sole);
+        const cy = box ? box.top + y * box.height + S.footOverlapPx : 0;
+        let planted = !c.lifted;
         let scale = 1;
         if (planted && ground && box) {
           const cached = recheck ? undefined : gc?.hits[k];
@@ -397,11 +421,11 @@ export const AthleteViews = forwardRef<
             scale = Math.min(1.2, Math.max(0.6, g.scale));
           }
         }
-        return { x0, x1, b, planted, scale, cx, cy };
+        return { x0, x1, b: y, planted, scale, cx, cy };
       });
       if (recheck) groundCacheRef.current = { key, a: A, hits };
       if (shadows) {
-        shadows.style.transform = shift;
+        shadows.style.transform = `translateY(${STAGE_ARENA.footOverlapPx}px)`;
         soleRefs.current.forEach((el, k) => {
           if (!el) return;
           const c = contacts[k];
@@ -648,7 +672,7 @@ export const AthleteViews = forwardRef<
         return null;
       }
       if (v.state === "ready") {
-        if (now >= v.blockedUntil) startVideo(envDeg, speed);
+        if (now >= v.blockedUntil && videoFeetRef.current.state !== "loading") startVideo(envDeg, speed);
         return null;
       }
       // The spin eases in / out: the video plays at the same share of its speed.
@@ -698,6 +722,30 @@ export const AthleteViews = forwardRef<
       settleVideo();
       return;
     }
+    // The video's own soles: it shows only once they are here (else the
+    // shadows would follow the frames' feet); no file = the frames' feet.
+    let alive = true;
+    const vf = videoFeetRef.current;
+    if (stageVideo.feet && vf.state === "none") {
+      vf.state = "loading";
+      fetch(`${videoBase}/${stageVideo.feet}`)
+        .then((r) => (r.ok ? r.json() : null))
+        .then((j) => {
+          if (!alive) return;
+          vf.track = parseVideoFeet(j);
+          vf.state = "ok";
+          if (!vf.track) {
+            v.reason = "no-feet"; // shadows follow the frames' feet
+            showVideoDebug();
+          }
+        })
+        .catch(() => {
+          if (!alive) return;
+          vf.state = "ok";
+          v.reason = "no-feet";
+          showVideoDebug();
+        });
+    }
     v.rvfc = "requestVideoFrameCallback" in el;
     v.srcs = sourceOrder(stageVideo.sources, (t) => el.canPlayType(t), /Apple/.test(navigator.vendor));
     // Buffering while shown: back to the frames, try again a little later.
@@ -729,6 +777,8 @@ export const AthleteViews = forwardRef<
     el.addEventListener("canplaythrough", onCanPlay);
     const t = setTimeout(() => loadSource(0), VIEWER_VIDEO.startDelayMs);
     return () => {
+      alive = false;
+      if (vf.state === "loading") vf.state = "none";
       clearTimeout(t);
       if (v.stall) clearTimeout(v.stall);
       el.removeEventListener("waiting", onWaiting);

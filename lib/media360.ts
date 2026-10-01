@@ -200,6 +200,38 @@ export function measureMask(m: Uint8Array, W: number, H: number): Foot | null {
     .sort((p, q) => p[0] - q[0] || p[1] - q[1])
     .map(([x0, x1]) => soleOf(colBot, x0, x1, tol, W, H));
 
+  // Back shoe beside the front one but touching it in the mask (overlapping
+  // in the picture, or joined by a cut-out halo): inside the one run, a
+  // stretch of columns higher than the front sole with a flat bottom of its
+  // own, and a dip between the two (the mask rises between two shoes; a toe
+  // curving up rises steadily instead).
+  if (soles.length === 1) {
+    const [r0, r1] = colRuns(colBot, left, right, bridge).sort((p, q) => q[1] - q[0] - (p[1] - p[0]))[0];
+    const b = Math.round(soles[0][2] * H) - 1;
+    const n0 = Math.round(soles[0][0] * W), n1 = Math.round(soles[0][1] * W) - 1;
+    const minW = Math.round(FEET.minBackW * W);
+    const high = new Int32Array(W).fill(-1);
+    for (let x = r0; x <= r1; x++) if ((x < n0 || x > n1) && colBot[x] >= 0 && colBot[x] < b - tol) high[x] = colBot[x];
+    let best: number[] | null = null;
+    for (const [a0, a1] of colRuns(high, r0, r1, 1)) {
+      // The dip: highest point of the mask bottom in this stretch, the one
+      // nearest the front sole; the back shoe is what lies beyond it.
+      const right = a0 > n1;
+      let d = right ? a0 : a1;
+      for (let x = a0; x <= a1; x++) if (colBot[x] < colBot[d] || (colBot[x] === colBot[d] && (right ? x < d : x > d))) d = x;
+      const [p0, p1] = right ? [d + 1, a1] : [a0, d - 1];
+      if (p1 - p0 + 1 < minW) continue;
+      const s = soleOf(high, p0, p1, tol, W, H);
+      const w = Math.round(s[1] * W) - Math.round(s[0] * W);
+      if (colBot[d] >= Math.round(s[2] * H) - 1 - tol || w < minW) continue;
+      if (!best || w > Math.round(best[1] * W) - Math.round(best[0] * W)) best = s;
+    }
+    if (best) {
+      soles.push(best);
+      soles.sort((p, q) => p[0] - q[0]);
+    }
+  }
+
   // Hidden back shoe (side views): above the lowest run of a column, after a
   // transparent gap, the next opaque pixel is the bottom of the shoe behind.
   if (soles.length === 1) {
@@ -220,8 +252,12 @@ export function measureMask(m: Uint8Array, W: number, H: number): Foot | null {
     if (uruns.length) {
       let best = uruns[0];
       for (const r of uruns) if (r[1] - r[0] > best[1] - best[0]) best = r;
-      soles.push(soleOf(upper, best[0], best[1], tol, W, H));
-      soles.sort((p, q) => p[0] - q[0]);
+      const s = soleOf(upper, best[0], best[1], tol, W, H);
+      // v4: a contact only a few columns wide is a sock or trouser edge, not a shoe.
+      if (Math.round(s[1] * W) - Math.round(s[0] * W) >= Math.round(minW / 2)) {
+        soles.push(s);
+        soles.sort((p, q) => p[0] - q[0]);
+      }
     }
   }
 
@@ -253,12 +289,14 @@ export function measureMask(m: Uint8Array, W: number, H: number): Foot | null {
     top: top / H,
     cx: bodyCnt ? bodySum / bodyCnt / W : 0.5,
     lean: Number.isFinite(lean) ? lean : 0,
-    v: 3,
+    v: 4,
   };
 }
 
 /** Feet measured with the current algorithm (or placed by hand) — otherwise re-measure. */
-export const footIsCurrent = (f: Foot | null | undefined): f is Foot => !!f && (f.v === 3 || f.manual === true);
+export const footIsCurrent = (f: Foot | null | undefined): f is Foot => !!f && (f.v === FOOT_VERSION || f.manual === true);
+/** Version of the feet rules (v4: a back shoe touching the front one in the mask counts as its own sole). */
+export const FOOT_VERSION = 4;
 /** Sole entry: [x0, x1, bottom, lifted?] — lifted = 1 (set by hand in the studio). */
 export const soleLifted = (s: number[]) => s[3] === 1;
 

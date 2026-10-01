@@ -135,11 +135,12 @@ export const VIEWER_360 = {
    */
   feetLinePct: 3.5,
   /**
-   * Frames whose stored feet predate two-contact detection (or have none) are
-   * measured in the visitor's browser at most this wide (px), in idle time,
-   * never at full resolution. Old feet keep their stored toe for the anchor.
+   * Frames whose stored feet predate the current feet rules (FOOT_VERSION in
+   * lib/media360.ts) or have none are measured in the visitor's browser at
+   * most this wide (px), one per idle slot. Old feet keep their stored toe for
+   * the anchor. 480 keeps the soles within ~1px of a full-size measurement.
    */
-  footMeasureMaxW: 160,
+  footMeasureMaxW: 480,
   /**
    * No-WebGL fallback platform: tick marks on the flat CSS ring that turn with
    * the view change. `ringTurnDirection` matches the 3D arena's turn.
@@ -332,7 +333,8 @@ export const VIEWER_VIDEO = {
  * Turn videos shipped with the site (public/media/...), per athlete id, used
  * while the database can't hold one yet (video column + Storage). The data's
  * own video (media.video) always wins. `video` has the shape of
- * media.video: { sources: [{ file, type }], poster, fps, frames, duration }.
+ * media.video: { sources: [{ file, type }], poster, feet, fps, frames, duration }
+ * (feet: the soles of every video frame, so the shadows follow the video).
  */
 export const STAGE_VIDEO_BUNDLED: Record<string, { baseUrl: string; video: unknown }> = {
   // Calysta: from her turn video (AI background removal, scripts/video360,
@@ -345,6 +347,7 @@ export const STAGE_VIDEO_BUNDLED: Record<string, { baseUrl: string; video: unkno
     video: {
       sources: [{ file: "athlete-vp9-d.webm", type: 'video/webm; codecs="vp9"' }],
       poster: "poster.webp",
+      feet: "feet.json",
       fps: 30,
       frames: 720,
       duration: 24,

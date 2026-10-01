@@ -12,6 +12,8 @@ export type StageVideo = {
   fps: number;
   frames: number;
   duration: number;
+  /** feet.json of scripts/video360: the soles of every video frame (stage shadows). */
+  feet: string | null;
 };
 
 const SAFE_FILE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,120}$/;
@@ -30,7 +32,8 @@ export function parseStageVideo(raw: unknown): StageVideo | null {
   const frames = Number(v.frames);
   if (!sources.length || !(duration > 0) || duration > 600) return null;
   const poster = typeof v.poster === "string" && SAFE_FILE.test(v.poster) ? v.poster : null;
-  return { sources, poster, fps: fps > 0 ? fps : 30, frames: frames > 0 ? frames : Math.round(duration * 30), duration };
+  const feet = typeof v.feet === "string" && SAFE_FILE.test(v.feet) ? v.feet : null;
+  return { sources, poster, fps: fps > 0 ? fps : 30, frames: frames > 0 ? frames : Math.round(duration * 30), duration, feet };
 }
 
 export const videoAngle = (mediaTime: number, duration: number) => (((mediaTime / duration) * 360) % 360 + 360) % 360;

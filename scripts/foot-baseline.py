@@ -16,7 +16,8 @@ image size (0..1, origin top-left):
           hidden behind the front one in the same columns; it is found as the
           second bottom edge above a transparent gap.
   top, cx head row / body centre x (admin alignment)
-  v       3 (this algorithm)
+  v       4 (this algorithm; 4 = a back shoe touching the front one in the mask
+          counts as its own sole)
 
 The same rules are implemented in lib/media360.ts (measureFrame), so the
 browser and this script produce the same numbers (keep them in sync):
@@ -105,6 +106,42 @@ def measure_mask(m: np.ndarray) -> dict | None:
     runs = sorted(sorted(runs, key=lambda r: r[1] - r[0], reverse=True)[:2])
     soles = [_sole(colbot, x0, x1, tol, w, h) for x0, x1 in runs]
 
+    # Back shoe beside the front one but touching it in the mask (overlapping in
+    # the picture, or joined by a cut-out halo): inside the one run, a stretch of
+    # columns higher than the front sole with a flat bottom of its own, and a dip
+    # between the two (the mask rises between two shoes; a toe curving up rises
+    # steadily instead).
+    if len(soles) == 1:
+        r0, r1 = sorted(_runs(colbot, left, right, bridge), key=lambda r: r[1] - r[0], reverse=True)[0]
+        b = px(soles[0][2] * h) - 1
+        n0, n1 = px(soles[0][0] * w), px(soles[0][1] * w) - 1
+        min_w = px(MIN_BACK_W * w)
+        high = [-1] * w
+        for x in range(r0, r1 + 1):
+            if (x < n0 or x > n1) and colbot[x] >= 0 and colbot[x] < b - tol:
+                high[x] = colbot[x]
+        best = None
+        for a0, a1 in _runs(high, r0, r1, 1):
+            # The dip: highest point of the mask bottom in this stretch, the one
+            # nearest the front sole; the back shoe is what lies beyond it.
+            right_side = a0 > n1
+            d = a0 if right_side else a1
+            for x in range(a0, a1 + 1):
+                if colbot[x] < colbot[d] or (colbot[x] == colbot[d] and (x < d if right_side else x > d)):
+                    d = x
+            p0, p1 = (d + 1, a1) if right_side else (a0, d - 1)
+            if p1 - p0 + 1 < min_w:
+                continue
+            s = _sole(high, p0, p1, tol, w, h)
+            wd = px(s[1] * w) - px(s[0] * w)
+            if colbot[d] >= px(s[2] * h) - 1 - tol or wd < min_w:
+                continue
+            if best is None or wd > px(best[1] * w) - px(best[0] * w):
+                best = s
+        if best is not None:
+            soles.append(best)
+            soles.sort(key=lambda s: s[0])
+
     # Hidden back shoe (side views): above the lowest run of a column, after a
     # transparent gap, the next opaque pixel is the bottom of the shoe behind.
     if len(soles) == 1:
@@ -128,8 +165,11 @@ def measure_mask(m: np.ndarray) -> dict | None:
         uruns = [r for r in _runs(upper, 0, w - 1, bridge) if r[1] - r[0] + 1 >= px(MIN_BACK_W * w)]
         if uruns:
             x0, x1 = max(uruns, key=lambda r: r[1] - r[0])
-            soles.append(_sole(upper, x0, x1, tol, w, h))
-            soles.sort(key=lambda s: s[0])
+            s = _sole(upper, x0, x1, tol, w, h)
+            # v4: a contact only a few columns wide is a sock or trouser edge, not a shoe.
+            if px(s[1] * w) - px(s[0] * w) >= px(px(MIN_BACK_W * w) / 2):
+                soles.append(s)
+                soles.sort(key=lambda s: s[0])
 
     ys, xs = np.nonzero(m)
     return {
@@ -140,7 +180,7 @@ def measure_mask(m: np.ndarray) -> dict | None:
         "soles": soles,
         "top": top / h,
         "cx": float(xs.mean()) / w,
-        "v": 3,
+        "v": 4,
     }
 
 

@@ -179,17 +179,18 @@ export function AthleteStageCard({
       let f = autoFactorRef.current + (want - autoFactorRef.current) * (1 - Math.exp(-dt / tau));
       if (Math.abs(want - f) < 0.002) f = want;
       autoFactorRef.current = f;
-      autoAngleRef.current += (STAGE_ARENA.autoRotateDirection * 360 * dt * f) / STAGE_ARENA.autoRotateSecPerTurn;
+      const autoStep = (STAGE_ARENA.autoRotateDirection * 360 * dt * f) / STAGE_ARENA.autoRotateSecPerTurn;
+      autoAngleRef.current += autoStep;
       // A set with a turn video plays it while auto-rotating (at the spin's
       // current speed); then the video's angle drives the stage (the arena
       // follows the athlete).
       const va = viewsRef.current?.video(moving ? 0 : f, autoAngleRef.current + viewAngleRef.current, now) ?? null;
       if (va != null) {
-        // Follow the video; a small step back (its clock vs ours while the
-        // rate changes) waits for the video instead, so the arena never
-        // turns backwards.
+        // Follow the video; when it is a little behind (its clock vs ours while
+        // the rate changes) the stage holds still until it catches up, so the
+        // arena never turns backwards and never runs ahead of the athlete.
         const d = shortestDelta(norm360(autoAngleRef.current + viewAngleRef.current), va);
-        autoAngleRef.current += d < 0 && d > -VIEWER_VIDEO.holdBackDeg ? 0 : d;
+        autoAngleRef.current += d < 0 && d > -VIEWER_VIDEO.holdBackDeg ? Math.max(d, -Math.abs(autoStep)) : d;
       }
 
       // Paint: stage AND athlete follow the same combined angle (turntable).

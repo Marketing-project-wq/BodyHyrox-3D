@@ -6,6 +6,7 @@ raw video + marks.json  ->  out/fit/%05d.png       RGBA, one transform for the w
                                                     even angle steps, exactly one turn
                             out/keyframes/NNN.webp 72 frames, every 5 degrees
                             out/contact.jpg        36 poses (every 10 degrees) to check by eye
+                            out/feet.json          the soles of every frame (stage shadows)
                             out/meta.json
 
 marks.json: from the studio timeline ("Download marks (JSON)"), times in seconds:
@@ -79,6 +80,22 @@ def guard_steps(files, interp, guard):
                 files[r + k] = files[r] if k * 2 < interp else files[r + interp]
                 held += 1
     return files, held
+
+
+def write_feet(fit, n, dst):
+    """feet.json: {"v": 4, "frames": n, "feet": [[toe, [[x0, x1, b], ...]], ...]} per output frame,
+    fractions of the frame (= the stage box). See scripts/foot-baseline.py for the rules."""
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("foot_baseline", Path(__file__).resolve().parent.parent / "foot-baseline.py")
+    fb = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(fb)
+    r = lambda v: round(v, 4)  # noqa: E731
+    feet = []
+    for k in range(n):
+        m = fb.measure_mask(np.asarray(Image.open(fit / f"{k:05d}.png"))[:, :, 3] >= 128)
+        feet.append([r(m["toe"]), [[r(v) for v in sole] for sole in m["soles"]]] if m else feet[-1] if feet else [FIT_TOE, []])
+    json.dump({"v": 4, "frames": n, "feet": feet}, open(dst, "w"), separators=(",", ":"))
+    print(f"feet track: {dst} ({n} frames, two soles in {sum(1 for f in feet if len(f[1]) == 2)})")
 
 
 def in_still(t, stills):
@@ -237,6 +254,11 @@ def main():
         name = f"{q * 5:03d}.webp"
         Image.open(fit / f"{round(q * n / 72) % n:05d}.png").save(kf / name, "WEBP", quality=88, method=6)
         keyframes.append(name)
+
+    # Feet track: where each shoe touches the ground in every output frame (same rules as the
+    # viewer's measureFrame / scripts/foot-baseline.py), so the stage puts the video's own soles
+    # on the platform and draws the contact shadows under them at every angle.
+    write_feet(fit, n, out / "feet.json")
 
     # Checks: sole line, loop seam, colour consistency (AI video can change clothes / hair at the back).
     def small(k):
