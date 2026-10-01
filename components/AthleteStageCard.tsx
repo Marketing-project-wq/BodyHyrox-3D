@@ -68,6 +68,8 @@ export function AthleteStageCard({
   const [debugViewport, setDebugViewport] = useState(false);
   const [debugPerf, setDebugPerf] = useState(false);
   const [debugVideo, setDebugVideo] = useState(false);
+  const debugPerfRef = useRef(false);
+  debugPerfRef.current = debugPerf;
   // Platform shape: STAGE_PLATFORM, or ?platform=round|hex to preview the other.
   const [platform, setPlatform] = useState<"hex" | "round">(STAGE_PLATFORM);
   // Stage mode: STAGE_MODE, or ?stage=turntable|static to preview the other.
@@ -124,8 +126,14 @@ export function AthleteStageCard({
   // "static-athlete": the side on screen (index into VIEW_KEYS) and a running
   // crossfade to another side; the scenery behind orbits on autoAngle.
   const sideRef = useRef(0);
-  const fadeRef = useRef<{ from: number; to: number; t0: number } | null>(null);
+  const fadeRef = useRef<{ from: number; to: number; t0: number; dur: number } | null>(null);
+  const bgTweenRef = useRef<{ from: number; to: number; t0: number; dur: number } | null>(null);
+  // The side whose zone markers show (follows a crossfade from its middle on).
+  const [shownSide, setShownSide] = useState(0);
+  const shownSideRef = useRef(0);
+  const startFadeRef = useRef<(to: number, ms: number) => void>(() => {});
   const sidePaintRef = useRef(-1); // side painted at rest (-1 = repaint)
+  const sideRestRef = useRef({ at: 0, prepped: -1 }); // when that rest paint was, side whose next one is drawn ahead
   const bgLinesRef = useRef<HTMLDivElement>(null);
   const rafRef = useRef<number | null>(null);
   const lastTRef = useRef(0);
@@ -166,24 +174,52 @@ export function AthleteStageCard({
 
   const tick = useCallback(
     (now: number) => {
-      const dt = Math.min(0.05, Math.max(0, (now - lastTRef.current) / 1000)); // s, clamped
+      const rawDt = Math.max(0, (now - lastTRef.current) / 1000);
+      const dt = Math.min(0.05, rawDt); // s, clamped
       lastTRef.current = now;
 
-      // "static-athlete": the athlete stays on its side (crossfading to a new
-      // one); only the scenery orbits, held by Pause, a hidden tab, the card
-      // off screen or loading (not by hover, a swipe or a zone card).
+      // "static-athlete": the athlete stands still on a side photo; only the
+      // scenery orbits, held by Pause, a hidden tab, the card off screen or
+      // loading. With autoSides the photo follows the orbit side by side, a
+      // tab / swipe / key turns the scenery to that side (orbit back
+      // resumeMs later) and an open zone card holds it.
       if (staticRef.current) {
+        // The orbit keeps its speed down to slow frame rates (clamped wider).
+        const dt = Math.min(STAGE_STATIC.maxStepMs / 1000, rawDt);
         const p = pausesRef.current;
-        const wantBg = playingRef.current && !p.has("hidden") && !p.has("offscreen") && !p.has("loading") ? 1 : 0;
+        const auto = STAGE_STATIC.autoSides;
+        const held = p.has("hidden") || p.has("offscreen") || p.has("loading") || (auto && (p.has("manual") || p.has("zone")));
+        const wantBg = playingRef.current && !held ? 1 : 0;
         const tauS = STAGE_STATIC.easeMs / 1000 / 3;
         let fs = autoFactorRef.current + (wantBg - autoFactorRef.current) * (1 - Math.exp(-dt / tauS));
         if (Math.abs(wantBg - fs) < 0.002) fs = wantBg;
         autoFactorRef.current = fs;
-        autoAngleRef.current += (STAGE_STATIC.direction * 360 * dt * fs) / STAGE_STATIC.secPerTurn;
+        const twS = bgTweenRef.current;
+        if (twS) {
+          // A tab / swipe / key: the shortest way to that side, eased.
+          const t = Math.min(1, (now - twS.t0) / twS.dur);
+          const e = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+          autoAngleRef.current = twS.from + (twS.to - twS.from) * e;
+          if (t >= 1) bgTweenRef.current = null;
+        } else {
+          autoAngleRef.current += (STAGE_STATIC.direction * 360 * dt * fs) / STAGE_STATIC.secPerTurn;
+        }
         const bg = autoAngleRef.current;
+        // ?debug=perf: the scenery angle on the card (tests read it).
+        if (debugPerfRef.current && sectionRef.current) sectionRef.current.dataset.bg = bg.toFixed(2);
+        // The side follows the orbit: it starts crossfading half a fade before
+        // the side boundary, so the fade is centred on it. Not while a tab
+        // turn, a fade, a manual hold or a zone card is on.
+        if (auto && !bgTweenRef.current && !fadeRef.current && !p.has("manual") && !p.has("zone")) {
+          const lead = (STAGE_STATIC.direction * (STAGE_STATIC.autoFadeMs / 2000) * 360) / STAGE_STATIC.secPerTurn;
+          const target = ((Math.round((bg + lead) / 90) % 4) + 4) % 4;
+          if (target !== sideRef.current) startFadeRef.current(target, STAGE_STATIC.autoFadeMs);
+        }
         const hs = arenaHandle.current;
         hs.angleDeg = bg;
-        const halfRateS = qualityRef.current.level >= 2;
+        // During a side crossfade the scenery redraws at half rate: the two
+        // blended photos get the frame time (no stutter on weak phones).
+        const halfRateS = qualityRef.current.level >= 2 || !!fadeRef.current;
         frameParityRef.current ^= 1;
         if (!halfRateS || frameParityRef.current === 0) hs.invalidate?.();
         // No WebGL: neon lines behind the athlete drift sideways instead.
@@ -193,10 +229,15 @@ export function AthleteStageCard({
           const off = (((bg / 360) * STAGE_STATIC.cssPeriodsPerTurn * period) % period + period) % period;
           lines.style.transform = `translate3d(${(-off).toFixed(2)}px,0,0)`;
         }
-        // Side crossfade (sides only change on a tab / swipe / key).
+        // Side crossfade. The zone markers follow the new side from its
+        // middle on (they are hidden while it runs, so never on the wrong photo).
         const fd = fadeRef.current;
         if (fd) {
-          const t = Math.min(1, (now - fd.t0) / STAGE_STATIC.sideFadeMs);
+          const t = fd.dur > 0 ? Math.min(1, (now - fd.t0) / fd.dur) : 1;
+          if (t >= 0.5 && shownSideRef.current !== fd.to) {
+            shownSideRef.current = fd.to;
+            setShownSide(fd.to);
+          }
           if (t < 1) viewsRef.current?.renderSide(fd.from, fd.to, t);
           else {
             fadeRef.current = null;
@@ -206,6 +247,15 @@ export function AthleteStageCard({
         if (!fadeRef.current && sidePaintRef.current !== sideRef.current && viewsRef.current) {
           viewsRef.current.renderSide(sideRef.current, sideRef.current, 0);
           sidePaintRef.current = sideRef.current;
+          sideRestRef.current = { at: now, prepped: -1 };
+        }
+        // A moment after that, the side the orbit reaches next is drawn ahead
+        // (hidden), so its crossfade starts without a draw.
+        const rest = sideRestRef.current;
+        if (auto && fs > 0 && !fadeRef.current && sidePaintRef.current === sideRef.current && rest.prepped !== sideRef.current && now - rest.at > STAGE_STATIC.prepNextMs && viewsRef.current) {
+          const s = sideRef.current;
+          viewsRef.current.renderSide(s, s, 0, (((s + STAGE_STATIC.direction) % 4) + 4) % 4);
+          rest.prepped = s;
         }
         // Adaptive quality while the scenery turns (same rules as the turn).
         if (!clockStartRef.current && fs > 0.5) clockStartRef.current = now;
@@ -231,7 +281,7 @@ export function AthleteStageCard({
             q.frames = 0;
           }
         }
-        const busyS = fs > 0 || wantBg > 0 || !!fadeRef.current || (!!viewsRef.current && sidePaintRef.current !== sideRef.current);
+        const busyS = fs > 0 || wantBg > 0 || !!fadeRef.current || !!bgTweenRef.current || (!!viewsRef.current && sidePaintRef.current !== sideRef.current);
         rafRef.current = busyS ? requestAnimationFrame(tick) : null;
         return;
       }
@@ -478,27 +528,52 @@ export function AthleteStageCard({
     inertiaRef.current = 0;
   }, [holdNow]);
 
-  // "static-athlete": switch to a side (crossfade; instant under reduced
-  // motion). The tabs, readout and label follow at once; the scenery keeps
-  // turning.
+  // "static-athlete": crossfade the photo to a side; the tabs and readout
+  // follow at once (the zone markers from the fade's middle on).
+  const startFade = (to: number, ms: number) => {
+    const fd = fadeRef.current;
+    const from = fd ? fd.to : sideRef.current;
+    sideRef.current = to;
+    viewRef.current = to;
+    setView(to);
+    if (degRef.current) degRef.current.textContent = `${to * 90}°`;
+    if (to === from) return;
+    fadeRef.current = ms > 0 ? { from, to, t0: performance.now(), dur: ms } : null;
+    if (!fadeRef.current) {
+      shownSideRef.current = to;
+      setShownSide(to);
+    }
+    sidePaintRef.current = -1;
+    ensureLoop();
+  };
+  startFadeRef.current = startFade;
+  // A visitor picks a side (tab / swipe / key). With autoSides the scenery
+  // turns the shortest way to it and the orbit comes back resumeMs later;
+  // instant under reduced motion. Only these are announced (not the orbit's).
   const changeSide = useCallback(
     (target: number) => {
       const to = ((target % 4) + 4) % 4;
-      const fd = fadeRef.current;
-      const from = fd ? fd.to : sideRef.current;
-      if (to === from) return;
-      sideRef.current = to;
-      viewRef.current = to;
-      setView(to);
-      if (degRef.current) degRef.current.textContent = `${to * 90}°`;
-      if (liveRef.current) liveRef.current.textContent = viewNames[to];
       const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-      fadeRef.current = reduced ? null : { from, to, t0: performance.now() };
-      sidePaintRef.current = -1;
-      ensureLoop();
+      if (liveRef.current && to !== (fadeRef.current ? fadeRef.current.to : sideRef.current)) liveRef.current.textContent = viewNames[to];
+      if (!STAGE_STATIC.autoSides) {
+        startFade(to, reduced ? 0 : STAGE_STATIC.sideFadeMs);
+        return;
+      }
+      const ms = reduced ? 0 : STAGE_STATIC.turnToSideMs;
+      const from = autoAngleRef.current;
+      const goal = from + shortestDelta(norm360(from), to * 90);
+      if (ms > 0) bgTweenRef.current = { from, to: goal, t0: performance.now(), dur: ms };
+      else {
+        bgTweenRef.current = null;
+        autoAngleRef.current = goal;
+      }
+      autoFactorRef.current = 0;
+      pausesRef.current.add("manual");
+      resumeLater("manual", ms + STAGE_STATIC.resumeMs);
+      startFade(to, ms);
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [ensureLoop],
+    [ensureLoop, resumeLater],
   );
   const swipeRef = useRef(0);
 
@@ -596,7 +671,18 @@ export function AthleteStageCard({
   // A zone card is open (touch): no spin until it closes.
   const onZoneCardChange = useCallback(
     (open: boolean) => {
-      if (staticRef.current) return; // the scenery may keep turning behind a zone card
+      if (staticRef.current) {
+        if (!STAGE_STATIC.autoSides) return; // the scenery may keep turning behind a zone card
+        // autoSides: no orbit and no side change while a sponsor reads the card.
+        if (open) {
+          const t = resumeTimersRef.current.get("zone");
+          if (t) clearTimeout(t);
+          resumeTimersRef.current.delete("zone");
+          pausesRef.current.add("zone");
+          ensureLoop();
+        } else resumeLater("zone", STAGE_STATIC.resumeMs);
+        return;
+      }
       if (open) holdNow("zone");
       else resumeLater("zone", STAGE_ARENA.autoRotateResumeMs);
     },
@@ -882,7 +968,7 @@ export function AthleteStageCard({
                 ref={viewsRef}
                 athleteId={athlete.id}
                 media={athlete.media360!}
-                view={view}
+                view={isStatic ? shownSide : view}
                 onKeyTurn={onKeyTurn}
                 onTogglePlay={togglePlay}
                 onWheelTurn={onWheelTurn}

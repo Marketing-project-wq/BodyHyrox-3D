@@ -28,7 +28,7 @@ export type AthleteViewsHandle = {
    * "static-athlete" stage: show side `to` (0 Front, 1 Right, 2 Back, 3 Left),
    * crossfading from side `from` (t = 0..1; 1 = only `to`).
    */
-  renderSide: (from: number, to: number, t: number) => void;
+  renderSide: (from: number, to: number, t: number, next?: number) => void;
   /**
    * Hybrid viewer (sets with media.video): `speed` = the auto-rotation's
    * share of its full speed (0 = held or turned by hand). Returns the angle of
@@ -238,7 +238,7 @@ export const AthleteViews = forwardRef<
     layerShift.current[layer] = shift;
     if (c) c.style.transform = `${shift} ${layerCss.current[layer]}`.trim();
   };
-  const forceRef = useRef<{ lo: number; hi: number; a: number } | null>(null);
+  const forceRef = useRef<{ lo: number; hi: number; a: number; next?: number } | null>(null);
   const schedulePaint = () => {
     if (repaintRaf.current) return;
     repaintRaf.current = requestAnimationFrame(() => {
@@ -310,9 +310,14 @@ export const AthleteViews = forwardRef<
       // them); after it pauses it stays up until the frames here are drawn.
       const vs = vid.current;
       if (cache && vs.state !== "on") {
-        cache.pin(showHi ? [base, br.hi] : [base]);
+        // At rest, the side coming next is drawn ahead on the hidden canvas, so
+        // its crossfade only changes opacity (no draw on its first frame).
+        const prep = force && !showHi && force.next !== undefined && force.next !== base ? force.next : -1;
+        // hi: the next frame by angle, or the given side ("static-athlete").
+        cache.pin(showHi ? [base, hi.i] : prep >= 0 ? [base, prep] : [base]);
         let loOk = drawLayer(0, base);
-        const hiOk = showHi && drawLayer(1, br.hi);
+        const hiOk = showHi && drawLayer(1, hi.i);
+        if (prep >= 0) drawLayer(1, prep);
         perf.current.paints++;
         if (!loOk || (showHi && !hiOk)) perf.current.misses++;
         // Not decoded yet (a fast turn on a slow phone): show the decoded
@@ -820,11 +825,19 @@ export const AthleteViews = forwardRef<
   }, [ready, stageVideo, videoBase]);
 
   const renderSide = useCallback(
-    (from: number, to: number, t: number) => {
+    (from: number, to: number, t: number, next?: number) => {
       const vi = viewIdxRef.current;
-      forceRef.current = { lo: vi[from], hi: vi[to], a: t };
+      // Two sides on the same photo (a set with fewer than 4 distinct sides): no fade.
+      if (vi[from] === vi[to]) from = to;
+      forceRef.current = { lo: vi[from], hi: vi[to], a: from === to ? 0 : t, next: next === undefined ? undefined : vi[next] };
+      // At rest: decode the neighbouring sides ahead, so a crossfade never
+      // waits on (or stalls for) a decode.
+      if (from === to && t === 0) {
+        cacheRef.current?.request(vi[(to + 1) % 4]);
+        cacheRef.current?.request(vi[(to + 3) % 4]);
+      }
       // At rest on `to` (zone markers, label); mid-crossfade counts as moving.
-      paint(VIEW_ANGLES[t < 0.5 ? from : to], t > 0 && t < 1, false);
+      paint(VIEW_ANGLES[t < 0.5 ? from : to], from !== to && t > 0 && t < 1, false);
     },
     [paint],
   );
