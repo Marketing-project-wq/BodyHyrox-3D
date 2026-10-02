@@ -80,6 +80,7 @@ RIFE_BIN=~/v360/rife/rife-ncnn-vulkan ./make_360_video.sh ~/Movies/atlet.mp4 ~/M
 | `CANVAS` | 714x1680 | Ukuran gambar |
 | `GAP_FILL` | mirror | `mirror` (cermin + RIFE bertahap), `anchor` (RIFE bertahap tanpa cermin), `rife` (hanya frame berdiri + RIFE) |
 | `MIRROR_GAP` | 25 | Dengan `mirror`: hanya celah yang lebih lebar dari ini (derajat) yang diisi gambar cermin |
+| `SIDE_PHOTOS` | (kosong) | Opsional: foto atlet berdiri tepat dari samping (Kanan dan/atau Kiri, urutan bebas), dipisah koma. Tiap foto dipasang di 90° atau 270°, sesuai sisi yang paling cocok dengan video |
 | `RIFE_BIN` | rife-ncnn-vulkan | Lokasi program RIFE |
 | `STEP_TOL` | 0.006 | Garis telapak bergeser ≥0,6% tinggi badan antar frame = melangkah |
 | `LEG_GUARD` | 1.8 | Kaki berubah ≥1,8× lebih banyak dari badan atas (median 3 pasang frame) = melangkah |
@@ -87,6 +88,19 @@ RIFE_BIN=~/v360/rife/rife-ncnn-vulkan ./make_360_video.sh ~/Movies/atlet.mp4 ~/M
 | `REMBG_MODEL` | birefnet-general-lite | `isnet-general-use` ±10× lebih cepat, sedikit lebih kasar |
 
 Lama proses di Mac Apple Silicon: ±20–40 menit (hapus latar ±1 detik per gambar).
+
+### Foto samping (opsional, disarankan kalau atlet melangkah di sisi samping)
+Kalau di video atlet melangkah saat tampak samping, frame berdiri di 90° dan 270° tidak ada.
+Foto berdiri tepat dari samping mengisinya:
+```
+SIDE_PHOTOS=~/Movies/atlet-kanan.jpg,~/Movies/atlet-kiri.jpg RIFE_BIN=~/v360/rife/rife-ncnn-vulkan ./make_360_video.sh …
+```
+- Baju, sepatu, rambut dan jam tangan harus sama dengan di video. Pose berdiri tegak, kaki rapat,
+  seluruh badan dan sepatu terlihat. Latar polos (warna apa saja).
+- Skrip menyamakan ukuran, posisi dan warna foto dengan video, dan membersihkan tepi rambut dari
+  warna latar foto. Laporannya menyebut sisi yang dipilih (`side photo …: Right/Left`); kalau ada
+  WARNING, cek fotonya.
+- Makin besar resolusi foto, makin tajam sudut samping (idealnya tinggi badan ≥ 1.000 px).
 
 ## 4. Baca laporannya
 - `standing: N; dropped M` dan daftar sudut yang dibuang beserta alasannya (melangkah atau kaki
