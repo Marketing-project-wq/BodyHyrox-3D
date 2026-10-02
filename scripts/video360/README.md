@@ -117,6 +117,16 @@ SIDE_PHOTOS=~/Movies/atlet-kanan.jpg,~/Movies/atlet-kiri.jpg RIFE_BIN=~/v360/rif
 - **Selalu buka `contact.jpg`:** 24 gambar setiap 15°. Garis biru = garis telapak, puncak kepala
   dan tengah badan. Atlet harus berdiri tegak di garis yang sama di semua sudut.
 
+## 4a. Urutan gambar untuk panggung
+Panggung memakai **urutan gambar**, bukan video, supaya jalan di semua browser (termasuk Safari dan
+iPhone) tanpa beban decode video:
+```
+python3 export_frames.py ~/Movies/atlet-out ~/Movies/atlet-gambar 120 1260
+```
+Hasilnya 120 gambar WebP (`000.webp` = Depan, setiap 3°; Kanan `030`, Belakang `060`, Kiri `090`)
+dan `feet.json`. Ukurannya sekitar 5 MB. Panggung memilih gambar sesuai sudut latar dan
+membaurkan dua gambar bersebelahan.
+
 ## 4b. Ketajaman
 - Langkah paling aman: **perbesar frame asli dulu dengan Real-ESRGAN** (di Mac memakai GPU), lalu
   jalankan skrip pada hasilnya. Contoh:

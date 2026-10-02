@@ -297,6 +297,26 @@ export const STAGE_MODE: "static-athlete" | "turntable" = "static-athlete";
  */
 export const STAGE_TURN_VIDEO_AUTO = true;
 /**
+ * An athlete with a picture turn shipped with the site (STAGE_FRAMES_BUNDLED)
+ * gets the "turntable" mode in every browser (no video decoding), with no
+ * reduced motion. ?stage=static still forces the 4-side mode.
+ */
+export const STAGE_TURN_FRAMES_AUTO = true;
+/**
+ * Picture turns shipped with the site (public/media/...), per athlete id,
+ * shown instead of the data's frames until the database holds one: `count`
+ * pictures 000.webp.. evenly round the turn (000 = Front, Right at count/4,
+ * Back at count/2, Left at 3*count/4) plus feet.json (version 3), made by
+ * scripts/video360/export_frames.py. The stage shows the picture of the
+ * scenery's angle and crossfades its neighbours.
+ */
+export const STAGE_FRAMES_BUNDLED: Record<string, { baseUrl: string; count: number }> = {
+  // Calysta: scripts/video360 on her turn video plus her two profile photos
+  // (standing frames only, every picture locked: sole, height, centre), one
+  // picture every 3 degrees, 536x1260.
+  "f328e4e0-98c2-483d-b9ae-4be7fd6bf635": { baseUrl: "/media/atlet-360/calysta-turn", count: 120 },
+};
+/**
  * "static-athlete" mode:
  * - secPerTurn / direction: one orbit of the scenery (48 s = 12 s per side);
  *   direction 1 or -1. The scenery angle works like a camera orbiting the
@@ -410,26 +430,11 @@ export const VIEWER_VIDEO = {
  * own video (media.video) always wins. `video` has the shape of
  * media.video: { sources: [{ file, type }], poster, feet, fps, frames, duration }
  * (feet: the soles of every video frame, so the shadows follow the video).
+ * None at the moment: a transparent VP9 video decodes in software on many
+ * laptops and drops frames, so Calysta's turn ships as pictures
+ * (STAGE_FRAMES_BUNDLED).
  */
-export const STAGE_VIDEO_BUNDLED: Record<string, { baseUrl: string; video: unknown }> = {
-  // Calysta (preview, ?stage=turntable only): scripts/video360 on her turn
-  // video plus her two profile photos (SIDE_PHOTOS): standing frames only,
-  // gaps filled from the other side flipped and by RIFE, every picture locked
-  // (sole, height, centre); one turn, 1440 pictures, 60 s at 24 per second.
-  // VP9 alpha only (Chrome, Edge, Android); Safari / iPhone keep the frames
-  // until an HEVC file (made on a Mac) is added as a second source.
-  "f328e4e0-98c2-483d-b9ae-4be7fd6bf635": {
-    baseUrl: "/media/atlet-360/calysta-video",
-    video: {
-      sources: [{ file: "athlete-vp9-v2.webm", type: 'video/webm; codecs="vp9"' }],
-      poster: "poster-v2.webp",
-      feet: "feet-v2.json",
-      fps: 24,
-      frames: 1440,
-      duration: 60,
-    },
-  },
-};
+export const STAGE_VIDEO_BUNDLED: Record<string, { baseUrl: string; video: unknown }> = {};
 
 export const STAGE_ARENA = {
   color: "#ff2d55",
