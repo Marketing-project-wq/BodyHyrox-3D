@@ -8,10 +8,13 @@ yang berjalan mengelilingi atlet. Skrip ini membuat urutan gambarnya dari satu v
    (pinggul dan bahu paling lebar dari depan/belakang, paling sempit dari samping). Frame saat
    atlet melangkah atau mengangkat kaki dibuang.
 2. **Isi celah sudut**, dari yang paling tajam:
-   - **cermin** (`GAP_FILL=mirror`, bawaan): celah di atas 10° diisi frame berdiri dari sisi
-     seberang yang dibalik kiri-kanan (frame di sudut a, dibalik, menjadi sudut 360 − a);
-   - **RIFE bertahap**: celah yang masih di atas 6° diberi frame bantu (frame asli yang paling
-     mendekati pose berdiri), supaya RIFE tidak pernah menjembatani celah lebar;
+   - **cermin** (`GAP_FILL=mirror`, bawaan): celah di atas 25° diisi frame berdiri dari sisi
+     seberang yang dibalik kiri-kanan (frame di sudut a, dibalik, menjadi sudut 360 − a). Dua
+     celah cermin yang hanya dipisah beberapa frame asli dijadikan satu, karena setiap pergantian
+     sumber bisa terlihat sebagai loncatan kecil pada pose;
+   - **RIFE bertahap**: celah yang masih di atas 6° diberi frame bantu dari sisi yang sama, yaitu
+     frame yang posisi kakinya paling mirip dengan gambar sebelum dan sesudahnya, supaya kaki tidak
+     meloncat dan RIFE tidak pernah menjembatani celah lebar;
    - **RIFE** (interpolasi) untuk setiap sudut di antaranya.
 3. **Badan 100% padat**: lubang kecil diisi, bagian badan tidak ada yang tembus pandang; hanya
    tepi luar dan rambut yang halus.
@@ -76,6 +79,7 @@ RIFE_BIN=~/v360/rife/rife-ncnn-vulkan ./make_360_video.sh ~/Movies/atlet.mp4 ~/M
 | `FPS` | 24 | Gambar per detik (60 × 24 = 1.440 gambar) |
 | `CANVAS` | 714x1680 | Ukuran gambar |
 | `GAP_FILL` | mirror | `mirror` (cermin + RIFE bertahap), `anchor` (RIFE bertahap tanpa cermin), `rife` (hanya frame berdiri + RIFE) |
+| `MIRROR_GAP` | 25 | Dengan `mirror`: hanya celah yang lebih lebar dari ini (derajat) yang diisi gambar cermin |
 | `RIFE_BIN` | rife-ncnn-vulkan | Lokasi program RIFE |
 | `STEP_TOL` | 0.006 | Garis telapak bergeser ≥0,6% tinggi badan antar frame = melangkah |
 | `LEG_GUARD` | 1.8 | Kaki berubah ≥1,8× lebih banyak dari badan atas (median 3 pasang frame) = melangkah |
