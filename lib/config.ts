@@ -289,6 +289,14 @@ export const VIEWER_SPIN = {
  */
 export const STAGE_MODE: "static-athlete" | "turntable" = "static-athlete";
 /**
+ * An athlete whose data (or STAGE_VIDEO_BUNDLED) has a turn video gets the
+ * "turntable" mode when this browser can play it with transparency (VP9 alpha;
+ * on Apple's WebKit only with an HEVC source), with no reduced motion and no
+ * Save-Data. Every other athlete / browser keeps STAGE_MODE. ?stage=static or
+ * ?stage=turntable still forces one mode.
+ */
+export const STAGE_TURN_VIDEO_AUTO = true;
+/**
  * "static-athlete" mode:
  * - secPerTurn / direction: one orbit of the scenery (48 s = 12 s per side);
  *   direction 1 or -1. The scenery angle works like a camera orbiting the
