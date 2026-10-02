@@ -39,5 +39,6 @@ export function withBundledFrames(athleteId: string, media: Media360 | null): Me
     frameMeta: {},
     version: media?.version ?? 0,
     video: null,
+    blendShare: b.blendShare,
   };
 }

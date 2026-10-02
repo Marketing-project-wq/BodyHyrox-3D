@@ -281,7 +281,7 @@ export const AthleteViews = forwardRef<
       const t = Math.min(1, Math.max(0, br.t));
       // Upper frame's share: a blend over (part of) the step following the
       // angle, or the whole step between the 4 side photos of the fallback.
-      let a = br.hi === br.lo ? 0 : angles ? blendAmount(t, VIEWER_SPIN.crossfadeShare, VIEWER_SPIN.crossfadeCurve) : t;
+      let a = br.hi === br.lo ? 0 : angles ? blendAmount(t, media.blendShare ?? VIEWER_SPIN.crossfadeShare, VIEWER_SPIN.crossfadeCurve) : t;
       let base = br.lo;
       if (a >= 1) {
         base = br.hi; // past the blend: the next frame alone

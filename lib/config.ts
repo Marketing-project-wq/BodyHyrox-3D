@@ -308,13 +308,17 @@ export const STAGE_TURN_FRAMES_AUTO = true;
  * pictures 000.webp.. evenly round the turn (000 = Front, Right at count/4,
  * Back at count/2, Left at 3*count/4) plus feet.json (version 3), made by
  * scripts/video360/export_frames.py. The stage shows the picture of the
- * scenery's angle and crossfades its neighbours.
+ * scenery's angle and crossfades its neighbours (blendShare: the share of each
+ * step spent crossfading, centred between two pictures; unset = all of it).
  */
-export const STAGE_FRAMES_BUNDLED: Record<string, { baseUrl: string; count: number }> = {
+export const STAGE_FRAMES_BUNDLED: Record<string, { baseUrl: string; count: number; blendShare?: number }> = {
   // Calysta: scripts/video360 on her turn video plus her two profile photos
-  // (standing frames only, every picture locked: sole, height, centre), one
-  // picture every 3 degrees, 536x1260.
-  "f328e4e0-98c2-483d-b9ae-4be7fd6bf635": { baseUrl: "/media/atlet-360/calysta-turn", count: 120 },
+  // (standing frames only, every picture locked: sole, height, centre). She
+  // turned herself in that video (her pose shifts from angle to angle), so
+  // the stage holds 12 clean poses (every 30 degrees, 714x1680): she stands
+  // perfectly still while the scenery orbits, and the next pose crossfades in
+  // over blendShare of the 30 degrees (centred between the two).
+  "f328e4e0-98c2-483d-b9ae-4be7fd6bf635": { baseUrl: "/media/atlet-360/calysta-turn", count: 12, blendShare: 0.15 },
 };
 /**
  * "static-athlete" mode:

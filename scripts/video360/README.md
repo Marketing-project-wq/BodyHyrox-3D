@@ -121,11 +121,16 @@ SIDE_PHOTOS=~/Movies/atlet-kanan.jpg,~/Movies/atlet-kiri.jpg RIFE_BIN=~/v360/rif
 Panggung memakai **urutan gambar**, bukan video, supaya jalan di semua browser (termasuk Safari dan
 iPhone) tanpa beban decode video:
 ```
-python3 export_frames.py ~/Movies/atlet-out ~/Movies/atlet-gambar 120 1260
+python3 export_frames.py ~/Movies/atlet-out ~/Movies/atlet-gambar 12 1680
 ```
-Hasilnya 120 gambar WebP (`000.webp` = Depan, setiap 3°; Kanan `030`, Belakang `060`, Kiri `090`)
-dan `feet.json`. Ukurannya sekitar 5 MB. Panggung memilih gambar sesuai sudut latar dan
-membaurkan dua gambar bersebelahan.
+Hasilnya N gambar WebP (`000.webp` = Depan, lalu setiap 360/N derajat; Kanan di N/4, Belakang di
+N/2, Kiri di 3N/4; N harus kelipatan 4) dan `feet.json`.
+- **Atlet yang memutar badannya sendiri di video** (posenya berubah dari sudut ke sudut): pakai
+  sedikit pose, misalnya **12** (setiap 30°), dengan `blendShare` kecil (0,15) di
+  `STAGE_FRAMES_BUNDLED`. Atlet berdiri diam di tiap pose, lalu pose berikutnya masuk dengan fade
+  singkat.
+- **Rekaman meja putar** (atlet benar-benar diam): pakai banyak gambar, misalnya **120** (setiap
+  3°) dengan tinggi 1260, tanpa `blendShare`, supaya putarannya mulus terus.
 
 ## 4b. Ketajaman
 - Langkah paling aman: **perbesar frame asli dulu dengan Real-ESRGAN** (di Mac memakai GPU), lalu
