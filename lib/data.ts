@@ -352,6 +352,12 @@ export type Media360 = {
    * exists: nothing here reads a column that isn't there).
    */
   video: StageVideo | null;
+  /**
+   * Share of the step between two neighbouring pictures spent crossfading
+   * (centred on the midpoint); each picture holds still for the rest. Unset =
+   * VIEWER_SPIN.crossfadeShare. Set by bundled picture turns (STAGE_FRAMES_BUNDLED).
+   */
+  blendShare?: number;
 };
 /** Optional profile stats shown on the stage card. Null = not filled → hidden. */
 export type AthleteProfileStats = {
