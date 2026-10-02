@@ -44,6 +44,9 @@ Env (all optional):
   CANVAS=714x1680      output size
   GAP_FILL=mirror      mirror | anchor (no flipped frames) | rife (standing frames only)
   MIRROR_GAP=25        with mirror: only gaps wider than this (deg) are filled with flipped frames
+  SIDE_PHOTOS=a.png,b.png   optional photos of the athlete standing in profile (Right and/or
+                       Left, any order): each goes in at 90 or 270 deg (the side it matches best)
+                       as a standing frame, so the profile comes from a real standing picture
   RIFE_BIN=rife-ncnn-vulkan   RIFE binary (github.com/nihui/rife-ncnn-vulkan); RIFE_MODEL = its
                        model folder (default: rife-v4.6 next to the binary); RIFE_GPU=-1 = CPU
   STEP_TOL=0.006       the sole line moving this much between two frames = a step
@@ -66,6 +69,8 @@ ANCHORS = (("front", 0), ("right", 90), ("back", 180), ("left", 270), ("end", 36
 MAX_GAP = 6.0  # deg: RIFE never bridges more than this (anchor frames in between)
 MIRROR_GAP = float(os.environ.get("MIRROR_GAP", "25"))  # deg: only gaps wider than this get flipped frames
 ISLAND = 10.0  # deg: real frames between two flipped stretches closer than this are left out
+PHOTO_SPAN = 8.0  # deg: around a side photo, no flipped frames (the photo is the source there)
+PHOTO_GAP = 12.0  # deg: a gap next to a side photo up to this wide gets no anchor frames
 FEET = 0.09  # shoe band: this share of the body height above the sole edge
 
 
@@ -329,18 +334,21 @@ class Src:
         return f"{self.kind}{'(mirror)' if self.mirrored else ''}@{self.ang:.1f}"
 
 
-def plan(ang, ok, score, feet, mode, log):
+def plan(ang, ok, score, feet, mode, log, photos=frozenset()):
     """The source pictures of the turn, by angle (see the module doc, step 2). A flipped frame
     of angle a shows the turn at 360 - a. Every change of source (real <-> flipped, standing <->
     anchor) can show as a small jump in the pose, so there are as few as possible: flipped frames
     only in the wide gaps, two flipped stretches with only a few real frames between them become
     one, and an anchor is the frame whose feet look most like the picture before it."""
     n = len(ang)
-    real = [i for i in range(n) if ok[i] and ang[i] < 359.5]
-    ring = [Src(i, ang[i], "real") for i in real]
+    real = sorted((i for i in range(n) if ok[i] and ang[i] < 359.5), key=lambda i: ang[i])
+    ring = [Src(i, ang[i], "photo" if i in photos else "real") for i in real]
+    photo_angs = [ang[i] for i in photos]
+    near_photo = lambda a: any(abs(((a - p + 180) % 360) - 180) < PHOTO_SPAN for p in photo_angs)  # noqa: E731
     mir_anchor = []
     if mode == "mirror":
-        angs = [ang[i] for i in real] + [ang[real[0]] + 360]
+        vid = [i for i in real if i not in photos]  # the gaps come from the video frames alone
+        angs = [ang[i] for i in vid] + [ang[vid[0]] + 360]
         gaps = [[a0, a1] for a0, a1 in zip(angs, angs[1:]) if a1 - a0 > MIRROR_GAP]
         merged = []
         for g in gaps:  # a short island of real frames between two wide gaps: one flipped stretch
@@ -350,14 +358,14 @@ def plan(ang, ok, score, feet, mode, log):
                 merged.append(g)
         gaps = merged
         inside = lambda m: next(((a0, a1) for a0, a1 in gaps if a0 < m < a1 or a0 < m + 360 < a1), None)  # noqa: E731
-        ring = [s for s in ring if inside(s.ang) is None]
+        ring = [s for s in ring if s.kind == "photo" or inside(s.ang) is None]
         filled = {}
         for j in range(n):
-            if ang[j] >= 359.5 or ang[j] <= 0.5:
+            if ang[j] >= 359.5 or ang[j] <= 0.5 or j in photos:
                 continue
             m = (360 - ang[j]) % 360
             g = inside(m)
-            if g is None:
+            if g is None or near_photo(m):
                 continue
             if ok[j]:
                 ring.append(Src(j, m, "standing", True))
@@ -373,9 +381,9 @@ def plan(ang, ok, score, feet, mode, log):
         key = lambda s: (s.i, s.mirrored)  # noqa: E731
         angs, add = [s.ang for s in ring] + [ring[0].ang + 360], []
         for k, (a0, a1) in enumerate(zip(angs, angs[1:])):
-            if a1 - a0 <= MAX_GAP:
-                continue
             nxt = ring[(k + 1) % len(ring)]
+            if a1 - a0 <= MAX_GAP or ("photo" in (ring[k].kind, nxt.kind) and a1 - a0 <= PHOTO_GAP):
+                continue
             pool = mir_anchor if ring[k].mirrored or nxt.mirrored else real_anchor
             parts = int(np.ceil((a1 - a0) / MAX_GAP))
             prev = ring[k]
@@ -408,6 +416,22 @@ class Rife:
         if self.gpu:
             cmd += ["-g", self.gpu]
         run(cmd)
+
+
+def match_photo(c, refs):
+    """A side photo made to fit the video frames: the colour of its edge pixels comes from the
+    body next to them (no dark fringe from the photo's own background), and its colours are
+    matched to the video frames of that side (mean and spread per channel, inside the body)."""
+    px = np.asarray(c).astype(np.float64)
+    a = px[:, :, 3]
+    solid_body = a >= 250
+    _, (iy, ix) = ndi.distance_transform_edt(~solid_body, return_indices=True)
+    rgb = px[:, :, :3][iy, ix]  # every pixel takes the colour of the nearest solid body pixel
+    if refs:
+        ref = np.concatenate([np.asarray(r)[:, :, :3][np.asarray(r)[:, :, 3] >= 250] for r in refs]).astype(np.float64)
+        own = rgb[solid_body]
+        rgb = (rgb - own.mean(axis=0)) / np.maximum(own.std(axis=0), 1) * ref.std(axis=0) + ref.mean(axis=0)
+    return Image.fromarray(np.dstack([np.clip(rgb, 0, 255), a]).astype(np.uint8), "RGBA")
 
 
 def main():
@@ -455,6 +479,45 @@ def main():
         p = tmp / "src" / f"{f.stem}-m.png"
         Image.open(f).transpose(Image.FLIP_LEFT_RIGHT).save(p)
         raws[(i, True)] = p
+    # Side photos (optional): placed into the video frames' geometry (same sole edge, height and
+    # centre as the standing frames, on the same white background), then added as standing
+    # frames at 90 or 270 deg, whichever side they match best.
+    photos = set()
+    photo_files = [x.strip() for x in env("SIDE_PHOTOS", "").split(",") if x.strip()]
+    if photo_files:
+        fw, fh = cuts[0].size
+        bs = [body(np.asarray(cuts[i])[:, :, 3]) for i in range(len(files)) if ok[i]]
+        ref = tuple(float(np.median([b[q] for b in bs if b])) for q in range(3))
+        small_mask = lambda c: np.asarray(lock(c, body(np.asarray(c)[:, :, 3]), cw, ch).resize((cw // 6, ch // 6)))[:, :, 3] >= 128  # noqa: E731
+        side_masks = {A: [small_mask(cuts[i]) for i in range(len(files)) if abs(angles[i] - A) < 20] for A in (90, 270)}
+        for q, pf in enumerate(photo_files):
+            im = Image.open(pf)
+            c = im.convert("RGBA") if im.mode == "RGBA" and np.asarray(im.convert("RGBA"))[:, :, 3].min() < 250 else cutter(im)
+            top, toe, cx = body(np.asarray(c)[:, :, 3])
+            k = (ref[1] - ref[0]) / max(1.0, toe - top)
+            tx, ty = ref[2] - cx * k, ref[0] - top * k
+            c = c.transform((fw, fh), Image.AFFINE, (1 / k, 0, -tx / k, 0, 1 / k, -ty / k), resample=Image.BICUBIC)
+            m = small_mask(c)
+            fit_of = {A: max([float((m & x).sum()) / max(1, (m | x).sum()) for x in side_masks[A]] or [0.0]) for A in (90, 270)}
+            A = max(fit_of, key=fit_of.get)
+            c = match_photo(c, [cuts[i] for i in range(len(files)) if ok[i] and abs(angles[i] - A) < 30])
+            print(f"side photo {pf}: {'Right (90 deg)' if A == 90 else 'Left (270 deg)'} (match {fit_of[90]:.2f} right, "
+                  f"{fit_of[270]:.2f} left)" + ("  <- WARNING: unclear which side; check the photo" if abs(fit_of[90] - fit_of[270]) < 0.03 else ""))
+            raw = tmp / "src" / f"photo{q}.png"
+            white = Image.new("RGBA", (fw, fh), (255, 255, 255, 255))
+            Image.alpha_composite(white, c).convert("RGB").save(raw)
+            i = len(cuts)
+            cuts.append(c)
+            files.append(raw)
+            raws[(i, False)] = raw
+            pm = tmp / "src" / f"photo{q}-m.png"
+            Image.open(raw).transpose(Image.FLIP_LEFT_RIGHT).save(pm)
+            raws[(i, True)] = pm
+            angles.append(float(A))
+            ok.append(True)
+            why.append("")
+            score.append(0.0)
+            photos.add(i)
     cut_of = lambda s: cuts[s.i].transpose(Image.FLIP_LEFT_RIGHT) if s.mirrored else cuts[s.i]  # noqa: E731
     stood = [i for i in range(len(files)) if ok[i] and angles[i] < 359.5]
     dropped = [(round(angles[i]), why[i]) for i in range(len(files)) if not ok[i] and angles[i] < 359.5]
@@ -474,7 +537,7 @@ def main():
             feet[(i, False)] = feet_mask(c)
             if mode == "mirror":
                 feet[(i, True)] = feet_mask(c.transpose(Image.FLIP_LEFT_RIGHT))
-    ring = plan(angles, ok, score, feet, mode, print)
+    ring = plan(angles, ok, score, feet, mode, print, frozenset(photos))
     angs = [s.ang for s in ring] + [ring[0].ang + 360]
     gaps = sorted(((b - a, a) for a, b in zip(angs, angs[1:])), reverse=True)[:4]
     kinds = {k: sum(1 for s in ring if (s.kind, s.mirrored) == k) for k in {(s.kind, s.mirrored) for s in ring}}
