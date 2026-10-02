@@ -239,6 +239,11 @@ export const AthleteViews = forwardRef<
     if (c) c.style.transform = `${shift} ${layerCss.current[layer]}`.trim();
   };
   const forceRef = useRef<{ lo: number; hi: number; a: number; next?: number } | null>(null);
+  // Leaving "static-athlete" (the stage card switches to the full turn after
+  // mount): the given side no longer holds the picture, the angle picks it.
+  useEffect(() => {
+    if (!staticSides) forceRef.current = null;
+  }, [staticSides]);
   const schedulePaint = () => {
     if (repaintRaf.current) return;
     repaintRaf.current = requestAnimationFrame(() => {
