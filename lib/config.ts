@@ -317,10 +317,11 @@ export const STAGE_FRAMES_BUNDLED: Record<string, { baseUrl: string; count: numb
   // turned herself in that video (her pose shifts from angle to angle), so
   // the stage holds 12 clean poses (every 30 degrees, 714x1680): she stands
   // perfectly still while the scenery orbits, and the next pose crossfades in
-  // over blendShare of the 30 degrees (centred between the two). Right, Back
-  // and Left are her sharp photos (PHOTOS_AT). A new set always goes in a
-  // new folder: browsers keep the old pictures under the same file names.
-  "f328e4e0-98c2-483d-b9ae-4be7fd6bf635": { baseUrl: "/media/atlet-360/calysta-turn-v2", count: 12, blendShare: 0.15 },
+  // over blendShare of the 30 degrees (centred between the two). All 12 come
+  // from the video (her photos were shot from another camera height and
+  // looked out of place next to them). A new set always goes in a new
+  // folder: browsers keep the old pictures under the same file names.
+  "f328e4e0-98c2-483d-b9ae-4be7fd6bf635": { baseUrl: "/media/atlet-360/calysta-turn-v3", count: 12, blendShare: 0.15 },
 };
 /**
  * "static-athlete" mode:
