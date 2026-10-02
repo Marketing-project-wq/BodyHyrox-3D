@@ -9,11 +9,13 @@ picture sequence from a turn video:
      profile); keep only the frames where the athlete STANDS (a step shows as the sole line
      moving or the legs changing much more than the upper body);
   2. fill every gap between standing frames:
-     - GAP_FILL=mirror (default): a gap wider than 10 deg is filled with the standing frames
-       of the other side, flipped (a frame at angle a, flipped, shows 360 - a);
+     - GAP_FILL=mirror (default): a gap wider than 25 deg is filled with the standing frames
+       of the other side, flipped (a frame at angle a, flipped, shows 360 - a); two such gaps
+       with only a few real frames between them become one flipped stretch (every change of
+       source can show as a small jump in the pose);
      - then RIFE frame interpolation between neighbouring frames, through "anchor" frames
-       (the frames nearest to standing, of the same side) wherever a gap is still wider than
-       6 deg, so RIFE never bridges a wide gap;
+       (of the same side, the ones whose feet look most like the frames around them) wherever a
+       gap is still wider than 6 deg, so RIFE never bridges a wide gap;
   3. make the body 100% solid (small holes filled, faint remains outside the body removed);
   4. check every picture (see-through areas, shape jumps against its neighbours, in the body
      and in the shoes) and replace a picture that fails: its shoes from the nearest real frame,
@@ -41,6 +43,7 @@ Env (all optional):
   FPS=24               output frame rate (60 s x 24 = 1440 pictures per turn)
   CANVAS=714x1680      output size
   GAP_FILL=mirror      mirror | anchor (no flipped frames) | rife (standing frames only)
+  MIRROR_GAP=25        with mirror: only gaps wider than this (deg) are filled with flipped frames
   RIFE_BIN=rife-ncnn-vulkan   RIFE binary (github.com/nihui/rife-ncnn-vulkan); RIFE_MODEL = its
                        model folder (default: rife-v4.6 next to the binary); RIFE_GPU=-1 = CPU
   STEP_TOL=0.006       the sole line moving this much between two frames = a step
@@ -60,7 +63,9 @@ from scipy import ndimage as ndi
 
 FIT_TOP, FIT_TOE, FIT_CX = 0.066, 0.964, 0.5  # same as VIDEO_360.fit in lib/config.ts
 ANCHORS = (("front", 0), ("right", 90), ("back", 180), ("left", 270), ("end", 360))
-MAX_GAP, BIG_GAP = 6.0, 10.0  # deg: RIFE never bridges more than MAX_GAP; mirror for gaps > BIG_GAP
+MAX_GAP = 6.0  # deg: RIFE never bridges more than this (anchor frames in between)
+MIRROR_GAP = float(os.environ.get("MIRROR_GAP", "25"))  # deg: only gaps wider than this get flipped frames
+ISLAND = 10.0  # deg: real frames between two flipped stretches closer than this are left out
 FEET = 0.09  # shoe band: this share of the body height above the sole edge
 
 
@@ -324,17 +329,28 @@ class Src:
         return f"{self.kind}{'(mirror)' if self.mirrored else ''}@{self.ang:.1f}"
 
 
-def plan(ang, ok, score, mode, log):
+def plan(ang, ok, score, feet, mode, log):
     """The source pictures of the turn, by angle (see the module doc, step 2). A flipped frame
-    of angle a shows the turn at 360 - a."""
+    of angle a shows the turn at 360 - a. Every change of source (real <-> flipped, standing <->
+    anchor) can show as a small jump in the pose, so there are as few as possible: flipped frames
+    only in the wide gaps, two flipped stretches with only a few real frames between them become
+    one, and an anchor is the frame whose feet look most like the picture before it."""
     n = len(ang)
     real = [i for i in range(n) if ok[i] and ang[i] < 359.5]
     ring = [Src(i, ang[i], "real") for i in real]
     mir_anchor = []
     if mode == "mirror":
         angs = [ang[i] for i in real] + [ang[real[0]] + 360]
-        gaps = [(a0, a1) for a0, a1 in zip(angs, angs[1:]) if a1 - a0 > BIG_GAP]
+        gaps = [[a0, a1] for a0, a1 in zip(angs, angs[1:]) if a1 - a0 > MIRROR_GAP]
+        merged = []
+        for g in gaps:  # a short island of real frames between two wide gaps: one flipped stretch
+            if merged and g[0] - merged[-1][1] < ISLAND:
+                merged[-1][1] = g[1]
+            else:
+                merged.append(g)
+        gaps = merged
         inside = lambda m: next(((a0, a1) for a0, a1 in gaps if a0 < m < a1 or a0 < m + 360 < a1), None)  # noqa: E731
+        ring = [s for s in ring if inside(s.ang) is None]
         filled = {}
         for j in range(n):
             if ang[j] >= 359.5 or ang[j] <= 0.5:
@@ -353,17 +369,23 @@ def plan(ang, ok, score, mode, log):
     ring.sort(key=lambda s: s.ang)
     if mode in ("mirror", "anchor"):  # anchors where a gap is still wider than MAX_GAP
         real_anchor = [Src(i, ang[i], "anchor") for i in range(n) if not ok[i] and ang[i] < 359.5]
+        foot_iou = lambda x, y: float((feet[x] & feet[y]).sum()) / max(1, (feet[x] | feet[y]).sum())  # noqa: E731
+        key = lambda s: (s.i, s.mirrored)  # noqa: E731
         angs, add = [s.ang for s in ring] + [ring[0].ang + 360], []
         for k, (a0, a1) in enumerate(zip(angs, angs[1:])):
             if a1 - a0 <= MAX_GAP:
                 continue
-            pool = mir_anchor if ring[k].mirrored or ring[(k + 1) % len(ring)].mirrored else real_anchor
+            nxt = ring[(k + 1) % len(ring)]
+            pool = mir_anchor if ring[k].mirrored or nxt.mirrored else real_anchor
             parts = int(np.ceil((a1 - a0) / MAX_GAP))
+            prev = ring[k]
             for q in range(1, parts):
                 target = (a0 + (a1 - a0) * q / parts) % 360
                 cand = [s for s in pool if abs(((s.ang - target + 180) % 360) - 180) <= (a1 - a0) / (2 * parts)]
-                if cand:
-                    add.append(min(cand, key=lambda s: score[s.i]))
+                if cand:  # feet most like the picture before (and the one after the gap)
+                    best = max(cand, key=lambda s: foot_iou(key(s), key(prev)) + 0.5 * foot_iou(key(s), key(nxt)) - 0.05 * score[s.i])
+                    add.append(best)
+                    prev = best
         ring += list({id(s): s for s in add}.values())
         ring.sort(key=lambda s: s.ang)
     return ring
@@ -440,7 +462,19 @@ def main():
     print("dropped (deg: reason): " + ", ".join(f"{a}: {w}" for a, w in dropped[:60]) + (" ..." if len(dropped) > 60 else ""))
 
     # 2. Sources of the turn; one picture per 360/n degrees from them.
-    ring = plan(angles, ok, score, mode, print)
+    feet_row = int((FIT_TOE - FEET * (FIT_TOE - FIT_TOP)) * ch)
+
+    def feet_mask(c):  # the shoe band of a frame once locked (for choosing anchors)
+        m = np.asarray(lock(c, body(np.asarray(c)[:, :, 3]), cw, ch))[feet_row::4, ::4, 3] >= 128
+        return m
+
+    feet = {}
+    if mode != "rife":
+        for i, c in enumerate(cuts):
+            feet[(i, False)] = feet_mask(c)
+            if mode == "mirror":
+                feet[(i, True)] = feet_mask(c.transpose(Image.FLIP_LEFT_RIGHT))
+    ring = plan(angles, ok, score, feet, mode, print)
     angs = [s.ang for s in ring] + [ring[0].ang + 360]
     gaps = sorted(((b - a, a) for a, b in zip(angs, angs[1:])), reverse=True)[:4]
     kinds = {k: sum(1 for s in ring if (s.kind, s.mirrored) == k) for k in {(s.kind, s.mirrored) for s in ring}}
@@ -490,7 +524,6 @@ def main():
             locked_src[key] = picture({"src": s, "file": None})[0]
         return locked_src[key]
 
-    feet_row = int((FIT_TOE - FEET * (FIT_TOE - FIT_TOP)) * ch)
     qa = []
     for k, m in enumerate(made):
         im, see = picture(m)
