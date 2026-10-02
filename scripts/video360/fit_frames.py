@@ -418,20 +418,20 @@ class Rife:
         run(cmd)
 
 
-def match_photo(c, refs):
-    """A side photo made to fit the video frames: the colour of its edge pixels comes from the
-    body next to them (no dark fringe from the photo's own background), and its colours are
-    matched to the video frames of that side (mean and spread per channel, inside the body)."""
+def match_photo(c, refs, bg):
+    """A side photo made to fit the video frames: its edge pixels (hair, outline) lose the tint
+    of the photo's own background (colour = (seen - (1 - alpha) * background) / alpha), and its
+    colours are matched to the video frames of that side (mean and spread per channel, inside
+    the body)."""
     px = np.asarray(c).astype(np.float64)
-    a = px[:, :, 3]
-    solid_body = a >= 250
-    _, (iy, ix) = ndi.distance_transform_edt(~solid_body, return_indices=True)
-    rgb = px[:, :, :3][iy, ix]  # every pixel takes the colour of the nearest solid body pixel
-    if refs:
+    a = px[:, :, 3:4] / 255.0
+    rgb = np.clip((px[:, :, :3] - (1 - a) * np.asarray(bg, dtype=np.float64)) / np.maximum(a, 0.15), 0, 255)
+    solid_body = px[:, :, 3] >= 250
+    if refs and solid_body.any():
         ref = np.concatenate([np.asarray(r)[:, :, :3][np.asarray(r)[:, :, 3] >= 250] for r in refs]).astype(np.float64)
         own = rgb[solid_body]
         rgb = (rgb - own.mean(axis=0)) / np.maximum(own.std(axis=0), 1) * ref.std(axis=0) + ref.mean(axis=0)
-    return Image.fromarray(np.dstack([np.clip(rgb, 0, 255), a]).astype(np.uint8), "RGBA")
+    return Image.fromarray(np.dstack([np.clip(rgb, 0, 255), px[:, :, 3]]).astype(np.uint8), "RGBA")
 
 
 def main():
@@ -493,6 +493,8 @@ def main():
         for q, pf in enumerate(photo_files):
             im = Image.open(pf)
             c = im.convert("RGBA") if im.mode == "RGBA" and np.asarray(im.convert("RGBA"))[:, :, 3].min() < 250 else cutter(im)
+            corners = np.asarray(im.convert("RGB"))[[0, 0, -1, -1], [0, -1, 0, -1]]
+            bg = np.median(corners, axis=0)  # the photo's own background colour (for clean edges)
             top, toe, cx = body(np.asarray(c)[:, :, 3])
             k = (ref[1] - ref[0]) / max(1.0, toe - top)
             tx, ty = ref[2] - cx * k, ref[0] - top * k
@@ -500,7 +502,7 @@ def main():
             m = small_mask(c)
             fit_of = {A: max([float((m & x).sum()) / max(1, (m | x).sum()) for x in side_masks[A]] or [0.0]) for A in (90, 270)}
             A = max(fit_of, key=fit_of.get)
-            c = match_photo(c, [cuts[i] for i in range(len(files)) if ok[i] and abs(angles[i] - A) < 30])
+            c = match_photo(c, [cuts[i] for i in range(len(files)) if ok[i] and abs(angles[i] - A) < 30], bg)
             print(f"side photo {pf}: {'Right (90 deg)' if A == 90 else 'Left (270 deg)'} (match {fit_of[90]:.2f} right, "
                   f"{fit_of[270]:.2f} left)" + ("  <- WARNING: unclear which side; check the photo" if abs(fit_of[90] - fit_of[270]) < 0.03 else ""))
             raw = tmp / "src" / f"photo{q}.png"
