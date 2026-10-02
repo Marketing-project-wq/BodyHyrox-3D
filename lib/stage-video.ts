@@ -59,3 +59,14 @@ export function sourceOrder(sources: StageVideoSource[], canPlay: (type: string)
 export function alphaLooksRight(cornerAlphas: number[], maxAlpha: number, cornerMax: number): boolean {
   return cornerAlphas.every((a) => a <= cornerMax) && maxAlpha >= 200;
 }
+
+/**
+ * Can this browser show the turn video as the stage's main mode? A playable
+ * source with transparency (on Apple's WebKit only HEVC has it), and no
+ * reduced motion / Save-Data (then the video is never started).
+ */
+export function turnVideoUsable(video: StageVideo | null, canPlay: (type: string) => string, apple: boolean, reducedMotion: boolean, saveData: boolean): boolean {
+  if (!video || reducedMotion || saveData) return false;
+  const order = sourceOrder(video.sources, canPlay, apple);
+  return order.some((s) => !apple || isHevc(s));
+}

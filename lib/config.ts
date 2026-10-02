@@ -289,6 +289,14 @@ export const VIEWER_SPIN = {
  */
 export const STAGE_MODE: "static-athlete" | "turntable" = "static-athlete";
 /**
+ * An athlete whose data (or STAGE_VIDEO_BUNDLED) has a turn video gets the
+ * "turntable" mode when this browser can play it with transparency (VP9 alpha;
+ * on Apple's WebKit only with an HEVC source), with no reduced motion and no
+ * Save-Data. Every other athlete / browser keeps STAGE_MODE. ?stage=static or
+ * ?stage=turntable still forces one mode.
+ */
+export const STAGE_TURN_VIDEO_AUTO = true;
+/**
  * "static-athlete" mode:
  * - secPerTurn / direction: one orbit of the scenery (48 s = 12 s per side);
  *   direction 1 or -1. The scenery angle works like a camera orbiting the
@@ -404,20 +412,21 @@ export const VIEWER_VIDEO = {
  * (feet: the soles of every video frame, so the shadows follow the video).
  */
 export const STAGE_VIDEO_BUNDLED: Record<string, { baseUrl: string; video: unknown }> = {
-  // Calysta: from her turn video (AI background removal, scripts/video360,
-  // INTERP=3 with INTERP_GUARD=1.15 so stepping feet keep their real frames
-  // instead of smeared "ghost legs", FIT=frame): one turn, 720 frames, 24 s.
-  // VP9 alpha only for now (Chrome, Edge, Android); Safari / iPhone keep the
-  // frames until an HEVC file (made on a Mac) is added as a second source.
+  // Calysta (preview, ?stage=turntable only): scripts/video360 on her turn
+  // video plus her two profile photos (SIDE_PHOTOS): standing frames only,
+  // gaps filled from the other side flipped and by RIFE, every picture locked
+  // (sole, height, centre); one turn, 1440 pictures, 60 s at 24 per second.
+  // VP9 alpha only (Chrome, Edge, Android); Safari / iPhone keep the frames
+  // until an HEVC file (made on a Mac) is added as a second source.
   "f328e4e0-98c2-483d-b9ae-4be7fd6bf635": {
     baseUrl: "/media/atlet-360/calysta-video",
     video: {
-      sources: [{ file: "athlete-vp9-d.webm", type: 'video/webm; codecs="vp9"' }],
-      poster: "poster.webp",
-      feet: "feet.json",
-      fps: 30,
-      frames: 720,
-      duration: 24,
+      sources: [{ file: "athlete-vp9-v2.webm", type: 'video/webm; codecs="vp9"' }],
+      poster: "poster-v2.webp",
+      feet: "feet-v2.json",
+      fps: 24,
+      frames: 1440,
+      duration: 60,
     },
   },
 };
@@ -477,7 +486,7 @@ export const STAGE_ARENA = {
    * prefers-reduced-motion. `autoRotateResumeMs`: after
    * a zone card closes the spin (when on Play) resumes this much later.
    */
-  autoRotateSecPerTurn: 36,
+  autoRotateSecPerTurn: 60,
   autoRotateDirection: 1,
   autoRotateEaseMs: 1200,
   autoRotateResumeMs: 2500,

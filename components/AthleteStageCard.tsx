@@ -5,9 +5,10 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { ChevronLeft, ChevronRight, Pause, Play, RotateCcw } from "lucide-react";
 import type { PublicAthleteDetail } from "@/lib/data";
-import { STAGE_ARENA, STAGE_MODE, STAGE_PLATFORM, STAGE_READOUT, STAGE_STATIC, VIEWER_360, VIEWER_360_FRAME_CLASS, VIEWER_SPIN, VIEWER_VIDEO, VIEWER_VIEWS, stageFitVars, viewer360FrameStyle } from "@/lib/config";
+import { STAGE_ARENA, STAGE_MODE, STAGE_PLATFORM, STAGE_READOUT, STAGE_STATIC, STAGE_TURN_VIDEO_AUTO, STAGE_VIDEO_BUNDLED, VIEWER_360, VIEWER_360_FRAME_CLASS, VIEWER_SPIN, VIEWER_VIDEO, VIEWER_VIEWS, stageFitVars, viewer360FrameStyle } from "@/lib/config";
 import { decayVelocity, degreeLabel, nearestSide, nextSideTarget, norm360, shortestDelta, sideTarget } from "@/lib/spin";
 import { VIEW_KEYS } from "@/lib/views";
+import { parseStageVideo, turnVideoUsable } from "@/lib/stage-video";
 import { type Dict, fmt } from "@/lib/i18n";
 import { tGender } from "@/lib/i18n";
 import { initials } from "@/lib/format";
@@ -87,7 +88,19 @@ export function AthleteStageCard({
     if (shape === "round" || shape === "hex") setPlatform(shape);
     const mode = new URLSearchParams(window.location.search).get("stage");
     if (mode === "turntable") setStageMode("turntable");
-    if (mode === "static") setStageMode("static-athlete");
+    else if (mode === "static") setStageMode("static-athlete");
+    else if (STAGE_TURN_VIDEO_AUTO && has360 && STAGE_ARENA.autoRotateDirection === 1) {
+      // An athlete with a turn video: the full turn, where this browser can show it.
+      const video = parseStageVideo(athlete.media360?.video ?? STAGE_VIDEO_BUNDLED[athlete.id]?.video);
+      const el = document.createElement("video");
+      const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      const saveData = (navigator as Navigator & { connection?: { saveData?: boolean } }).connection?.saveData === true;
+      if (turnVideoUsable(video, (t) => el.canPlayType(t), /Apple/.test(navigator.vendor), reduced, saveData)) {
+        pausesRef.current.add("video"); // the first turn waits for the video (as in STAGE_MODE "turntable")
+        setStageMode("turntable");
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const platformRef = useRef<HTMLDivElement>(null);
   const figureRef = useRef<HTMLDivElement>(null);
