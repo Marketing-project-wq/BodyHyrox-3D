@@ -125,6 +125,10 @@ python3 export_frames.py ~/Movies/atlet-out ~/Movies/atlet-gambar 12 1680
 ```
 Hasilnya N gambar WebP (`000.webp` = Depan, lalu setiap 360/N derajat; Kanan di N/4, Belakang di
 N/2, Kiri di 3N/4; N harus kelipatan 4) dan `feet.json`.
+- **Foto tajam di sisi utama** (opsional): `PHOTOS_AT="90=kanan.jpg,180=belakang.jpg,270=kiri.jpg"`.
+  Latar foto dihapus, badannya dikunci di garis telapak, tinggi dan tengah yang sama.
+- **Selalu pakai folder baru** setiap kali gambarnya berubah (misalnya `atlet-turn-v3`) dan ubah
+  `baseUrl` di `STAGE_FRAMES_BUNDLED`: browser menyimpan gambar lama dengan nama file yang sama.
 - **Atlet yang memutar badannya sendiri di video** (posenya berubah dari sudut ke sudut): pakai
   sedikit pose, misalnya **12** (setiap 30°), dengan `blendShare` kecil (0,15) di
   `STAGE_FRAMES_BUNDLED`. Atlet berdiri diam di tiap pose, lalu pose berikutnya masuk dengan fade
