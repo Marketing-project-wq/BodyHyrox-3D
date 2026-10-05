@@ -15,6 +15,9 @@ Guidance for Claude (and anyone else) working in this repo.
   'merge PR #<number>'. General instructions (continue, agree, until deployed)
   are never merge approval. When in doubt, ask.
 - Break larger work into small stages that can be reviewed one at a time.
+- For the athlete stage, docs/STAGE_SPEC.md is the main reference. If an
+  owner instruction contradicts it, follow the latest instruction and update
+  that document in the same PR.
 - After every UI change, report the checklist from "Verify before shipping"
   (desktop Windows / Mac Safari / Mac Chrome / iPad / iPhone / Android), plus
   anything that still needs a manual check on a real device.
