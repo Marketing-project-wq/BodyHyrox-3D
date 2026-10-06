@@ -123,11 +123,11 @@ async function tinyImage(): Promise<Blob> {
 }
 
 /** Photo -> upload-ready blob (transparent PNG when cutout is on). */
-export async function preparePhoto(file: Blob, cutout: boolean): Promise<Blob> {
+export async function preparePhoto(file: Blob, cutout: boolean, maxPx = 1100): Promise<Blob> {
   if (!cutout) return file;
   const config = await prepareBackgroundRemover();
   const { removeBackground } = await loadBackgroundRemover();
-  const small = await shrink(file, 1100); // faster inference + smaller upload
+  const small = await shrink(file, maxPx); // faster inference + smaller upload
   return await removeBackground(small, config);
 }
 
