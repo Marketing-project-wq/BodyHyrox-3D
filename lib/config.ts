@@ -304,6 +304,12 @@ export const STAGE_TURN_VIDEO_AUTO = true;
  */
 export const STAGE_TURN_FRAMES_AUTO = true;
 /**
+ * The control row under the athlete (‹ ⏸ Front · Right · Back · Left ›).
+ * Off: the athlete keeps turning on its own; swipe / drag and the arrow keys
+ * still turn it. true brings the row back.
+ */
+export const STAGE_VIEW_CONTROLS = false;
+/**
  * Picture turns shipped with the site (public/media/...), per athlete id,
  * shown instead of the data's frames until that athlete's own turn set is
  * published (a turn set in the data always wins; then remove the entry): `count`
