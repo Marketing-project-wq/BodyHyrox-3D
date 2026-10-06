@@ -7,7 +7,7 @@ import type { ActionResult } from "@/lib/action-result";
 import { fail, run } from "@/lib/action-error";
 import { SPONSOR_360_UPLOAD } from "@/lib/config";
 import { VIEW_KEYS, resolveViews, type ViewKey } from "@/lib/views";
-import type { DraftFrame, Foot, FrameMeta, FrameMetaMap, Media360Draft } from "@/lib/media360";
+import { parseTurnSet, type DraftFrame, type Foot, type FrameMeta, type FrameMetaMap, type Media360Draft, type TurnSet } from "@/lib/media360";
 import {
   countMarkers,
   draftFromLive,
@@ -61,6 +61,23 @@ const num = (v: unknown, lo: number, hi: number, d: number) => {
   return Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : d;
 };
 
+/**
+ * A draft without a turn set that still has as many frames as the live (or
+ * previously saved) turn set keeps that set's angles: the studio edits frames
+ * in place (feet, replace a photo) and must not turn a turn set back into a
+ * 4-side set. Adding or removing frames drops it (make the turn set again).
+ */
+function keepTurn(d: Media360Draft, ...from: unknown[]) {
+  if (d.turn) return;
+  for (const t of from) {
+    const turn = parseTurnSet(t, d.frames.length);
+    if (turn) {
+      d.turn = turn;
+      return;
+    }
+  }
+}
+
 /** Validate + normalise a draft coming from the browser (never trusted as-is). */
 function cleanDraft(athleteId: string, raw: Media360Draft): Media360Draft {
   if (!raw || !Array.isArray(raw.frames)) fail("draft_invalid");
@@ -100,6 +117,9 @@ function cleanDraft(athleteId: string, raw: Media360Draft): Media360Draft {
   if (raw.views !== undefined) d.views = raw.views;
   if (raw.hotspots !== undefined) d.hotspots = Array.isArray(raw.hotspots) ? raw.hotspots : [];
   if (raw.note) d.note = String(raw.note).slice(0, 120);
+  // A turn set only while it still matches the frames (the studio can add / remove frames).
+  const turn = parseTurnSet(raw.turn, frames.length);
+  if (turn) d.turn = turn;
   return d;
 }
 
@@ -155,11 +175,12 @@ export async function saveDraft(athleteId: string, draft: Media360Draft): Promis
     // Sides and zone markers of the draft are owned by the sides picker / zone
     // placer (saveDraftSides): keep what is stored, and let them follow a frame
     // the studio replaced ("Ganti foto": the old file is the new one's last prev).
+    // "*": also reads `turn` once SQL S0 added it (and still works before).
     const { data: stored, error: sErr } = await db()
       .from("smb_athlete_media_360")
-      .select("draft")
+      .select("*")
       .eq("athlete_id", athleteId)
-      .maybeSingle<{ draft: Media360Draft | null }>();
+      .maybeSingle<{ draft: Media360Draft | null; turn?: unknown }>();
     if (sErr) throw new Error(sErr.message);
     const keep = stored?.draft ?? null;
     // A brand-new set (bulk photo or video upload: only new draft files, none
@@ -170,6 +191,7 @@ export async function saveDraft(athleteId: string, draft: Media360Draft): Promis
       if (keep && keep.views !== undefined) d.views = keep.views;
       if (keep && keep.hotspots !== undefined) d.hotspots = keep.hotspots;
       followReplacedFrames(d);
+      keepTurn(d, keep?.turn, stored?.turn);
     }
     const { error } = await db().rpc("smb_save_athlete_media_draft", {
       p_athlete_id: athleteId,
@@ -196,12 +218,13 @@ export async function saveDraftSides(
     if (!athleteId || (!change?.views && !change?.hotspots)) fail("missing_input");
     const { data: row, error: rErr } = await db()
       .from("smb_athlete_media_360")
-      .select("base_url,frames,frame_meta,views,hotspots,draft")
+      .select("*")
       .eq("athlete_id", athleteId)
-      .maybeSingle<Pick<Row, "base_url" | "frames" | "frame_meta" | "views" | "hotspots" | "draft">>();
+      .maybeSingle<Pick<Row, "base_url" | "frames" | "frame_meta" | "views" | "hotspots" | "draft"> & { turn?: unknown }>();
     if (rErr) throw new Error(rErr.message);
     if (!row) fail("media_missing");
     const draft: Media360Draft = row!.draft ?? draftFromLive({ baseUrl: row!.base_url, frames: row!.frames ?? [], frameMeta: row!.frame_meta ?? {} });
+    keepTurn(draft, row!.turn);
     const files = draft.frames.map((f) => f.file);
     if (change.views) {
       const views: Record<string, string> = {};
@@ -464,6 +487,8 @@ export async function publishDraft(
       p_hotspots: hotspots,
       p_actor_id: s.sub,
       p_actor_name: s.nama,
+      // Only for a turn set: a plain publish keeps the call the database had before SQL S0.
+      ...(draft.turn ? { p_turn: draft.turn } : {}),
     });
     if (error) throw new Error(error.message);
     await clearPrivateFolder(athleteId).catch(() => {});
@@ -481,7 +506,7 @@ export async function restoreVersion(athleteId: string, version: number): Promis
       .select("snapshot")
       .eq("athlete_id", athleteId)
       .eq("version", version)
-      .maybeSingle<{ snapshot: { base_url: string; frames: string[]; frame_meta?: FrameMetaMap; views: Record<string, string> | null; hotspots: unknown[] } }>();
+      .maybeSingle<{ snapshot: { base_url: string; frames: string[]; frame_meta?: FrameMetaMap; views: Record<string, string> | null; hotspots: unknown[]; turn?: TurnSet | null } }>();
     if (error) throw new Error(error.message);
     if (!data) fail("version_not_found");
     const snap = data.snapshot;
@@ -496,6 +521,7 @@ export async function restoreVersion(athleteId: string, version: number): Promis
         points: h.points,
       })),
       note: `v${version}`,
+      ...(snap.turn ? { turn: snap.turn } : {}),
     };
     const d = cleanDraft(athleteId, draft);
     const { error: e2 } = await db().rpc("smb_save_athlete_media_draft", {

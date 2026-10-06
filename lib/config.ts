@@ -297,14 +297,16 @@ export const STAGE_MODE: "static-athlete" | "turntable" = "static-athlete";
  */
 export const STAGE_TURN_VIDEO_AUTO = true;
 /**
- * An athlete with a picture turn shipped with the site (STAGE_FRAMES_BUNDLED)
- * gets the "turntable" mode in every browser (no video decoding), with no
- * reduced motion. ?stage=static still forces the 4-side mode.
+ * An athlete with a turn set (media.turn in the data, or the temporary
+ * picture turn shipped with the site, STAGE_FRAMES_BUNDLED) gets the
+ * "turntable" mode in every browser (no video decoding), with no reduced
+ * motion. ?stage=static still forces the 4-side mode.
  */
 export const STAGE_TURN_FRAMES_AUTO = true;
 /**
  * Picture turns shipped with the site (public/media/...), per athlete id,
- * shown instead of the data's frames until the database holds one: `count`
+ * shown instead of the data's frames until that athlete's own turn set is
+ * published (a turn set in the data always wins; then remove the entry): `count`
  * pictures 000.webp.. evenly round the turn (000 = Front, Right at count/4,
  * Back at count/2, Left at 3*count/4) plus feet.json (version 3), made by
  * scripts/video360/export_frames.py. The stage shows the picture of the

@@ -139,7 +139,8 @@ export const AthleteViews = forwardRef<
   const viewIdx = viewFiles.map((f) => Math.max(0, frames.indexOf(f)));
   const viewIdxRef = useRef(viewIdx);
   viewIdxRef.current = viewIdx;
-  const angles = useMemo(() => frameAngles(frames, media.views), [frames, media.views]);
+  // A turn set carries its own angles; other sets spread the frames between the 4 sides.
+  const angles = useMemo(() => media.turn?.angles ?? frameAngles(frames, media.views), [frames, media.views, media.turn]);
 
   // Two canvases: [0] = the frame below (opaque), [1] = the one fading in.
   const canvasRefs = useRef<(HTMLCanvasElement | null)[]>([null, null]);
@@ -281,7 +282,7 @@ export const AthleteViews = forwardRef<
       const t = Math.min(1, Math.max(0, br.t));
       // Upper frame's share: a blend over (part of) the step following the
       // angle, or the whole step between the 4 side photos of the fallback.
-      let a = br.hi === br.lo ? 0 : angles ? blendAmount(t, media.blendShare ?? VIEWER_SPIN.crossfadeShare, VIEWER_SPIN.crossfadeCurve) : t;
+      let a = br.hi === br.lo ? 0 : angles ? blendAmount(t, media.turn?.blendShare ?? VIEWER_SPIN.crossfadeShare, VIEWER_SPIN.crossfadeCurve) : t;
       let base = br.lo;
       if (a >= 1) {
         base = br.hi; // past the blend: the next frame alone

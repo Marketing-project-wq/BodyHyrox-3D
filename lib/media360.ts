@@ -47,9 +47,34 @@ export type FrameMetaMap = Record<string, FrameMeta>;
  * zone markers and the Front/Right/Back/Left picks follow the slot on publish.
  */
 export type DraftFrame = { file: string; base: string | null; origin: string | null };
+/**
+ * A turn set: the frames are poses all round the athlete. angles[i] = the turn
+ * angle of frame i (degrees, 0 = Front, 90 = Right, strictly increasing);
+ * blendShare = share of each step between two poses spent crossfading
+ * (centred between them; each pose holds still for the rest). The stage
+ * turns such a set (docs/STAGE_SPEC.md); other sets show the 4 sides.
+ */
+export type TurnSet = { v: 1; angles: number[]; blendShare?: number };
+
+/** A valid turn set for `n` frames, or null (never trusts stored / sent data). */
+export function parseTurnSet(raw: unknown, n: number): TurnSet | null {
+  if (!raw || typeof raw !== "object") return null;
+  const r = raw as { angles?: unknown; blendShare?: unknown };
+  if (!Array.isArray(r.angles) || r.angles.length !== n || n < 4) return null;
+  const angles = r.angles.map((a) => Number(a));
+  for (let i = 0; i < n; i++) {
+    if (!Number.isFinite(angles[i]) || angles[i] < 0 || angles[i] >= 360) return null;
+    if (i > 0 && angles[i] <= angles[i - 1]) return null;
+  }
+  const b = Number(r.blendShare);
+  return { v: 1, angles, ...(Number.isFinite(b) && b >= 0 && b <= 1 ? { blendShare: b } : {}) };
+}
+
 export type Media360Draft = {
   frames: DraftFrame[];
   meta: FrameMetaMap;
+  /** A turn set made from the materials ("Buat set putaran"); goes live with Publish. */
+  turn?: TurnSet | null;
   /** Set when the draft replaces them outright (bulk upload, version restore). */
   views?: Record<string, string> | null;
   hotspots?: unknown[];

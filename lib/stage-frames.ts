@@ -8,12 +8,14 @@ export function bundledFrameNames(count: number): string[] {
 }
 
 /**
- * The athlete's 360 set with the picture turn shipped with the site
- * (STAGE_FRAMES_BUNDLED) in place of the data's frames; the data's own set
- * when there is none. Zone points stay on their side (the published side
- * frames' numbers become the bundled sides' numbers).
+ * The athlete's 360 set for the stage. A turn set published in the data
+ * always wins. Otherwise the temporary picture turn shipped with the site
+ * (STAGE_FRAMES_BUNDLED, docs/STAGE_SPEC.md 1.4) stands in for the data's
+ * frames, as an evenly spaced turn set. Zone points stay on their side (the
+ * published side frames' numbers become the bundled sides' numbers).
  */
 export function withBundledFrames(athleteId: string, media: Media360 | null): Media360 | null {
+  if (media?.turn) return media;
   const b = STAGE_FRAMES_BUNDLED[athleteId];
   if (!b || b.count < 4 || b.count % 4) return media;
   const frames = bundledFrameNames(b.count);
@@ -39,6 +41,6 @@ export function withBundledFrames(athleteId: string, media: Media360 | null): Me
     frameMeta: {},
     version: media?.version ?? 0,
     video: null,
-    blendShare: b.blendShare,
+    turn: { v: 1, angles: frames.map((_, k) => (360 * k) / b.count), ...(b.blendShare != null ? { blendShare: b.blendShare } : {}) },
   };
 }
