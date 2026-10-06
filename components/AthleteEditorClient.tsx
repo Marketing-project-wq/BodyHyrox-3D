@@ -18,6 +18,7 @@ import { resolveViews } from "@/lib/views";
 import { AthleteZonesPlacer } from "@/components/AthleteZonesPlacer";
 import { Admin360Studio } from "@/components/admin360/Admin360Studio";
 import { MediaSources } from "@/components/admin360/MediaSources";
+import { StageMediaEditor } from "@/components/admin360/StageMediaEditor";
 import type { FrameMetaMap, Media360Draft } from "@/lib/media360";
 import type { Media360VersionRow } from "@/lib/data";
 import type { HotspotInput, Media360Views } from "@/lib/views";
@@ -309,6 +310,13 @@ export function AthleteEditorClient({
               )}
             </div>
           </ActionForm>
+          {/* Stage frame media: one link per neon screen (every athlete). Own
+              save / publish, outside the profile form. */}
+          {canEdit && (
+            <div className="mt-5 border-t border-border pt-4">
+              <StageMediaEditor athleteId={athlete.id} m={m} embedded />
+            </div>
+          )}
         </section>
 
         {/* ---------- 360 materials: original photos + videos (every athlete) ---------- */}
