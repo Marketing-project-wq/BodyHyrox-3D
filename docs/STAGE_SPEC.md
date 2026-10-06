@@ -6,7 +6,7 @@ Kalau kode, komentar, config, atau dokumen lain bertentangan dengan dokumen ini,
 yang benar. Kalau instruksi pemilik yang lebih baru bertentangan dengan dokumen ini, ikuti
 instruksi terbaru dan perbarui dokumen ini di PR yang sama.
 
-Terakhir diperbarui: 2026-10-06 (setelah #121–#124: SQL S0 jalan, set putaran Calysta dari data tayang, baris tombol disembunyikan, tombol "Place Your Logo").
+Terakhir diperbarui: 2026-10-06 (media frame panggung M0–M1; setelah #121–#124: SQL S0 jalan, set putaran Calysta dari data tayang, baris tombol disembunyikan, tombol "Place Your Logo").
 
 ---
 
@@ -176,6 +176,36 @@ Calysta (18 foto).
 4. **Studio 360:** cek putaran, sisi Depan/Kanan/Belakang/Kiri, dan titik zona di draft.
 5. **Publish:** pengaman Publish menolak kalau titik zona hilang. Setelah tayang, atlet otomatis
    mendapat mode putaran (bagian 1.4). Atlet tanpa set putaran tetap di mode sementara (bagian 1.3).
+
+## 5b. Media frame panggung (keputusan 2026-10-06, dikerjakan bertahap M0–M4)
+
+- **Tujuan:** layar neon di arena 3D di belakang atlet menampilkan media atlet (misalnya video
+  race HYROX). Isinya berbeda per layar, diatur per atlet, berlaku untuk semua atlet, dan ikut
+  berputar bersama latar.
+- **Admin hanya menempel LINK** (tidak upload), maksimal 6 slot (`STAGE_MEDIA.slots`), lalu
+  **Cek link**, simpan ke draft, dan **Publish**.
+- **Jenis link** (`lib/stage-media.ts`, dicek ulang di server `stage-media-actions.ts`):
+  - **YouTube** (watch, youtu.be, Shorts, live, embed): wajib ada dan boleh di-embed (oEmbed
+    resmi). Thumbnail disalin ke bucket publik `smb-athlete-360/<atlet>/stage-media/`. Di
+    panggung tampil thumbnail + ▶; tap membuka lightbox dengan player resmi
+    `youtube-nocookie.com`. YouTube **tidak** diputar di dalam frame (iframe tidak bisa masuk
+    WebGL, berat, dan bertentangan dengan aturan player YouTube).
+  - **File video** `.mp4`/`.webm`: tipe video, maksimal 40 MB, dan wajib mengizinkan situs ini
+    lewat CORS. Poster dibuat browser admin. Diputar di frame (muted, playsinline, loop) dengan
+    batas jumlah video aktif (M4).
+  - **Gambar** `.jpg`/`.png`/`.webp`: maksimal 8 MB, disalin ke bucket publik.
+  - **Ditolak dengan pesan EN/ID:** http, Google Drive/Dropbox, Instagram/TikTok/Facebook/X/
+    Vimeo, halaman biasa, video tanpa CORS, file terlalu besar, YouTube privat/embed mati.
+- **Keamanan:** hanya https; tidak boleh IP, localhost, user:password, atau port lain. Server
+  membuka link lewat `lib/safe-fetch.ts` (semua alamat DNS harus publik, redirect dicek ulang
+  maksimal 3, batas waktu dan ukuran). Iframe hanya dari `www.youtube-nocookie.com`, dibangun
+  dari ID, bukan dari link mentah.
+- **Data:** tabel `smb_athlete_stage_media` (draft + published + versi + riwayat) lewat SQL M0
+  (`supabase/migrations/20261007_smb_stage_media.sql`, **dijalankan pemilik**). Bentuk jsonb:
+  `{ v: 1, slots: [{ slot, kind, url, ytId, thumb, w, h, title, checkedAt }] }`.
+- **Panggung (M3):** 6 layar mendatar 16:9, satu setiap 60°, sedikit redup/diberi tint (config),
+  di bawah atlet dan titik zona. HP tegak: layar jarang terlihat (tertutup atlet), diterima untuk
+  sekarang.
 
 ## 6. Alur membuat video putaran (`scripts/video360`)
 
