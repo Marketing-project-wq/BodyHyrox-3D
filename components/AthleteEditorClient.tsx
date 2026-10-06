@@ -310,13 +310,17 @@ export function AthleteEditorClient({
               )}
             </div>
           </ActionForm>
+          {/* Stage frame media: one link per neon screen (every athlete). Own
+              save / publish, outside the profile form. */}
+          {canEdit && (
+            <div className="mt-5 border-t border-border pt-4">
+              <StageMediaEditor athleteId={athlete.id} m={m} embedded />
+            </div>
+          )}
         </section>
 
         {/* ---------- 360 materials: original photos + videos (every athlete) ---------- */}
         {canEdit && <MediaSources athleteId={athlete.id} m={m} />}
-
-        {/* ---------- Stage frame media: one link per neon screen (every athlete) ---------- */}
-        {canEdit && <StageMediaEditor athleteId={athlete.id} m={m} />}
 
         {/* ---------- 360° set (admin upload: one video, or photos) ---------- */}
         {canEdit && VIDEO_360.source === "video" && (
