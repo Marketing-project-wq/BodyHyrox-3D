@@ -310,13 +310,20 @@ export const STAGE_TURN_FRAMES_AUTO = true;
  */
 export const STAGE_VIEW_CONTROLS = false;
 /**
- * "Place Your Logo" button on the stage: it sits over the athlete's shoes.
- * liftPct: its centre above the feet line (VIEWER_360.feetLinePct), in % of
- * the frame height (about the middle of the shoes). heightPct: its height in
- * % of the frame height (the shoes are ~10% tall), never below minHeightPx
- * (touch target).
+ * "Place Your Logo" button on the stage, just under the platform's front edge.
+ * dropPct: its top below the feet line (VIEWER_360.feetLinePct), in % of the
+ * frame height. The 3D platform's front rim sits ~14% below the feet at every
+ * size (measured 2026-10-06), so 15.5 leaves a small gap.
  */
-export const STAGE_CTA = { liftPct: 4.8, heightPct: 10.5, minHeightPx: 44 };
+export const STAGE_CTA = { dropPct: 15.5 };
+/**
+ * Feet blend ("hologram" base) so the athlete doesn't look like floating:
+ * - fadePct / minOpacity: the photo fades from full to minOpacity over the
+ *   last fadePct (% of the frame height) above the sole line.
+ * - glowHeightPct / glowOpacity: a soft platform-colour glow centred on the
+ *   sole line, over the shoes.
+ */
+export const STAGE_FEET_BLEND = { fadePct: 4, minOpacity: 0.6, glowHeightPct: 9, glowOpacity: 0.4 };
 /**
  * Picture turns shipped with the site (public/media/...), per athlete id,
  * shown instead of the data's frames until that athlete's own turn set is
@@ -532,16 +539,16 @@ export const STAGE_ARENA = {
    * or one off the platform, gets a faint, wider shadow (liftedShadow*).
    * The soft pool spans the planted soles, poolShadowHeight tall.
    */
-  soleShadowWidth: 1.5,
-  soleShadowHeight: 0.02,
+  soleShadowWidth: 1.7,
+  soleShadowHeight: 0.028,
   soleShadowRise: 0.002,
   contactMarginM: 0.02,
   /** A contact seen only at its heel/toe tip is narrow: shadows are at least this wide (share of width) before soleShadowWidth. */
   soleShadowMinSpan: 0.08,
-  liftedShadowOpacity: 0.35,
+  liftedShadowOpacity: 0.55,
   liftedShadowWidth: 1.6,
   liftedShadowHeight: 1.8,
-  poolShadowHeight: 0.045,
+  poolShadowHeight: 0.06,
   /**
    * The platform check (a 3D raycast per sole) is cached and redone only when
    * the leading frame changes, the stage turns more than this many degrees,

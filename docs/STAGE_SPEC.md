@@ -45,9 +45,12 @@ Terakhir diperbarui: 2026-10-06 (setelah #121–#124: SQL S0 jalan, set putaran 
    - Swipe/drag dan panah keyboard memutar ke sisi yang dipilih, lalu putaran lanjut sendiri
      setelah jeda singkat.
    - **Tombol utama:** EN "Place Your Logo" / ID "Pasang Logo di Sini" (#124), menuju daftar
-     zona (`#zona-sponsor`: zona tersedia, harga, tambah/ajukan). Posisinya **menutupi sepatu
-     atlet** (keputusan 2026-10-06): dikunci ke garis kaki (`STAGE_CTA.liftPct`), di atas foto
-     atlet tetapi di bawah titik zona, jadi titik zona tetap terlihat dan bisa diketuk.
+     zona (`#zona-sponsor`: zona tersedia, harga, tambah/ajukan). Posisinya **tepat di bawah tepi
+     depan platform** (keputusan 2026-10-06, menggantikan "menutupi sepatu"): dikunci ke garis
+     kaki (`STAGE_CTA.dropPct`), tidak menutupi kaki.
+   - **Kaki menapak:** bayangan kontak per sepatu lebih tegas, dan bagian bawah sepatu sedikit
+     memudar ke cahaya platform dengan glow biru (`STAGE_FEET_BLEND`), supaya kaki tidak
+     terlihat mengambang saat berputar.
    - Kartu zona menahan putaran selama terbuka.
    - Tab browser tidak aktif dan `prefers-reduced-motion`: putaran berhenti.
 6. **Platform dan tata letak:**

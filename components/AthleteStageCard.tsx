@@ -5,7 +5,7 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { ChevronLeft, ChevronRight, Pause, Play, RotateCcw } from "lucide-react";
 import type { PublicAthleteDetail } from "@/lib/data";
-import { STAGE_ARENA, STAGE_CTA, STAGE_MODE, STAGE_PLATFORM, STAGE_READOUT, STAGE_STATIC, STAGE_TURN_FRAMES_AUTO, STAGE_TURN_VIDEO_AUTO, STAGE_VIEW_CONTROLS, STAGE_VIDEO_BUNDLED, VIEWER_360, VIEWER_360_FRAME_CLASS, VIEWER_SPIN, VIEWER_VIDEO, VIEWER_VIEWS, stageFitVars, viewer360FrameStyle } from "@/lib/config";
+import { STAGE_ARENA, STAGE_CTA, STAGE_FEET_BLEND, STAGE_MODE, STAGE_PLATFORM, STAGE_READOUT, STAGE_STATIC, STAGE_TURN_FRAMES_AUTO, STAGE_TURN_VIDEO_AUTO, STAGE_VIEW_CONTROLS, STAGE_VIDEO_BUNDLED, VIEWER_360, VIEWER_360_FRAME_CLASS, VIEWER_SPIN, VIEWER_VIDEO, VIEWER_VIEWS, stageFitVars, viewer360FrameStyle } from "@/lib/config";
 import { decayVelocity, degreeLabel, nearestSide, nextSideTarget, norm360, shortestDelta, sideTarget } from "@/lib/spin";
 import { VIEW_KEYS } from "@/lib/views";
 import { parseStageVideo, turnVideoUsable } from "@/lib/stage-video";
@@ -827,7 +827,7 @@ export function AthleteStageCard({
         aria-hidden
         style={{
           background:
-            "radial-gradient(620px 520px at 62% 42%, rgba(0, 180, 255,0.22), transparent 70%), radial-gradient(130% 100% at 50% 45%, transparent 55%, rgba(0,0,0,0.7) 100%)",
+            "radial-gradient(620px 520px at 62% 42%, rgba(0,180,255,0.22), transparent 70%), radial-gradient(130% 100% at 50% 45%, transparent 55%, rgba(0,0,0,0.7) 100%)",
         }}
       />
 
@@ -1034,19 +1034,29 @@ export function AthleteStageCard({
                 )}
               </div>
             )}
-            {/* "Place Your Logo" CTA over the athlete's shoes (owner, 2026-10-06):
-                anchored to the feet line, so it covers the feet at every size.
-                Above the photo, below the zone markers (z-10) and the zone card. */}
+            {/* "Place Your Logo" CTA just under the platform's front edge: anchored
+                to the feet line (the platform scales with the figure), so it never
+                covers the feet. Below the zone markers (z-10) and the zone card. */}
             <a
               href="#zona-sponsor"
-              className="absolute left-1/2 z-[5] flex -translate-x-1/2 translate-y-1/2 items-center whitespace-nowrap rounded-full bg-[#00b4ff] px-8 text-sm font-semibold text-white shadow-[0_0_26px_rgba(0, 180, 255,0.45)] transition-colors hover:bg-[#0093d1]"
-              style={{
-                bottom: `${VIEWER_360.feetLinePct + STAGE_CTA.liftPct}%`,
-                height: `max(${STAGE_CTA.minHeightPx}px, ${STAGE_CTA.heightPct}%)`,
-              }}
+              className="absolute left-1/2 z-[5] -translate-x-1/2 whitespace-nowrap rounded-full bg-[#00b4ff] px-8 py-3 text-sm font-semibold text-white shadow-[0_0_26px_rgba(0,180,255,0.45)] transition-colors hover:bg-[#0093d1]"
+              style={{ top: `${100 - VIEWER_360.feetLinePct + STAGE_CTA.dropPct}%` }}
             >
               {m.pub_placeLogo}
             </a>
+            {/* Feet glow: platform light rising over the shoes, so the soles blend
+                into the lit floor instead of ending on a hard edge. */}
+            <div
+              aria-hidden
+              className="stage-feet-glow pointer-events-none absolute inset-x-0 z-[4]"
+              style={
+                {
+                  bottom: `${VIEWER_360.feetLinePct - STAGE_FEET_BLEND.glowHeightPct / 2}%`,
+                  height: `${STAGE_FEET_BLEND.glowHeightPct}%`,
+                  "--feet-glow": STAGE_FEET_BLEND.glowOpacity,
+                } as React.CSSProperties
+              }
+            />
           </div>
 
           {/* View switcher: ‹ ⏯ Depan · Kanan · Belakang · Kiri › (above the CTA);
@@ -1092,7 +1102,7 @@ export function AthleteStageCard({
                     <span
                       className={`rounded-full px-2.5 py-1 text-[11px] font-semibold transition-colors sm:px-3.5 sm:text-xs ${
                         view === i
-                          ? "bg-[#00b4ff] text-white shadow-[0_0_14px_rgba(0, 180, 255,0.55)]"
+                          ? "bg-[#00b4ff] text-white shadow-[0_0_14px_rgba(0,180,255,0.55)]"
                           : "text-white/60 group-hover:text-white"
                       }`}
                     >

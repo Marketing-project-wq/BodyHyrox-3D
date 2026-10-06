@@ -78,7 +78,7 @@ export function FrameStage({
           top: `${GROUND * 100}%`,
           width: "80%",
           height: "5%",
-          background: "radial-gradient(50% 50% at 50% 50%, rgba(0, 180, 255,0.45), rgba(0, 180, 255,0.12) 60%, transparent 100%)",
+          background: "radial-gradient(50% 50% at 50% 50%, rgba(0,180,255,0.45), rgba(0,180,255,0.12) 60%, transparent 100%)",
         }}
       />
       {layers.map((l) => {

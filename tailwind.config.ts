@@ -17,7 +17,7 @@ const config: Config = {
         muted: "#6b6b70",
         faint: "#9a9aa0",
         accent: "#00b4ff",
-        "accent-soft": "rgba(0, 180, 255,0.10)",
+        "accent-soft": "rgba(0,180,255,0.10)",
         green: "#12965a",
         amber: "#b7791f",
         gray: "#6b6b70",
