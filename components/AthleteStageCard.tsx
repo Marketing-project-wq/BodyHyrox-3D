@@ -5,7 +5,7 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { ChevronLeft, ChevronRight, Pause, Play, RotateCcw } from "lucide-react";
 import type { PublicAthleteDetail } from "@/lib/data";
-import { STAGE_ARENA, STAGE_MODE, STAGE_PLATFORM, STAGE_READOUT, STAGE_STATIC, STAGE_TURN_FRAMES_AUTO, STAGE_TURN_VIDEO_AUTO, STAGE_VIDEO_BUNDLED, VIEWER_360, VIEWER_360_FRAME_CLASS, VIEWER_SPIN, VIEWER_VIDEO, VIEWER_VIEWS, stageFitVars, viewer360FrameStyle } from "@/lib/config";
+import { STAGE_ARENA, STAGE_MODE, STAGE_PLATFORM, STAGE_READOUT, STAGE_STATIC, STAGE_TURN_FRAMES_AUTO, STAGE_TURN_VIDEO_AUTO, STAGE_VIEW_CONTROLS, STAGE_VIDEO_BUNDLED, VIEWER_360, VIEWER_360_FRAME_CLASS, VIEWER_SPIN, VIEWER_VIDEO, VIEWER_VIEWS, stageFitVars, viewer360FrameStyle } from "@/lib/config";
 import { decayVelocity, degreeLabel, nearestSide, nextSideTarget, norm360, shortestDelta, sideTarget } from "@/lib/spin";
 import { VIEW_KEYS } from "@/lib/views";
 import { parseStageVideo, turnVideoUsable } from "@/lib/stage-video";
@@ -1037,8 +1037,9 @@ export function AthleteStageCard({
           </div>
 
           {/* View switcher: ‹ ⏯ Depan · Kanan · Belakang · Kiri › (above the CTA);
-              below lg without the ‹ › (swipe, tabs and keys turn the athlete). */}
-          {has360 && (
+              below lg without the ‹ › (swipe, tabs and keys turn the athlete).
+              Hidden while STAGE_VIEW_CONTROLS is off. */}
+          {has360 && STAGE_VIEW_CONTROLS && (
             <div className="absolute inset-x-0 bottom-[3.75rem] z-20 flex items-center justify-center gap-1.5 px-2">
               <button
                 type="button"
