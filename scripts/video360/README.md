@@ -1,7 +1,8 @@
 # Putaran 360° atlet: membuat urutan gambar di Mac
 
-Di panggung, atlet **berdiri diam menghadap depan**. Hanya latarnya yang berputar, seperti kamera
-yang berjalan mengelilingi atlet. Skrip ini membuat urutan gambarnya dari satu video putar:
+Di panggung, atlet **berdiri diam di satu tempat**. Hanya latarnya yang berputar, dan sudut badan
+atlet yang terlihat ikut berubah seperti kamera yang berjalan mengelilingi atlet (acuan:
+`docs/STAGE_SPEC.md`). Skrip ini membuat urutan gambarnya dari satu video putar:
 
 1. **Hapus latar dari frame ASLI, tentukan sudutnya, lalu ambil hanya frame berdiri.** Sudut
    tiap frame dihitung dari penanda (Depan/Kanan/Belakang/Kiri), gerakannya, dan bentuk badan
@@ -36,12 +37,14 @@ lebih banyak) atau rekam ulang.
 Hasil (bawaan: 60 detik per putaran, 24 gambar per detik = 1.440 gambar):
 - **WebM VP9 alpha** (Chrome, Edge, Android) dan **HEVC alpha** (Safari Mac/iPad/iPhone, hanya
   bisa dibuat di Mac);
-- **72 keyframe WebP** (setiap 5°) untuk drag, tab, Pause dan titik zona;
+- **72 keyframe WebP** (setiap 5°), dipakai panggung saat video tidak berjalan (Pause, tab, titik
+  zona, browser tanpa video transparan);
 - `feet.json` (telapak tiap gambar, untuk bayangan), `poster.webp`, `contact.jpg` (24 gambar
   setiap 15°, ukuran penuh, dengan garis kunci) dan `meta.json` (termasuk hasil cek kunci dan cek
   kualitas).
 
-Skrip ini tidak menyentuh data atau Storage. Hasilnya diunggah ke draft lewat studio (tahap V4).
+Skrip ini tidak menyentuh data atau Storage. Hasilnya diunggah ke draft lewat studio (tahap V4,
+belum tersedia). **Jangan menanam hasilnya di kode** (lihat `docs/STAGE_SPEC.md` bagian 1.4).
 
 ## 1. Sekali saja: instal alat
 ```
@@ -117,9 +120,14 @@ SIDE_PHOTOS=~/Movies/atlet-kanan.jpg,~/Movies/atlet-kiri.jpg RIFE_BIN=~/v360/rif
 - **Selalu buka `contact.jpg`:** 24 gambar setiap 15°. Garis biru = garis telapak, puncak kepala
   dan tengah badan. Atlet harus berdiri tegak di garis yang sama di semua sudut.
 
-## 4a. Urutan gambar untuk panggung
-Panggung memakai **urutan gambar**, bukan video, supaya jalan di semua browser (termasuk Safari dan
-iPhone) tanpa beban decode video:
+## 4a. Urutan gambar untuk panggung (sementara)
+> **Sementara.** Langkah ini dipakai untuk Calysta: gambarnya ditanam di kode
+> (`STAGE_FRAMES_BUNDLED`), sebagai pengecualian sementara di `docs/STAGE_SPEC.md` bagian 1.4, dan akan
+> dihapus setelah set foto Calysta masuk lewat data. Jangan dipakai untuk atlet baru; atlet baru
+> memakai 12–24 foto yang disimpan sebagai data atlet.
+
+Urutan gambar (bukan video) jalan di semua browser, termasuk Safari dan iPhone, tanpa beban decode
+video:
 ```
 python3 export_frames.py ~/Movies/atlet-out ~/Movies/atlet-gambar 12 1680
 ```

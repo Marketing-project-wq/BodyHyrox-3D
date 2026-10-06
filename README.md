@@ -22,6 +22,17 @@ atlet Hyrox. Landing page publik di `/` dan **Admin Dashboard** di `/admin`.
 | `/admin/event`     | Event (buat, daftar)                                     |
 | `/admin/harga-zona`| Harga zona tubuh (ubah harga, aktif/nonaktif)            |
 | `/admin/pengaturan`| Profil platform & notifikasi                             |
+| `/admin/pengajuan` | Pengajuan sponsor zona dari brand                        |
+| `/admin/akun-sponsor` | Akun brand/sponsor                                    |
+| `/admin/atlet/[id]`| Detail atlet: profil, zona, studio foto/video 360°       |
+| `/atlet`, `/atlet/[id]` | Halaman publik atlet dengan panggung 360 (lihat `docs/STAGE_SPEC.md`) |
+| `/atlet/[id]/ajukan` | Pengajuan sponsor zona oleh brand                      |
+| `/brand/*`         | Akun brand: daftar, masuk, verifikasi, keranjang, dashboard |
+
+## Panggung atlet (360)
+
+Acuan tunggal untuk panggung atlet (mode, config, alur admin, alur video
+`scripts/video360`, pekerjaan yang ditahan) ada di **`docs/STAGE_SPEC.md`**.
 
 ## Arsitektur data
 
@@ -49,9 +60,11 @@ atlet Hyrox. Landing page publik di `/` dan **Admin Dashboard** di `/admin`.
 Salin `.env.example` menjadi `.env` (lokal) atau set di Railway:
 
 ```
-NEXT_PUBLIC_SUPABASE_URL=...        # URL project Supabase
-SUPABASE_SERVICE_ROLE_KEY=...       # service role key (server-only, rahasia)
-SESSION_SECRET=...                  # string acak untuk tanda tangan cookie sesi
+SUPABASE_SERVICE_ROLE_KEY=...       # WAJIB: service role key (server-only, rahasia)
+NEXT_PUBLIC_SUPABASE_URL=...        # opsional: URL project (default sudah di kode)
+SESSION_SECRET=...                  # opsional: kalau kosong diturunkan dari service role key
+RESEND_API_KEY=... / EMAIL_FROM=... # opsional: email (tanpa ini email tidak dikirim)
+NEXT_PUBLIC_SITE_URL=...            # opsional: URL situs di email (default https://avatar.20fit.id)
 ```
 
 ## Menjalankan lokal
@@ -65,8 +78,8 @@ npm run start   # atau: npm run dev
 ## Deploy (Railway)
 
 Railpack otomatis mendeteksi Next.js: `npm run build` lalu `npm run start`
-(server membaca `process.env.PORT`). Pastikan ketiga env var di atas sudah
-di-set di Railway sebelum deploy.
+(server membaca `process.env.PORT`). Minimal `SUPABASE_SERVICE_ROLE_KEY` harus
+di-set di Railway sebelum deploy. Railway hanya men-deploy branch `main`.
 
 ## Catatan keamanan
 
