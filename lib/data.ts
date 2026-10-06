@@ -1,9 +1,10 @@
-import { db } from "./supabase";
+import { db, supabaseUrl } from "./supabase";
 import { resolveViews, type Media360Views, type HotspotInput } from "./views";
 export { VIEW_KEYS, resolveViews, type ViewKey, type Media360Views } from "./views";
 import { SPONSOR_360_UPLOAD, type TxStatus, type ActiveStatus, type Visibility } from "./config";
 import { parseTurnSet, type FrameMetaMap, type Media360Draft, type TurnSet } from "./media360";
 import { parseStageVideo, type StageVideo } from "./stage-video";
+import { parseStageMedia, stageScreens, type StageScreen } from "./stage-media";
 
 /** PostgREST returns bigint as string; coerce to number safely. */
 const n = (v: unknown): number => (v == null ? 0 : Number(v));
@@ -368,6 +369,8 @@ export type PublicAthleteDetail = Omit<PublicAthlete, "zonesTotal" | "zonesAvail
     zones: PublicZone[];
     races: PublicRace[];
     media360: Media360 | null;
+    /** Stage frame media (published), [] when none or before SQL M0. */
+    stageScreens: StageScreen[];
   };
 
 function mapMedia360(raw: unknown): Media360 | null {
@@ -415,8 +418,19 @@ function mapStats(d: Record<string, unknown>): AthleteProfileStats {
   };
 }
 
+/** Published stage frame media; [] when there is none or the SQL (M0) hasn't been run yet. */
+async function getStageScreens(id: string): Promise<StageScreen[]> {
+  try {
+    const { data, error } = await db().rpc("smb_public_athlete_stage_media", { p_athlete_id: id });
+    if (error) return [];
+    return stageScreens(parseStageMedia(data, id), supabaseUrl());
+  } catch {
+    return [];
+  }
+}
+
 export async function getPublicAthlete(id: string): Promise<PublicAthleteDetail | null> {
-  const { data, error } = await db().rpc("smb_public_athlete", { p_id: id });
+  const [{ data, error }, screens] = await Promise.all([db().rpc("smb_public_athlete", { p_id: id }), getStageScreens(id)]);
   if (error) throw error;
   if (!data) return null;
   const d = data as Record<string, unknown>;
@@ -450,6 +464,7 @@ export async function getPublicAthlete(id: string): Promise<PublicAthleteDetail 
       isPodium: Boolean(r.is_podium),
     })),
     media360: mapMedia360(d.media_360),
+    stageScreens: screens,
   };
 }
 

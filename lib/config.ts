@@ -504,8 +504,28 @@ export const STAGE_ARENA = {
   poolOpacity: 0.65,
   minSceneryRadiusM: 6,
   pillars: 10,
-  /** Neon light frames around the stage (evenly spaced). */
-  frames: 8,
+  /**
+   * Neon screens around the stage (STAGE_MEDIA): `count` portrait frames
+   * (owner, 2026-10-06: Instagram posts / reels are portrait),
+   * evenly spaced from `angleOffsetRad`, all at `radiusM` (same size), the
+   * bottom edge `bottomM` above the floor. A screen with media shows its
+   * picture inside (inset `insetM`), dimmed to `brightness` and tinted
+   * `tint` so the athlete and the zone markers stay the focus; fog doesn't
+   * apply to it. Empty screens are just the neon frame.
+   */
+  screens: {
+    count: 6,
+    radiusM: 7.8,
+    widthM: 1.9,
+    heightM: 3.2,
+    bottomM: 0.25,
+    angleOffsetRad: 0.4,
+    insetM: 0.1,
+    brightness: 0.6,
+    tint: "#bfe8ff",
+    playIconM: 0.42,
+    playIconOpacity: 0.85,
+  },
   /** Far ring of slim panels, faded by the fog, so no side of the turn is empty. */
   farPanels: 16,
   farRadiusM: 13,
@@ -705,7 +725,7 @@ export const STAGE_MEDIA = {
   siteOrigin: "https://avatar.20fit.id",
   fetchTimeoutMs: 8000,
   maxRedirects: 3,
-  maxImageMB: 8,
+  maxImageMB: 5, // the public 360 bucket's file limit
   maxVideoMB: 40,
   maxThumbMB: 4,
   posterPx: 1280,

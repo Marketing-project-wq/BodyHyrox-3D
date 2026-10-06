@@ -193,19 +193,30 @@ Calysta (18 foto).
   - **File video** `.mp4`/`.webm`: tipe video, maksimal 40 MB, dan wajib mengizinkan situs ini
     lewat CORS. Poster dibuat browser admin. Diputar di frame (muted, playsinline, loop) dengan
     batas jumlah video aktif (M4).
-  - **Gambar** `.jpg`/`.png`/`.webp`: maksimal 8 MB, disalin ke bucket publik.
-  - **Ditolak dengan pesan EN/ID:** http, Google Drive/Dropbox, Instagram/TikTok/Facebook/X/
-    Vimeo, halaman biasa, video tanpa CORS, file terlalu besar, YouTube privat/embed mati.
+  - **Gambar** `.jpg`/`.png`/`.webp`: maksimal 5 MB (batas bucket publik), disalin ke bucket publik.
+  - **Instagram** (postingan, reel, IGTV; juga `instagram.com/<user>/p/<kode>/`): ditampilkan lewat
+    embed resmi Instagram di lightbox. Gambar sampul disalin kalau Instagram memberikannya ke
+    server; kalau tidak, layar menampilkan kartu Instagram (gradien + ikon + keterangan). Link
+    yang jelas tidak ada (404) ditolak; profil/story ditolak dengan penjelasan.
+  - **Ditolak dengan pesan EN/ID:** http, Google Drive/Dropbox, TikTok/Facebook/X/Vimeo, halaman
+    biasa, video tanpa CORS, file terlalu besar, YouTube privat/embed mati.
 - **Keamanan:** hanya https; tidak boleh IP, localhost, user:password, atau port lain. Server
   membuka link lewat `lib/safe-fetch.ts` (semua alamat DNS harus publik, redirect dicek ulang
-  maksimal 3, batas waktu dan ukuran). Iframe hanya dari `www.youtube-nocookie.com`, dibangun
-  dari ID, bukan dari link mentah.
+  maksimal 3, batas waktu dan ukuran). Iframe hanya dari `www.youtube-nocookie.com` dan
+  `www.instagram.com` (embed), dibangun dari ID/kode, bukan dari link mentah.
 - **Data:** tabel `smb_athlete_stage_media` (draft + published + versi + riwayat) lewat SQL M0
-  (`supabase/migrations/20261007_smb_stage_media.sql`, **dijalankan pemilik**). Bentuk jsonb:
+  (`supabase/migrations/20261007_smb_stage_media.sql`, **sudah dijalankan 2026-10-06** atas
+  permintaan pemilik). Bentuk jsonb:
   `{ v: 1, slots: [{ slot, kind, url, ytId, thumb, w, h, title, checkedAt }] }`.
-- **Panggung (M3):** 6 layar mendatar 16:9, satu setiap 60°, sedikit redup/diberi tint (config),
-  di bawah atlet dan titik zona. HP tegak: layar jarang terlihat (tertutup atlet), diterima untuk
-  sekarang.
+- **Panggung (M3):** 6 layar **tegak/potret** 1,9 × 3,2 m (`STAGE_ARENA.screens`, keputusan pemilik
+  2026-10-06: Instagram berformat tegak; menggantikan 8 frame tegak lama),
+  satu setiap 60°, jarak sama (7,8 m). Isi layar = gambar (thumbnail YouTube, salinan gambar, atau
+  poster video), "contain", diredupkan/diberi tint (`brightness`, `tint`), tanpa kabut, + ikon ▶
+  untuk video. Gambar dimuat setelah foto atlet siap; link mati = frame neon kosong. Tap/klik layar
+  (bukan atlet/tombol, bukan geser) membuka lightbox; putaran berhenti selama lightbox terbuka;
+  ditutup dengan ×, Esc, atau tap di luar. Tombol tersembunyi per layar untuk keyboard/pembaca
+  layar. CSP `frame-src 'self' https://www.youtube-nocookie.com https://www.instagram.com` di `/atlet/*`. HP tegak: layar
+  jarang terlihat (tertutup atlet), diterima untuk sekarang. Video langsung di dalam layar = M4.
 
 ## 6. Alur membuat video putaran (`scripts/video360`)
 

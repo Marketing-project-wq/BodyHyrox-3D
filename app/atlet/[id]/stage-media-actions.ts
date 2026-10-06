@@ -9,6 +9,7 @@ import { STAGE_MEDIA } from "@/lib/config";
 import { FetchRefused, safeFetch } from "@/lib/safe-fetch";
 import {
   classifyLink,
+  instagramEmbedUrl,
   parseStageMedia,
   stageMediaPictureUrl,
   type LinkProblem,
@@ -79,6 +80,8 @@ export type CheckedLink = { slot: Omit<StageMediaSlot, "slot">; pictureUrl: stri
  * Admin only. What a pasted link is and whether it can be used:
  * - YouTube: must exist and allow embedding (official oEmbed); its thumbnail is copied.
  * - Image (.jpg/.png/.webp): fetched (max STAGE_MEDIA.maxImageMB) and copied.
+ * - Instagram post / reel: shown through Instagram's official embed (lightbox);
+ *   the cover image is copied when Instagram hands it out.
  * - Video (.mp4/.webm): must answer with a video type, fit maxVideoMB and allow
  *   this site by CORS; the admin's browser then makes a poster (issueStagePosterUpload).
  * - Anything else is refused with a code that says why and what to use instead.
@@ -119,6 +122,37 @@ export async function checkStageMediaLink(athleteId: string, rawUrl: string): Pr
       return {
         ok: true,
         slot: { kind: "youtube", url: c.url, ytId: c.ytId, thumb, w: 16, h: 9, title, checkedAt: now },
+        pictureUrl: stageMediaPictureUrl(base, thumb),
+        needsPoster: false,
+      };
+    }
+
+    if (c.kind === "instagram") {
+      // Official embed page: 404 = post doesn't exist / is private. Its cover
+      // image (Instagram's CDN) becomes the screen picture when we can get it;
+      // otherwise the stage shows an Instagram card. Instagram often refuses
+      // servers, so anything but a clear 404 still lets the link through.
+      let thumb: string | null = null;
+      try {
+        const e = await safeFetch(instagramEmbedUrl(c.url)!, { maxBytes: 1024 * 1024 });
+        if (e.status === 404) fail("link_unreachable");
+        const html = e.status === 200 && e.body ? e.body.toString("utf8") : "";
+        const m = html.match(/class="EmbeddedMediaImage"[^>]*?src="([^"]+)"/) ?? html.match(/<img[^>]+class="[^"]*EmbeddedMediaImage[^"]*"[^>]+src="([^"]+)"/);
+        const src = m ? m[1].replace(/&amp;/g, "&") : null;
+        if (src) {
+          const host = new URL(src).hostname;
+          if (/(^|\.)(cdninstagram\.com|fbcdn\.net)$/.test(host)) {
+            const img = await safeFetch(src, { maxBytes: STAGE_MEDIA.maxImageMB * MB });
+            const mime = img.status === 200 ? imageMime(img.headers) : null;
+            if (mime && img.body) thumb = await keepPicture(athleteId, c.url, img.body, mime);
+          }
+        }
+      } catch (e) {
+        if (!(e instanceof FetchRefused)) throw e;
+      }
+      return {
+        ok: true,
+        slot: { kind: "instagram", url: c.url, ytId: null, thumb, w: null, h: null, title: null, checkedAt: now },
         pictureUrl: stageMediaPictureUrl(base, thumb),
         needsPoster: false,
       };

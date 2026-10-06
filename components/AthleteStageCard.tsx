@@ -15,6 +15,8 @@ import { tGender } from "@/lib/i18n";
 import { initials } from "@/lib/format";
 import { AthleteViews, type AthleteViewsHandle } from "@/components/AthleteViews";
 import type { ArenaHandle } from "@/components/StageArena3D";
+import { StageMediaLightbox } from "@/components/StageMediaLightbox";
+import type { StageScreen } from "@/lib/stage-media";
 
 // three.js + r3f load only on the client, after first paint, and only when WebGL
 // exists; until then (or without WebGL) the flat CSS ring platform shows.
@@ -24,6 +26,7 @@ const StageArena3D = dynamic(() => import("@/components/StageArena3D").then((mod
 });
 
 // The CSS ring fallback is squashed by the same camera tilt the 3D arena uses.
+const NO_SCREENS: StageScreen[] = [];
 const STAGE_TILT = Math.sin((STAGE_ARENA.cameraElevationDeg * Math.PI) / 180).toFixed(3);
 
 function hasWebGL(): boolean {
@@ -65,7 +68,7 @@ export function AthleteStageCard({
   const [view, setView] = useState(0);
   const viewRef = useRef(0);
   const ticksRef = useRef<SVGGElement>(null);
-  const arenaHandle = useRef<ArenaHandle>({ angleDeg: 0, invalidate: null, setDpr: null, groundHit: null, outline: null });
+  const arenaHandle = useRef<ArenaHandle>({ angleDeg: 0, invalidate: null, setDpr: null, groundHit: null, outline: null, pick: null, mediaHit: null });
   // ?debug=feet: draw the platform top face and each foot's contact point.
   // ?debug=viewport: viewport / toolbar measuring overlay (both: debug=feet,viewport).
   const [debugFeet, setDebugFeet] = useState(false);
@@ -707,6 +710,40 @@ export function AthleteStageCard({
     },
     [holdNow, resumeLater],
   );
+  // Stage frame media: tap a screen (not the athlete, not a button) → lightbox;
+  // the spin holds while it is open, like a zone card.
+  const screens = athlete.stageScreens ?? NO_SCREENS;
+  const [media, setMedia] = useState<StageScreen | null>(null);
+  const openMedia = useCallback(
+    (sc: StageScreen | null) => {
+      setMedia(sc);
+      onZoneCardChange(!!sc);
+    },
+    [onZoneCardChange],
+  );
+  const closeMedia = useCallback(() => openMedia(null), [openMedia]);
+  const tapRef = useRef<{ x: number; y: number; t: number } | null>(null);
+  const screenAt = (e: React.PointerEvent) => {
+    const el = e.target as HTMLElement;
+    if (!screens.length || el.closest("a,button,input,select,[role=dialog]") || figureRef.current?.contains(el)) return null;
+    const slot = arenaHandle.current.mediaHit?.(e.clientX, e.clientY);
+    return slot == null ? null : screens.find((x) => x.slot === slot) ?? null;
+  };
+  const onStagePointerDown = (e: React.PointerEvent) => {
+    tapRef.current = { x: e.clientX, y: e.clientY, t: performance.now() };
+  };
+  const onStagePointerUp = (e: React.PointerEvent) => {
+    const d = tapRef.current;
+    tapRef.current = null;
+    if (!d || Math.hypot(e.clientX - d.x, e.clientY - d.y) > 8 || performance.now() - d.t > 600) return;
+    const sc = screenAt(e);
+    if (sc) openMedia(sc);
+  };
+  const onStagePointerMove = (e: React.PointerEvent) => {
+    if (e.pointerType !== "mouse" || !screens.length || !sectionRef.current) return;
+    sectionRef.current.style.cursor = screenAt(e) ? "pointer" : "";
+  };
+
   // Keyboard focus on the athlete no longer holds the spin: keyboard users
   // pause / play with Space (a focus hold made Space→Play look broken).
   const onFocusChange = useCallback(() => {}, []);
@@ -786,6 +823,9 @@ export function AthleteStageCard({
         arenaOn ? "stagecard-arena-on" : ""
       } stagecard-fit`}
       style={{ ["--stage-tilt" as string]: STAGE_TILT, ...stageFitVars() } as React.CSSProperties}
+      onPointerDown={onStagePointerDown}
+      onPointerUp={onStagePointerUp}
+      onPointerMove={onStagePointerMove}
     >
       {/* 3D neon arena (behind everything; fades in once WebGL is up) */}
       {arenaWanted && (
@@ -801,6 +841,8 @@ export function AthleteStageCard({
             onReady={() => setArenaOn(true)}
             platform={platform}
             platformLocked={isStatic}
+            screens={screens}
+            screensActive={photosReady}
             onFail={() => {
               setArenaOn(false);
               setArenaWanted(false);
@@ -1126,6 +1168,25 @@ export function AthleteStageCard({
 
         </div>
       </div>
+
+      {/* Stage frame media for keyboard / screen readers (the 3D screens are
+          tap targets only): hidden until focused. */}
+      {screens.length > 0 && (
+        <ul className="absolute left-3 top-3 z-40 flex flex-col gap-1">
+          {screens.map((sc) => (
+            <li key={sc.slot}>
+              <button
+                type="button"
+                onClick={() => openMedia(sc)}
+                className="sr-only rounded-full bg-black/80 px-4 py-2 text-xs font-semibold text-white focus:not-sr-only focus:inline-flex focus:min-h-11 focus:items-center"
+              >
+                {fmt(sc.kind === "image" ? m.sml_view : sc.kind === "instagram" ? m.sml_open_ig : m.sml_play, { title: sc.title || fmt(m.sml_screen, { n: sc.slot + 1 }) })}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      {media && <StageMediaLightbox screen={media} m={m} onClose={closeMedia} />}
 
       {/* Carousel arrows (card edges, vertically centered) */}
       {prev && (
