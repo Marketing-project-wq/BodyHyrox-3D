@@ -437,8 +437,8 @@ function instagramTexture(kind: "badge" | "card", caption?: string | null): THRE
   const key = `${kind}:${caption ?? ""}`;
   const hit = igCache.get(key);
   if (hit) return hit;
-  const W = kind === "card" ? 1024 : 128;
-  const H = kind === "card" ? 576 : 128;
+  const W = kind === "card" ? 576 : 128;
+  const H = kind === "card" ? 960 : 128;
   const c = document.createElement("canvas");
   c.width = W;
   c.height = H;
@@ -472,9 +472,9 @@ function instagramTexture(kind: "badge" | "card", caption?: string | null): THRE
   g.arc(x + s * 0.76, y + s * 0.24, s * 0.06, 0, Math.PI * 2);
   g.fill();
   if (kind === "card" && caption) {
-    g.font = "600 44px system-ui, sans-serif";
+    g.font = "600 40px system-ui, sans-serif";
     g.textAlign = "center";
-    g.fillText(caption.length > 36 ? caption.slice(0, 35) + "…" : caption, W / 2, H * 0.82);
+    g.fillText(caption.length > 24 ? caption.slice(0, 23) + "…" : caption, W / 2, H * 0.68);
   }
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;

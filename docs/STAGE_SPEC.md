@@ -208,7 +208,8 @@ Calysta (18 foto).
   (`supabase/migrations/20261007_smb_stage_media.sql`, **sudah dijalankan 2026-10-06** atas
   permintaan pemilik). Bentuk jsonb:
   `{ v: 1, slots: [{ slot, kind, url, ytId, thumb, w, h, title, checkedAt }] }`.
-- **Panggung (M3):** 6 layar mendatar 16:9 (`STAGE_ARENA.screens`, menggantikan 8 frame tegak),
+- **Panggung (M3):** 6 layar **tegak/potret** 1,9 × 3,2 m (`STAGE_ARENA.screens`, keputusan pemilik
+  2026-10-06: Instagram berformat tegak; menggantikan 8 frame tegak lama),
   satu setiap 60°, jarak sama (7,8 m). Isi layar = gambar (thumbnail YouTube, salinan gambar, atau
   poster video), "contain", diredupkan/diberi tint (`brightness`, `tint`), tanpa kabut, + ikon ▶
   untuk video. Gambar dimuat setelah foto atlet siap; link mati = frame neon kosong. Tap/klik layar

@@ -272,7 +272,7 @@ export function StageMediaEditor({ athleteId, m, embedded = false }: { athleteId
         <ol className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-2">
           {rows.map((r, i) => (
             <li key={i} className="flex min-w-0 flex-col gap-2 rounded-lg border border-border bg-surface-2 p-3 sm:flex-row">
-              <div className="relative flex aspect-video w-full shrink-0 items-center justify-center self-start overflow-hidden rounded-md bg-black/85 sm:w-40">
+              <div className="relative mx-auto flex aspect-[3/5] w-32 shrink-0 items-center justify-center self-start overflow-hidden rounded-md bg-black/85 sm:mx-0 sm:w-28">
                 {r.picture ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={r.picture} alt="" className="h-full w-full object-contain" />

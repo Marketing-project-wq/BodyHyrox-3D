@@ -505,7 +505,8 @@ export const STAGE_ARENA = {
   minSceneryRadiusM: 6,
   pillars: 10,
   /**
-   * Neon screens around the stage (STAGE_MEDIA): `count` landscape frames,
+   * Neon screens around the stage (STAGE_MEDIA): `count` portrait frames
+   * (owner, 2026-10-06: Instagram posts / reels are portrait),
    * evenly spaced from `angleOffsetRad`, all at `radiusM` (same size), the
    * bottom edge `bottomM` above the floor. A screen with media shows its
    * picture inside (inset `insetM`), dimmed to `brightness` and tinted
@@ -515,9 +516,9 @@ export const STAGE_ARENA = {
   screens: {
     count: 6,
     radiusM: 7.8,
-    widthM: 3.6,
-    heightM: 2.0,
-    bottomM: 0.8,
+    widthM: 1.9,
+    heightM: 3.2,
+    bottomM: 0.25,
     angleOffsetRad: 0.4,
     insetM: 0.1,
     brightness: 0.6,
