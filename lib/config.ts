@@ -641,6 +641,29 @@ export const VIDEO_360 = {
 };
 
 /**
+ * "Bahan 360" (admin, every athlete): the original photos and videos an admin
+ * uploads to make a turn set from. Kept privately after the set is made.
+ * - bucket: private Storage bucket (SQL S0); never shown to visitors.
+ * - maxPhotoMB / maxVideoMB / maxVideoSec: per file (the bucket allows 200 MB;
+ *   the project-wide Storage upload limit must be at least maxVideoMB).
+ * - maxBatch: files picked at once; maxPerAthlete: files kept per athlete.
+ * - thumbPx: longest side of the preview image made in the browser.
+ * - viewUrlSec: lifetime of the signed URLs for previews and full files.
+ */
+export const MEDIA_SOURCES = {
+  bucket: "smb-athlete-360-sources",
+  maxPhotoMB: 25,
+  maxVideoMB: 200,
+  maxVideoSec: 120,
+  maxBatch: 40,
+  maxPerAthlete: 120,
+  thumbPx: 360,
+  viewUrlSec: 60 * 60 * 6,
+  photoMime: ["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"] as const,
+  videoMime: ["video/mp4", "video/quicktime", "video/webm"] as const,
+};
+
+/**
  * Ambient motion of the neon stage (durations in seconds, intensity 0..1).
  * Kept slow/subtle ("halus & elegan"); all animation is CSS and is disabled
  * under `prefers-reduced-motion`. Exposed as CSS variables by <AthleteStage>
