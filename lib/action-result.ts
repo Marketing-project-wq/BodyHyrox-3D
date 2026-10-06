@@ -43,6 +43,18 @@ export const ERROR_CODES = [
   "source_too_big",
   "source_limit",
   "source_kind_mismatch",
+  "stage_media_not_ready",
+  "stage_media_invalid",
+  "stage_media_no_draft",
+  "link_invalid",
+  "link_https",
+  "link_drive",
+  "link_social",
+  "link_unsupported",
+  "link_unreachable",
+  "link_no_cors",
+  "link_too_big",
+  "link_not_embeddable",
 ] as const;
 export type ErrorCode = (typeof ERROR_CODES)[number];
 

@@ -685,6 +685,33 @@ export const MEDIA_SOURCES = {
 };
 
 /**
+ * Stage frame media ("Media frame panggung"): per athlete, up to `slots` links
+ * (YouTube, a direct video file, or a direct image) shown on the neon screens
+ * of the 3D arena. Admin only pastes links; the server checks them and keeps a
+ * copy of the thumbnail / image in the public 360 bucket (`folder`), so the
+ * stage never depends on another site's CORS for its pictures.
+ * - siteOrigin: sent as Origin when checking that a video may play here (CORS).
+ * - fetchTimeoutMs / maxRedirects: limits when the server opens a link.
+ * - maxImageMB / maxVideoMB / maxThumbMB: largest image copied, largest video
+ *   linked, largest thumbnail kept.
+ * - posterPx: longest side of the poster the admin's browser takes from a video.
+ */
+export const STAGE_MEDIA = {
+  slots: 6,
+  bucket: "smb-athlete-360",
+  folder: "stage-media",
+  maxUrlLength: 500,
+  maxTitle: 80,
+  siteOrigin: "https://avatar.20fit.id",
+  fetchTimeoutMs: 8000,
+  maxRedirects: 3,
+  maxImageMB: 8,
+  maxVideoMB: 40,
+  maxThumbMB: 4,
+  posterPx: 1280,
+};
+
+/**
  * "Buat set putaran" (admin, every athlete): the turn set made from the
  * materials (photos and/or one video). See lib/turn-set.ts.
  * - canvas / fit: every pose is locked onto this canvas (sole line, body

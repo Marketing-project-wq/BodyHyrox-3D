@@ -26,6 +26,8 @@ const KNOWN: [RegExp, ErrorCode][] = [
   [/^(Nama frame (tidak valid|ganda))/i, "frame_name_invalid"],
   [/^(Format titik zona tidak valid|Titik zona tidak valid|Koordinat titik harus|Nomor frame .* tidak valid)/i, "zones_invalid"],
   [/^(Format views tidak valid|Frame .* untuk view .* tidak ada|Frame untuk view .* tidak ada|View .* belum dipilih)/i, "views_invalid"],
+  [/^(Format media frame tidak valid|Maksimal \d+ slot|Jenis media tidak valid|Link harus https|ID YouTube tidak valid|Judul terlalu panjang|Slot media tidak valid)/i, "stage_media_invalid"],
+  [/^Tidak ada draft media frame/i, "stage_media_no_draft"],
 ];
 
 /** smb_review_request returns { ok: false, error } codes instead of raising. */
