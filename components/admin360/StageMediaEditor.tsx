@@ -67,9 +67,10 @@ async function videoPoster(url: string): Promise<Blob> {
 
 /**
  * "Media frame panggung" (admin, every athlete): one link per neon screen of
- * the stage. Check each link, then save to the draft and Publish.
+ * the stage. Check each link, then save to the draft and Publish. `embedded`:
+ * drawn inside another card (the Profile card), without its own card frame.
  */
-export function StageMediaEditor({ athleteId, m }: { athleteId: string; m: Dict }) {
+export function StageMediaEditor({ athleteId, m, embedded = false }: { athleteId: string; m: Dict; embedded?: boolean }) {
   const [rows, setRows] = useState<Row[]>(() => Array.from({ length: STAGE_MEDIA.slots }, emptyRow));
   const [loaded, setLoaded] = useState(false);
   const [notReady, setNotReady] = useState(false);
@@ -243,9 +244,9 @@ export function StageMediaEditor({ athleteId, m }: { athleteId: string; m: Dict 
     k === "youtube" ? <PlayCircle className="h-3.5 w-3.5" aria-hidden /> : k === "video" ? <Video className="h-3.5 w-3.5" aria-hidden /> : <ImageIcon className="h-3.5 w-3.5" aria-hidden />;
 
   return (
-    <section className="card p-4" aria-labelledby="sm-title">
+    <section className={embedded ? "" : "card p-4"} aria-labelledby="sm-title">
       <div className="flex flex-wrap items-center gap-2">
-        <span className="rounded-md border border-border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted">{m.m360_admin}</span>
+        {!embedded && <span className="rounded-md border border-border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted">{m.m360_admin}</span>}
         <h2 id="sm-title" className="text-sm font-semibold text-text">
           {m.sm_title}
         </h2>
