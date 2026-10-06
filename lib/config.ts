@@ -504,8 +504,27 @@ export const STAGE_ARENA = {
   poolOpacity: 0.65,
   minSceneryRadiusM: 6,
   pillars: 10,
-  /** Neon light frames around the stage (evenly spaced). */
-  frames: 8,
+  /**
+   * Neon screens around the stage (STAGE_MEDIA): `count` landscape frames,
+   * evenly spaced from `angleOffsetRad`, all at `radiusM` (same size), the
+   * bottom edge `bottomM` above the floor. A screen with media shows its
+   * picture inside (inset `insetM`), dimmed to `brightness` and tinted
+   * `tint` so the athlete and the zone markers stay the focus; fog doesn't
+   * apply to it. Empty screens are just the neon frame.
+   */
+  screens: {
+    count: 6,
+    radiusM: 7.8,
+    widthM: 3.6,
+    heightM: 2.0,
+    bottomM: 0.8,
+    angleOffsetRad: 0.4,
+    insetM: 0.1,
+    brightness: 0.6,
+    tint: "#bfe8ff",
+    playIconM: 0.42,
+    playIconOpacity: 0.85,
+  },
   /** Far ring of slim panels, faded by the fog, so no side of the turn is empty. */
   farPanels: 16,
   farRadiusM: 13,

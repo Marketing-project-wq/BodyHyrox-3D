@@ -203,9 +203,14 @@ Calysta (18 foto).
 - **Data:** tabel `smb_athlete_stage_media` (draft + published + versi + riwayat) lewat SQL M0
   (`supabase/migrations/20261007_smb_stage_media.sql`, **dijalankan pemilik**). Bentuk jsonb:
   `{ v: 1, slots: [{ slot, kind, url, ytId, thumb, w, h, title, checkedAt }] }`.
-- **Panggung (M3):** 6 layar mendatar 16:9, satu setiap 60°, sedikit redup/diberi tint (config),
-  di bawah atlet dan titik zona. HP tegak: layar jarang terlihat (tertutup atlet), diterima untuk
-  sekarang.
+- **Panggung (M3):** 6 layar mendatar 16:9 (`STAGE_ARENA.screens`, menggantikan 8 frame tegak),
+  satu setiap 60°, jarak sama (7,8 m). Isi layar = gambar (thumbnail YouTube, salinan gambar, atau
+  poster video), "contain", diredupkan/diberi tint (`brightness`, `tint`), tanpa kabut, + ikon ▶
+  untuk video. Gambar dimuat setelah foto atlet siap; link mati = frame neon kosong. Tap/klik layar
+  (bukan atlet/tombol, bukan geser) membuka lightbox; putaran berhenti selama lightbox terbuka;
+  ditutup dengan ×, Esc, atau tap di luar. Tombol tersembunyi per layar untuk keyboard/pembaca
+  layar. CSP `frame-src 'self' https://www.youtube-nocookie.com` di `/atlet/*`. HP tegak: layar
+  jarang terlihat (tertutup atlet), diterima untuk sekarang. Video langsung di dalam layar = M4.
 
 ## 6. Alur membuat video putaran (`scripts/video360`)
 

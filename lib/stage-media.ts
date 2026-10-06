@@ -131,3 +131,20 @@ export function parseStageMedia(raw: unknown, athleteId?: string): StageMedia {
 export function stageMediaPictureUrl(supabaseUrl: string, path: string | null): string | null {
   return path ? `${supabaseUrl.replace(/\/$/, "")}/storage/v1/object/public/${STAGE_MEDIA.bucket}/${path}` : null;
 }
+
+/** One screen as the public stage needs it (picture already a public URL). */
+export type StageScreen = {
+  slot: number;
+  kind: StageMediaKind;
+  picture: string | null;
+  ytId: string | null;
+  /** Direct video / image link (lightbox). */
+  url: string;
+  title: string | null;
+};
+
+export function stageScreens(media: StageMedia, supabaseUrl: string): StageScreen[] {
+  return media.slots
+    .filter((s) => s.thumb || s.kind === "video")
+    .map((s) => ({ slot: s.slot, kind: s.kind, picture: stageMediaPictureUrl(supabaseUrl, s.thumb), ytId: s.ytId, url: s.url, title: s.title }));
+}

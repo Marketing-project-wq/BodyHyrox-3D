@@ -1,10 +1,11 @@
 "use client";
 
-import { Component, useEffect, useMemo, useRef, type MutableRefObject, type ReactNode, type RefObject } from "react";
+import { Component, useEffect, useMemo, useRef, useState, type MutableRefObject, type ReactNode, type RefObject } from "react";
 import { Canvas, useThree, useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { STAGE_ARENA as A, STAGE_PLATFORM_ROUND } from "@/lib/config";
+import type { StageScreen } from "@/lib/stage-media";
 
 /**
  * Shared, mutable link between the stage card and the arena. The card writes the
@@ -24,6 +25,10 @@ export type ArenaHandle = {
   groundHit: ((clientX: number, clientY: number) => { inside: boolean; scale: number } | null) | null;
   /** The platform top face outline in client px (debug overlay). */
   outline: (() => [number, number][]) | null;
+  /** Objects under a screen point (client px) at the current angle, nearest first. */
+  pick: ((clientX: number, clientY: number, objects: THREE.Object3D[]) => THREE.Intersection[]) | null;
+  /** The media screen (slot) under a screen point, or null. */
+  mediaHit: ((clientX: number, clientY: number) => number | null) | null;
 };
 
 export type PlatformShape = "hex" | "round";
@@ -72,6 +77,10 @@ type Props = {
    */
   platformLocked?: boolean;
   onFail: () => void;
+  /** Published stage frame media (empty = neon frames only). */
+  screens?: StageScreen[];
+  /** Load the screens' pictures (after the athlete and the arena are ready). */
+  screensActive?: boolean;
 };
 
 const rad = (d: number) => (d * Math.PI) / 180;
@@ -130,6 +139,14 @@ function Rig({ handle, anchorRef, figureRef, platform, platformLocked }: Pick<Pr
         scale: cam.position.distanceTo(feet) / cam.position.distanceTo(hit),
       };
     };
+    h.pick = (x, y, objects) => {
+      const c = gl.domElement.getBoundingClientRect();
+      if (!c.width || !c.height) return [];
+      sync();
+      ndc.set(((x - c.left) / c.width) * 2 - 1, -((y - c.top) / c.height) * 2 + 1);
+      ray.setFromCamera(ndc, cam);
+      return ray.intersectObjects(objects, true);
+    };
     h.outline = () => {
       const c = gl.domElement.getBoundingClientRect();
       const phi = sync();
@@ -143,6 +160,7 @@ function Rig({ handle, anchorRef, figureRef, platform, platformLocked }: Pick<Pr
       h.setDpr = null;
       h.groundHit = null;
       h.outline = null;
+      h.pick = null;
     };
   }, [handle, invalidate, setDpr, cam, gl, d, camY, lookY, platform, platformLocked]);
 
@@ -382,6 +400,127 @@ function barGeometry(from: THREE.Vector3, to: THREE.Vector3, w: number): THREE.B
   return g;
 }
 
+/** Angle (rad) of screen i around the stage (same layout for scenery and media). */
+function screenAngle(i: number): number {
+  return (i / A.screens.count) * Math.PI * 2 + A.screens.angleOffsetRad;
+}
+
+/** A white ▶ in a ring, drawn once (shared by every video screen). */
+let playTexture: THREE.CanvasTexture | null = null;
+function playIcon(): THREE.CanvasTexture {
+  if (playTexture) return playTexture;
+  const c = document.createElement("canvas");
+  c.width = c.height = 128;
+  const g = c.getContext("2d")!;
+  g.fillStyle = "rgba(0,0,0,0.45)";
+  g.beginPath();
+  g.arc(64, 64, 58, 0, Math.PI * 2);
+  g.fill();
+  g.strokeStyle = "#fff";
+  g.lineWidth = 6;
+  g.stroke();
+  g.fillStyle = "#fff";
+  g.beginPath();
+  g.moveTo(52, 40);
+  g.lineTo(52, 88);
+  g.lineTo(92, 64);
+  g.closePath();
+  g.fill();
+  playTexture = new THREE.CanvasTexture(c);
+  playTexture.colorSpace = THREE.SRGBColorSpace;
+  return playTexture;
+}
+
+/**
+ * Media on the screens: each picture fitted ("contain") inside its frame,
+ * dimmed / tinted (A.screens), plus a ▶ for videos. Pictures load only once
+ * `active` (athlete and arena ready); a picture that fails to load just leaves
+ * the empty neon frame. Registers handle.mediaHit for taps.
+ */
+function Screens({ handle, screens, active }: { handle: MutableRefObject<ArenaHandle>; screens: StageScreen[]; active: boolean }) {
+  const { invalidate } = useThree();
+  const SC = A.screens;
+  const group = useRef<THREE.Group>(null);
+  const [tex, setTex] = useState<Record<number, THREE.Texture>>({});
+
+  useEffect(() => {
+    if (!active) return;
+    let off = false;
+    const loader = new THREE.TextureLoader();
+    loader.setCrossOrigin("anonymous");
+    const made: THREE.Texture[] = [];
+    for (const s of screens) {
+      if (!s.picture || s.slot >= SC.count) continue;
+      loader.load(
+        s.picture,
+        (t) => {
+          if (off) return t.dispose();
+          t.colorSpace = THREE.SRGBColorSpace;
+          t.anisotropy = 4;
+          made.push(t);
+          setTex((m) => ({ ...m, [s.slot]: t }));
+          invalidate();
+        },
+        undefined,
+        () => {}, // dead link / blocked: the frame stays empty
+      );
+    }
+    return () => {
+      off = true;
+      made.forEach((t) => t.dispose());
+      setTex({});
+    };
+  }, [active, screens, invalidate, SC.count]);
+
+  useEffect(() => {
+    const h = handle.current;
+    h.mediaHit = (x, y) => {
+      const g = group.current;
+      if (!g || !h.pick) return null;
+      const hit = h.pick(x, y, g.children)[0];
+      return hit ? (hit.object.userData.slot as number) : null;
+    };
+    return () => {
+      h.mediaHit = null;
+    };
+  }, [handle]);
+
+  const tint = useMemo(() => new THREE.Color(SC.tint).multiplyScalar(SC.brightness), [SC.tint, SC.brightness]);
+  const iw = SC.widthM - SC.insetM * 2;
+  const ih = SC.heightM - SC.insetM * 2;
+  const cy = -0.1 + SC.bottomM + SC.heightM / 2;
+
+  return (
+    <group ref={group}>
+      {screens.map((s) => {
+        const t = tex[s.slot];
+        if (!t || s.slot >= SC.count) return null;
+        const img = t.image as { width?: number; height?: number } | undefined;
+        const ar = img?.width && img?.height ? img.width / img.height : 16 / 9;
+        const w = ar >= iw / ih ? iw : ih * ar;
+        const hh = ar >= iw / ih ? iw / ar : ih;
+        const a = screenAngle(s.slot);
+        // Facing the stage centre (rotate half a turn more than the frame bars).
+        const pos: [number, number, number] = [Math.sin(a) * (SC.radiusM - 0.02), cy, Math.cos(a) * (SC.radiusM - 0.02)];
+        return (
+          <group key={s.slot} position={pos} rotation={[0, a + Math.PI, 0]}>
+            <mesh userData={{ slot: s.slot }}>
+              <planeGeometry args={[w, hh]} />
+              <meshBasicMaterial map={t} color={tint} fog={false} toneMapped={false} />
+            </mesh>
+            {s.kind !== "image" && (
+              <mesh position={[0, 0, 0.01]} userData={{ slot: s.slot }}>
+                <planeGeometry args={[SC.playIconM, SC.playIconM]} />
+                <meshBasicMaterial map={playIcon()} transparent opacity={SC.playIconOpacity} fog={false} toneMapped={false} depthWrite={false} />
+              </mesh>
+            )}
+          </group>
+        );
+      })}
+    </group>
+  );
+}
+
 /**
  * Pillars, light frames, slanted beams and a far ring of panels, all beyond the
  * camera radius and spread all the way round (the stage turns continuously, so
@@ -421,16 +560,20 @@ function Scenery() {
       neon(v(-s / 2, Y0, -s / 2 - 0.01), v(-s / 2, Y0 + h, -s / 2 - 0.01), 0.028, true, a, r);
       neon(v(s / 2, Y0, -s / 2 - 0.01), v(s / 2, Y0 + h * 0.72, -s / 2 - 0.01), 0.028, true, a, r);
     }
-    // Light frames: one every 45°
-    for (let i = 0; i < A.frames; i++) {
-      const a = (i / A.frames) * Math.PI * 2 + 0.4;
-      const r = A.minSceneryRadiusM + 1.8 + (i % 2) * 1.2;
-      const w = 2.2;
-      const h = 3.1;
-      neon(v(-w / 2, Y0), v(-w / 2, Y0 + h), 0.028, true, a, r);
-      neon(v(w / 2, Y0), v(w / 2, Y0 + h), 0.028, true, a, r);
-      neon(v(-w / 2, Y0 + h), v(w / 2, Y0 + h), 0.028, true, a, r);
-      neon(v(-w / 2 + 0.25, Y0 + h - 0.25), v(w / 2 - 0.25, Y0 + h - 0.25), 0.012, false, a, r);
+    // Screens (landscape neon frames; media inside, see <Screens/>)
+    const SC = A.screens;
+    for (let i = 0; i < SC.count; i++) {
+      const a = screenAngle(i);
+      const w = SC.widthM;
+      const y0 = Y0 + SC.bottomM;
+      const y1 = y0 + SC.heightM;
+      neon(v(-w / 2, y0), v(-w / 2, y1), 0.028, true, a, SC.radiusM);
+      neon(v(w / 2, y0), v(w / 2, y1), 0.028, true, a, SC.radiusM);
+      neon(v(-w / 2, y1), v(w / 2, y1), 0.028, true, a, SC.radiusM);
+      neon(v(-w / 2, y0), v(w / 2, y0), 0.028, true, a, SC.radiusM);
+      // legs down to the floor, so the screens stand like the old frames did
+      neon(v(-w / 2 + 0.2, Y0), v(-w / 2 + 0.2, y0), 0.012, false, a, SC.radiusM);
+      neon(v(w / 2 - 0.2, Y0), v(w / 2 - 0.2, y0), 0.012, false, a, SC.radiusM);
     }
     // Slanted beams leaning in toward the stage
     for (let i = 0; i < 8; i++) {
@@ -493,8 +636,10 @@ class ArenaBoundary extends Component<{ onFail: () => void; children: ReactNode 
   }
 }
 
+const NO_SCREENS: StageScreen[] = [];
+
 /** The 3D arena canvas. Purely decorative: no pointer events, aria-hidden. */
-export function StageArena3D({ handle, anchorRef, figureRef, onReady, onFail, platform, platformLocked = false }: Props) {
+export function StageArena3D({ handle, anchorRef, figureRef, onReady, onFail, platform, platformLocked = false, screens = NO_SCREENS, screensActive = false }: Props) {
   const coarse = typeof window !== "undefined" && window.matchMedia("(pointer: coarse)").matches;
   return (
     <ArenaBoundary onFail={onFail}>
@@ -516,6 +661,7 @@ export function StageArena3D({ handle, anchorRef, figureRef, onReady, onFail, pl
         <Floor platform={platform} />
         <Platform handle={handle} platform={platform} platformLocked={platformLocked} />
         <Scenery />
+        {screens.length > 0 && <Screens handle={handle} screens={screens} active={screensActive} />}
       </Canvas>
     </ArenaBoundary>
   );
