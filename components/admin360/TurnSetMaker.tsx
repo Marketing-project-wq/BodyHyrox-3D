@@ -118,7 +118,7 @@ export function TurnSetMaker({ athleteId, items, m }: { athleteId: string; items
           await createImageBitmap(blob).then((b) => b.close()); // e.g. HEIC outside Safari: skipped
           const cutout = await preparePhoto(blob, true, TURN_SET.cutoutMaxPx);
           const mm = await measureCutout(cutout);
-          cands.push(await keep({ id: `p:${p.id}`, source: "photo", sourceId: p.id, label: p.originalName, angle: angles[i], cutout, ...mm, standing: isStanding(mm.foot) }));
+          cands.push(await keep({ id: `p:${p.id}`, source: "photo", sourceId: p.id, label: p.originalName, angle: angles[i], cutout, ...mm, standing: isStanding(mm.foot, "photo") }));
         } catch {
           skipped.push(fmt(m.ts_skipped, { name: p.originalName }));
         }
@@ -169,7 +169,7 @@ export function TurnSetMaker({ athleteId, items, m }: { athleteId: string; items
                 angle: sampleAngle(i),
                 cutout,
                 ...mm,
-                standing: isStanding(mm.foot),
+                standing: isStanding(mm.foot, "video"),
               }),
             );
             setProgress({ done: n + 1, total: list.length });

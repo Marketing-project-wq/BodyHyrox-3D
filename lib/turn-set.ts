@@ -130,10 +130,10 @@ export async function measureCutout(cutout: Blob): Promise<{ foot: Foot | null; 
   }
 }
 
-export function isStanding(foot: Foot | null): boolean {
+export function isStanding(foot: Foot | null, source: Candidate["source"]): boolean {
   if (!foot || foot.top == null) return false;
   const h = foot.toe - foot.top;
-  return h > 0 && (foot.toe - foot.back) / h <= TURN_SET.standMaxSpread;
+  return h > 0 && (foot.toe - foot.back) / h <= TURN_SET.standMaxSpread[source];
 }
 
 const median = (a: number[]) => {
