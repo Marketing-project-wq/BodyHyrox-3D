@@ -462,3 +462,10 @@ body {
     rgba(0, 180, 255, 0.32) var(--bgl-period)
   );
 }
+
+/* Feet glow over the shoes (STAGE_FEET_BLEND): platform light rising from the
+   sole line, so the athlete reads as standing in the lit floor. */
+.stage-feet-glow {
+  background: radial-gradient(42% 50% at 50% 50%, rgba(0, 180, 255, var(--feet-glow, 0.4)), rgba(0, 180, 255, 0) 100%);
+  mix-blend-mode: screen;
+}

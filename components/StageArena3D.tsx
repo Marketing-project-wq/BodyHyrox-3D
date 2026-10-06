@@ -246,9 +246,9 @@ function useGlowTexture() {
     c.width = c.height = 128;
     const g = c.getContext("2d")!;
     const grd = g.createRadialGradient(64, 64, 0, 64, 64, 64);
-    grd.addColorStop(0, "rgba(0, 180, 255,0.9)");
-    grd.addColorStop(0.35, "rgba(0, 180, 255,0.35)");
-    grd.addColorStop(1, "rgba(0, 180, 255,0)");
+    grd.addColorStop(0, "rgba(0,180,255,0.9)");
+    grd.addColorStop(0.35, "rgba(0,180,255,0.35)");
+    grd.addColorStop(1, "rgba(0,180,255,0)");
     g.fillStyle = grd;
     g.fillRect(0, 0, 128, 128);
     const t = new THREE.CanvasTexture(c);

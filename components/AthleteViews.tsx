@@ -4,7 +4,7 @@ import { forwardRef, useCallback, useEffect, useImperativeHandle, useLayoutEffec
 import { useRouter } from "next/navigation";
 import type { Media360 } from "@/lib/data";
 import { VIEW_ANGLES, VIEW_KEYS, frameAngles } from "@/lib/views";
-import { STAGE_ARENA, STAGE_VIDEO_BUNDLED, VIEWER_360, VIEWER_360_FRAME_CLASS, VIEWER_SPIN, VIEWER_VIDEO, VIEWER_VIEWS, viewer360FrameStyle } from "@/lib/config";
+import { STAGE_ARENA, STAGE_FEET_BLEND, STAGE_VIDEO_BUNDLED, VIEWER_360, VIEWER_360_FRAME_CLASS, VIEWER_SPIN, VIEWER_VIDEO, VIEWER_VIEWS, viewer360FrameStyle } from "@/lib/config";
 import { alphaLooksRight, isHevc, parseStageVideo, sourceOrder, timeForAngle, videoAngle, type StageVideoSource } from "@/lib/stage-video";
 import { blendAmount, bracket, loadOrder, nearestSide, norm360 } from "@/lib/spin";
 import { contactsOf, footShift, mixContacts, parseVideoFeet, videoFootAt, type VideoFeet } from "@/lib/stage-feet";
@@ -50,6 +50,18 @@ type DragCallbacks = {
 type GroundHit = { inside: boolean; scale: number };
 
 /** Place a full-box .stage-shadow-t: centre (cx, cy) and size (w, h), as fractions of the box. */
+/**
+ * Feet blend: the photo fades out a little over the last STAGE_FEET_BLEND.fadePct
+ * above the sole line (VIEWER_360.feetLinePct), so the shoes melt into the lit
+ * platform instead of ending on a hard, floating-looking edge.
+ */
+const feetFadeMask = (() => {
+  const { fadePct, minOpacity } = STAGE_FEET_BLEND;
+  const sole = VIEWER_360.feetLinePct;
+  const g = `linear-gradient(to top, rgba(0,0,0,${minOpacity}) 0%, rgba(0,0,0,${minOpacity}) ${sole}%, #000 ${sole + fadePct}%)`;
+  return { maskImage: g, WebkitMaskImage: g } as React.CSSProperties;
+})();
+
 const shadowTransform = (cx: number, cy: number, w: number, h: number) =>
   `translate(${(cx * 100).toFixed(2)}%, ${(cy * 100).toFixed(2)}%) scale(${w.toFixed(4)}, ${h.toFixed(4)}) translate(-50%, -50%)`;
 
@@ -1233,7 +1245,7 @@ export const AthleteViews = forwardRef<
         ))}
       </div>
 
-      <div ref={stackRef} role="img" aria-label={describe(0)} className="absolute inset-0" style={{ transformOrigin: "50% 100%", isolation: "isolate" }}>
+      <div ref={stackRef} role="img" aria-label={describe(0)} className="absolute inset-0" style={{ transformOrigin: "50% 100%", isolation: "isolate", ...feetFadeMask }}>
         {[0, 1].map((k) => (
           <canvas
             key={k}
