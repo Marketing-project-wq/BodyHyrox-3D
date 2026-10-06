@@ -42,6 +42,7 @@ export const ERROR_CODES = [
   "source_invalid",
   "source_too_big",
   "source_limit",
+  "source_kind_mismatch",
 ] as const;
 export type ErrorCode = (typeof ERROR_CODES)[number];
 

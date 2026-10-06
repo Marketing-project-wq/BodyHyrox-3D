@@ -1,19 +1,19 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { Check, Eye, Film, ImageIcon, RotateCw, Trash2, UploadCloud, X } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Check, Eye, Film, ImageIcon, RefreshCw, RotateCw, Trash2, UploadCloud, X } from "lucide-react";
 import { MEDIA_SOURCES } from "@/lib/config";
 import { type Dict, errorMessage, fmt } from "@/lib/i18n";
 import { unwrap } from "@/lib/action-result";
-import { deleteSource, issueSourceUploads, listSources, recordSources, signSource } from "@/app/atlet/[id]/source-actions";
+import { deleteSource, issueSourceUploads, listSources, recordSources, replaceSource, signSource } from "@/app/atlet/[id]/source-actions";
 import { formatBytes, formatDuration, prepareSources, putSigned, type SourceItem } from "@/lib/media-sources";
 import { TurnSetMaker } from "@/components/admin360/TurnSetMaker";
 
-type Busy = { step: "prepare" | "upload"; done: number; total: number } | null;
+type Busy = { step: "prepare" | "upload" | "replace"; done: number; total: number; name?: string } | null;
 
 /**
  * "Bahan 360" (admin, every athlete): upload the original photos and videos,
- * see everything uploaded so far, view / play one, delete one. Files go
+ * see everything uploaded so far, view / play one, replace one, delete one. Files go
  * straight from the browser to a private bucket; the list lives in the DB.
  */
 export function MediaSources({ athleteId, m, onChange }: { athleteId: string; m: Dict; onChange?: (items: SourceItem[]) => void }) {
@@ -24,6 +24,10 @@ export function MediaSources({ athleteId, m, onChange }: { athleteId: string; m:
   const [busy, setBusy] = useState<Busy>(null);
   const [viewing, setViewing] = useState<{ item: SourceItem; url: string } | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [replaced, setReplaced] = useState<string | null>(null);
+  // One hidden file input for "Replace"; replaceTarget says which item it is for.
+  const replaceInput = useRef<HTMLInputElement>(null);
+  const replaceTarget = useRef<SourceItem | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -57,6 +61,7 @@ export function MediaSources({ athleteId, m, onChange }: { athleteId: string; m:
     setError(null);
     setNotes([]);
     setAdded(0);
+    setReplaced(null);
     try {
       setBusy({ step: "prepare", done: 0, total: files.length });
       const ok: Awaited<ReturnType<typeof prepareSources>>["ok"] = [];
@@ -105,6 +110,67 @@ export function MediaSources({ athleteId, m, onChange }: { athleteId: string; m:
       }
       unwrap(await recordSources(athleteId, done));
       setAdded(done.length);
+      await load();
+    } catch (e) {
+      setError(errorMessage(m, e));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  function startReplace(item: SourceItem) {
+    replaceTarget.current = item;
+    replaceInput.current?.click();
+  }
+
+  /** Swap one material for a new file of the same kind (same place, angle and id). */
+  async function onReplace(file: File | undefined) {
+    const item = replaceTarget.current;
+    replaceTarget.current = null;
+    if (!file || !item) return;
+    setError(null);
+    setNotes([]);
+    setAdded(0);
+    setReplaced(null);
+    const name = item.originalName || file.name;
+    try {
+      setBusy({ step: "replace", done: 0, total: 1, name });
+      const { ok, refused } = await prepareSources([file]);
+      if (refused.length) {
+        const r = refused[0];
+        setNotes([
+          r.reason === "type"
+            ? fmt(m.src_refused_type, { name: r.name })
+            : r.reason === "big"
+              ? fmt(m.src_refused_big, { name: r.name })
+              : fmt(m.src_refused_long, { name: r.name, s: MEDIA_SOURCES.maxVideoSec }),
+        ]);
+        return;
+      }
+      const p = ok[0];
+      if (p.kind !== item.kind) {
+        setError(m.err_source_kind_mismatch);
+        return;
+      }
+      const { slots } = unwrap(await issueSourceUploads(athleteId, [{ mime: p.mime, size: p.file.size, thumb: !!p.thumb }], { replace: true }));
+      const slot = slots[0];
+      if (!(await putSigned(slot.uploadUrl, p.file, p.mime))) throw new Error(m.err_upload_failed);
+      let thumb: string | null = null;
+      if (p.thumb && slot.thumb && slot.thumbUploadUrl && (await putSigned(slot.thumbUploadUrl, p.thumb, "image/webp"))) thumb = slot.thumb;
+      unwrap(
+        await replaceSource(athleteId, item.id, {
+          file: slot.file,
+          thumb,
+          originalName: p.file.name,
+          mime: p.mime,
+          size: p.file.size,
+          width: p.width,
+          height: p.height,
+          durationSec: p.durationSec,
+        }),
+      );
+      setBusy({ step: "replace", done: 1, total: 1, name });
+      setReplaced(p.file.name);
       await load();
     } catch (e) {
       setError(errorMessage(m, e));
@@ -192,11 +258,26 @@ export function MediaSources({ athleteId, m, onChange }: { athleteId: string; m:
         />
       </label>
 
+      <input
+        ref={replaceInput}
+        type="file"
+        accept={accept}
+        className="sr-only"
+        tabIndex={-1}
+        aria-hidden
+        onChange={(e) => {
+          onReplace(e.target.files?.[0]);
+          e.target.value = "";
+        }}
+      />
+
       {busy && (
         <div className="mt-3 flex flex-wrap items-center gap-3" role="status">
           <RotateCw className="h-4 w-4 animate-spin text-muted" aria-hidden />
           <span className="text-sm text-text">
-            {fmt(busy.step === "prepare" ? m.src_preparing : m.src_uploading, { done: busy.done, total: busy.total })}
+            {busy.step === "replace"
+              ? fmt(m.src_replacing, { name: busy.name ?? "" })
+              : fmt(busy.step === "prepare" ? m.src_preparing : m.src_uploading, { done: busy.done, total: busy.total })}
           </span>
           <div className="h-1.5 min-w-[8rem] flex-1 overflow-hidden rounded-full bg-surface-2">
             <div className="h-full rounded-full bg-accent transition-all" style={{ width: `${Math.round((busy.done / Math.max(1, busy.total)) * 100)}%` }} />
@@ -211,6 +292,12 @@ export function MediaSources({ athleteId, m, onChange }: { athleteId: string; m:
             <li key={n}>{n}</li>
           ))}
         </ul>
+      )}
+      {replaced && !busy && (
+        <p className="mt-3 flex items-center gap-1.5 rounded-lg bg-[#12b76a]/10 px-3 py-2 text-sm text-[#0f9d63]">
+          <Check className="h-4 w-4 shrink-0" aria-hidden />
+          {fmt(m.src_replaced, { name: replaced })}
+        </p>
       )}
       {added > 0 && !busy && (
         <p className="mt-3 flex items-center gap-1.5 rounded-lg bg-[#12b76a]/10 px-3 py-2 text-sm text-[#0f9d63]">
@@ -256,9 +343,9 @@ export function MediaSources({ athleteId, m, onChange }: { athleteId: string; m:
                   <span className="truncate text-[11px] text-faint">
                     {fmt(m.src_meta, { date: new Date(it.createdAt).toLocaleString(), by: it.uploadedByName ?? "—" })}
                   </span>
-                  <div className="mt-1 flex gap-1">
-                    <button type="button" onClick={() => view(it)} className="btn btn-ghost min-h-11 flex-1 px-2 text-xs">
-                      <Eye className="h-4 w-4" aria-hidden />
+                  <div className="mt-1 grid grid-cols-[1fr_auto] gap-1">
+                    <button type="button" onClick={() => view(it)} className="btn btn-ghost min-h-11 min-w-0 px-2 text-xs">
+                      <Eye className="h-4 w-4 shrink-0" aria-hidden />
                       {m.src_view}
                     </button>
                     <button
@@ -269,6 +356,16 @@ export function MediaSources({ athleteId, m, onChange }: { athleteId: string; m:
                       aria-label={`${m.src_delete}: ${it.originalName}`}
                     >
                       {deleting === it.id ? <RotateCw className="h-4 w-4 animate-spin" aria-hidden /> : <Trash2 className="h-4 w-4" aria-hidden />}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => startReplace(it)}
+                      disabled={deleting === it.id || !!busy}
+                      className="btn btn-ghost col-span-2 min-h-11 min-w-0 px-2 text-xs disabled:opacity-50"
+                      aria-label={`${m.src_replace}: ${it.originalName}`}
+                    >
+                      <RefreshCw className="h-4 w-4 shrink-0" aria-hidden />
+                      {m.src_replace}
                     </button>
                   </div>
                 </div>

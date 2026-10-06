@@ -120,6 +120,7 @@ export async function listSources(athleteId: string): Promise<ActionResult<{ ite
 export async function issueSourceUploads(
   athleteId: string,
   files: { mime: string; size: number; thumb: boolean }[],
+  opts?: { replace?: boolean },
 ): Promise<ActionResult<{ slots: SourceUploadSlot[] }>> {
   return run(async () => {
     await requireEditor();
@@ -130,7 +131,9 @@ export async function issueSourceUploads(
       .select("id", { count: "exact", head: true })
       .eq("athlete_id", athleteId);
     if (cErr) dbError(cErr);
-    if ((count ?? 0) + files.length > MEDIA_SOURCES.maxPerAthlete) fail("source_limit");
+    // A replacement swaps one file for another: the list doesn't grow.
+    if (!opts?.replace && (count ?? 0) + files.length > MEDIA_SOURCES.maxPerAthlete) fail("source_limit");
+    if (opts?.replace && files.length !== 1) fail("source_invalid");
     const bucket = db().storage.from(BUCKET);
     const base = supabaseUrl().replace(/\/$/, "");
     const abs = (u: string) => (u.startsWith("http") ? u : base + u);
@@ -264,6 +267,75 @@ export async function deleteSource(athleteId: string, id: string): Promise<Actio
     if (rmErr) dbError(rmErr);
     const { error: dErr } = await db().from("smb_athlete_media_sources").delete().eq("athlete_id", athleteId).eq("id", id);
     if (dErr) dbError(dErr);
+    return { ok: true };
+  });
+}
+
+/**
+ * Admin only. Replaces one material with a newly uploaded file of the same
+ * kind (photo for photo, video for video). The list entry keeps its id, its
+ * place (created_at, so the automatic turn order doesn't move) and its angle;
+ * the old file and preview are deleted afterwards. Turn sets already made keep
+ * their pictures until "Pick again" + Publish.
+ */
+export async function replaceSource(
+  athleteId: string,
+  id: string,
+  it: {
+    file: string;
+    thumb: string | null;
+    originalName: string;
+    mime: string;
+    size: number;
+    width: number | null;
+    height: number | null;
+    durationSec: number | null;
+  },
+): Promise<ActionResult> {
+  return run(async () => {
+    const s = await requireEditor();
+    checkAthlete(athleteId);
+    if (!UUID_RE.test(String(id))) fail("source_not_found");
+    const { data: old, error } = await db()
+      .from("smb_athlete_media_sources")
+      .select("kind,file,thumb")
+      .eq("athlete_id", athleteId)
+      .eq("id", id)
+      .maybeSingle<{ kind: SourceKind; file: string; thumb: string | null }>();
+    if (error) dbError(error);
+    if (!old) fail("source_not_found");
+    const kind = kindOf(String(it?.mime ?? ""));
+    if (!kind || kind !== old.kind) fail("source_kind_mismatch");
+    const { data: listed, error: lErr } = await db().storage.from(BUCKET).list(athleteId, { limit: 1000 });
+    if (lErr) dbError(lErr);
+    const present = new Set((listed ?? []).map((o) => o.name));
+    if (!NAME_RE.test(String(it.file)) || !present.has(it.file)) fail("source_invalid");
+    const thumb = it.thumb && THUMB_RE.test(it.thumb) && present.has(it.thumb) ? it.thumb : null;
+    const int = (v: unknown) => (Number.isFinite(Number(v)) && Number(v) > 0 ? Math.round(Number(v)) : null);
+    const { error: uErr } = await db()
+      .from("smb_athlete_media_sources")
+      .update({
+        file: `${athleteId}/${it.file}`,
+        thumb: thumb ? `${athleteId}/${thumb}` : null,
+        original_name: String(it.originalName ?? "").slice(0, 160),
+        mime: it.mime,
+        size_bytes: int(it.size),
+        width: int(it.width),
+        height: int(it.height),
+        duration_sec: kind === "video" && Number(it.durationSec) > 0 ? Math.round(Number(it.durationSec) * 100) / 100 : null,
+        uploaded_by: s.sub,
+        uploaded_by_name: s.nama,
+      })
+      .eq("athlete_id", athleteId)
+      .eq("id", id);
+    if (uErr) dbError(uErr);
+    // Old file + preview go only after the list points at the new ones; a
+    // failed removal leaves an unlisted file behind, never a broken entry.
+    const oldPaths = [old.file, old.thumb].filter((p): p is string => !!p && p.startsWith(`${athleteId}/`));
+    if (oldPaths.length) {
+      const { error: rmErr } = await db().storage.from(BUCKET).remove(oldPaths);
+      if (rmErr) console.error("replaceSource: old file not removed", rmErr.message);
+    }
     return { ok: true };
   });
 }

@@ -499,6 +499,9 @@ const en = {
   src_noPreview: "No preview",
   src_view: "View",
   src_delete: "Delete",
+  src_replace: "Replace",
+  src_replacing: "Replacing {name}…",
+  src_replaced: "{name} replaced. Use \"Pick again\" and Publish to put it in the turn.",
   src_deleteConfirm: "Delete {name}? Turn sets already made from it keep their pictures.",
   src_close: "Close",
   src_meta: "{date} · {by}",
@@ -758,6 +761,7 @@ const en = {
   err_source_invalid: "This file can't be stored.",
   err_source_too_big: "The file is too large.",
   err_source_limit: "This athlete already has the maximum number of materials. Delete some first.",
+  err_source_kind_mismatch: "Replace a photo with a photo, and a video with a video.",
   err_markers_lost: "Publishing would remove zone markers from the live page. Check the zone markers in the draft first, or confirm the removal.",
 } as const;
 
@@ -1245,6 +1249,9 @@ const id: Dict = {
   src_noPreview: "Tanpa pratinjau",
   src_view: "Lihat",
   src_delete: "Hapus",
+  src_replace: "Ganti",
+  src_replacing: "Mengganti {name}…",
+  src_replaced: "{name} sudah diganti. Klik \"Pilih ulang\" lalu Publish supaya masuk ke putaran.",
   src_deleteConfirm: "Hapus {name}? Set putaran yang sudah dibuat darinya tetap memakai gambarnya.",
   src_close: "Tutup",
   src_meta: "{date} · {by}",
@@ -1504,6 +1511,7 @@ const id: Dict = {
   err_source_invalid: "File ini tidak bisa disimpan.",
   err_source_too_big: "File terlalu besar.",
   err_source_limit: "Atlet ini sudah mencapai jumlah bahan maksimum. Hapus sebagian dulu.",
+  err_source_kind_mismatch: "Ganti foto dengan foto, dan video dengan video.",
   err_markers_lost: "Publish akan menghapus titik zona dari halaman live. Cek dulu titik zona di draft, atau konfirmasi penghapusannya.",
 };
 
