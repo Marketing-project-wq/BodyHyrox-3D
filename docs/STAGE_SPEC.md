@@ -6,7 +6,7 @@ Kalau kode, komentar, config, atau dokumen lain bertentangan dengan dokumen ini,
 yang benar. Kalau instruksi pemilik yang lebih baru bertentangan dengan dokumen ini, ikuti
 instruksi terbaru dan perbarui dokumen ini di PR yang sama.
 
-Terakhir diperbarui: 2026-10-06 (PR R1, tugas "rapikan"; keputusan pemilik 2026-10-06 tentang bahan foto dan logika putaran).
+Terakhir diperbarui: 2026-10-06 (setelah #121–#124: SQL S0 jalan, set putaran Calysta dari data tayang, baris tombol disembunyikan, tombol "Place Your Logo").
 
 ---
 
@@ -36,13 +36,16 @@ Terakhir diperbarui: 2026-10-06 (PR R1, tugas "rapikan"; keputusan pemilik 2026-
 4. **Mode putaran (`turntable`)** hanya aktif kalau **data atlet** punya set putaran (12–24
    foto, atau video). Video atau gambar yang ditanam di kode tidak boleh dipakai untuk
    mengaktifkan putaran.
-   - **Pengecualian sementara (keputusan 2026-10-06):** Calysta tetap memakai putaran yang
-     sekarang tayang (gambar tertanam, `STAGE_FRAMES_BUNDLED`) sampai diganti 12–24 foto lewat
-     data. Setelah itu gambar tertanam dihapus.
+   - Calysta sudah memakai set putaran dari data (18 foto, dipublish 2026-10-06). Gambar
+     tertanam (`STAGE_FRAMES_BUNDLED`, `calysta-turn-v2`) tidak dipakai lagi dan dijadwalkan
+     dihapus (R2).
 5. **Interaksi:**
-   - Tab, swipe, dan panah keyboard memutar ke sisi yang dipilih, lalu putaran lanjut sendiri
+   - **Baris tombol di bawah atlet** (‹ ⏸ Depan · Kanan · Belakang · Kiri ›) **disembunyikan**
+     (keputusan 2026-10-06, #123, `STAGE_VIEW_CONTROLS = false`). Tidak ada tombol Pause/Play.
+   - Swipe/drag dan panah keyboard memutar ke sisi yang dipilih, lalu putaran lanjut sendiri
      setelah jeda singkat.
-   - Pause menghentikan putaran sampai Play ditekan.
+   - **Tombol utama** di bawah panggung: EN "Place Your Logo" / ID "Pasang Logo di Sini" (#124),
+     menuju daftar zona (`#zona-sponsor`: zona tersedia, harga, tambah/ajukan).
    - Kartu zona menahan putaran selama terbuka.
    - Tab browser tidak aktif dan `prefers-reduced-motion`: putaran berhenti.
 6. **Platform dan tata letak:**
@@ -74,13 +77,13 @@ Jangan diikuti. Sisa kodenya adalah kandidat untuk dihapus (lihat bagian 7).
 
 ## 3. Keadaan sekarang vs target
 
-Keadaan main per 2026-10-06, deploy #114. Selisih dengan bagian 1 diselesaikan bertahap (R2,
+Keadaan main per 2026-10-06, deploy #124. Selisih dengan bagian 1 diselesaikan bertahap (R2,
 lalu set foto lewat data); jangan ditiru untuk atlet baru.
 
 | Hal | Sekarang di main | Target (bagian 1) | Status |
 |---|---|---|---|
-| Calysta | Mode putaran memakai 12 gambar yang **ditanam di kode** (`STAGE_FRAMES_BUNDLED`, `public/media/atlet-360/calysta-turn-v2`). Kanan/Belakang/Kiri berupa foto, pose ditahan, lalu fade 15% | 12–24 foto dari **data**, dengan logika yang sama | **Pengecualian sementara yang disetujui** (bagian 1.4). Diganti setelah set foto baru ada. [PR #115](https://github.com/Marketing-project-wq/BodyHyrox-3D/pull/115) (12 pose tanpa foto) masih terbuka; diusulkan ditutup |
-| Set foto putaran dari data | Studio sudah bisa menyimpan sampai 36 frame per atlet, tetapi data belum punya penanda "set putaran" dan `blendShare`. Mode putaran dari data hanya aktif untuk video | Set 12–24 foto di data otomatis mendapat mode putaran dengan logika tahan + crossfade | Pertanyaan terbuka (bagian 8), lalu R2/V4 |
+| Calysta | Set putaran **dari data**: 18 foto (0°–340°, tiap 20°), pose ditahan, fade 15%. Gambar tertanam `calysta-turn-v2` masih ada di kode tetapi tidak dipakai | Sama | Sesuai. Hapus gambar tertanam di R2 |
+| Set foto putaran dari data | Kolom `turn` (sudut + `blendShare`) ada sejak SQL S0. "Bahan 360" + "Buat set putaran" + Publish tayang (#118–#122) | Sama | Sesuai |
 | Atlet lain | Mode sementara (4 sisi, `autoSides`) | Sama sampai mereka punya video di data | Sesuai |
 | Pemilihan mode | Diputuskan di beberapa tempat (konstanta, `?stage=`, gambar tertanam, video tertanam/data, plus pemilihan video di `AthleteViews`) | Satu aturan berdasarkan data | R2 |
 | Platform di mode putaran | Ikut berputar bersama arena (`platformLocked` hanya di mode sementara) | Bagian 1.2: hanya pilar, frame, dan lantai yang berputar | Pertanyaan terbuka (bagian 8) |
@@ -97,16 +100,16 @@ Semua angka yang bisa disetel ada di `lib/config.ts`, bukan di komponen atau CSS
     `STAGE_STATIC.secPerTurn` (48 s) dan `direction`.
   - `autoSides: true`: foto berganti mengikuti orbit, dengan crossfade `autoFadeMs` yang
     berpusat di batas sisi (45°/135°/225°/315°).
-  - Tab, swipe, atau tombol memutar orbit ke sisi itu dalam `turnToSideMs`, lalu orbit lanjut
-    `resumeMs` kemudian.
+  - Swipe atau panah keyboard memutar orbit ke sisi itu dalam `turnToSideMs`, lalu orbit lanjut
+    `resumeMs` kemudian (tab disembunyikan, `STAGE_VIEW_CONTROLS`).
   - Hanya keempat foto sisi yang dimuat.
 - **`turntable`**: mode putaran pada bagian 1.2 dan 1.4.
   - Sudut atlet mengikuti sudut arena (`STAGE_ARENA.autoRotateSecPerTurn`, 60 s).
   - Kalau data punya video (`media.video`), videonya menjadi jam utama (`VIEWER_VIDEO`, VP9
     alpha / HEVC di Apple). Selain itu frame dipilih menurut sudut dan dibaurkan
-    (`VIEWER_SPIN.crossfadeShare`, atau `Media360.blendShare` untuk set yang menahan pose).
+    (`VIEWER_SPIN.crossfadeShare`, atau `turn.blendShare` untuk set putaran dari data).
   - Frame didekode sedikit demi sedikit (LRU per perangkat, `VIEWER_SPIN.cacheFrames`).
-  - **Aturan target:** hanya aktif kalau data atlet punya video (bagian 1.4).
+  - **Aturan target:** hanya aktif kalau data atlet punya set putaran (`turn`) atau video (bagian 1.4).
 
 ### Config utama (`lib/config.ts`)
 
@@ -123,6 +126,9 @@ Semua angka yang bisa disetel ada di `lib/config.ts`, bukan di komponen atau CSS
   macet, atau autoplay ditolak).
 - **`VIEWER_360`, `VIEWER_VIEWS`, `STAGE_READOUT`:** ukuran foto, garis kaki, dan readout.
 - **`STAGE_FIT`:** `enabled: false` (bagian 1.6).
+- **`STAGE_VIEW_CONTROLS`:** `false`, baris tombol di bawah atlet disembunyikan (bagian 1.5).
+- **`MEDIA_SOURCES`, `TURN_SET`:** batas upload "Bahan 360" dan aturan "Buat set putaran"
+  (jumlah pose, ketajaman, batas melangkah `standMaxSpread`: foto 0,2, video 0,06).
 - **`SPONSOR_360_UPLOAD`:** batas upload set 360 di studio admin (`maxFrames` 36, sampai SQL 72
   dijalankan).
 
@@ -135,11 +141,13 @@ Semua angka yang bisa disetel ada di `lib/config.ts`, bukan di komponen atau CSS
 
 ## 5. Alur admin untuk atlet baru (semua atlet)
 
-Berlaku untuk setiap atlet, termasuk yang ditambahkan lewat dashboard. Bagian 2–4 membutuhkan SQL S0
-([#117](https://github.com/Marketing-project-wq/BodyHyrox-3D/pull/117)) dan PR S1–S3
+Berlaku untuk setiap atlet, termasuk yang ditambahkan lewat dashboard. Sudah tayang: SQL S0
+(dijalankan 2026-10-06, file di
+[#121](https://github.com/Marketing-project-wq/BodyHyrox-3D/pull/121)) dan PR S1–S3
 ([#118](https://github.com/Marketing-project-wq/BodyHyrox-3D/pull/118),
 [#119](https://github.com/Marketing-project-wq/BodyHyrox-3D/pull/119),
-[#120](https://github.com/Marketing-project-wq/BodyHyrox-3D/pull/120)).
+[#120](https://github.com/Marketing-project-wq/BodyHyrox-3D/pull/120)). Pertama dipakai untuk
+Calysta (18 foto).
 
 1. **Admin → Atlet → Tambah:** isi profil atlet.
 2. **Bahan 360:** upload foto (idealnya 12–24, dari sudut yang berbeda mengelilingi atlet,
@@ -153,7 +161,9 @@ Berlaku untuk setiap atlet, termasuk yang ditambahkan lewat dashboard. Bagian 2�
    - Jumlah pose: tanpa video = jumlah foto yang bagus (12–24); dengan video = 24 sudut rata
      (foto mengisi sudut terdekatnya, video mengisi sisanya).
    - Pose dinilai dari ketajaman, resolusi, dan selisih sudut. Pose yang melangkah, kakinya
-     tidak terdeteksi, atau warnanya beda dari set ditandai ⚠️.
+     tidak terdeteksi, atau warnanya beda dari set ditandai ⚠️ (hanya peringatan). Batas
+     melangkah untuk foto lebih longgar (#122), karena dari samping kaki belakang tampak lebih
+     tinggi.
    - Ganti pose per sudut kalau perlu, lalu **Simpan ke draft** (pose dikunci di garis telapak,
      tinggi, dan tengah yang sama, 714×1680).
 4. **Studio 360:** cek putaran, sisi Depan/Kanan/Belakang/Kiri, dan titik zona di draft.
@@ -187,14 +197,12 @@ sudut. Script tidak bisa menghilangkannya; rekam ulang di meja putar.
   default, keputusan resmi pemilik belum ada.
 - **R2:** rapikan kode (lihat audit). **R3:** GitHub, Railway, dan Supabase. Keduanya menunggu
   approval.
-- **Set putaran lewat data untuk semua atlet** (S0–S3, #117–#120): menunggu SQL S0 dan approval.
-  Setelah set Calysta sendiri tayang, `STAGE_FRAMES_BUNDLED` dan folder `calysta-turn-*`
-  dihapus.
-- **[PR #115](https://github.com/Marketing-project-wq/BodyHyrox-3D/pull/115):** terbuka.
-  Pemilik memilih tetap memakai yang tayang sekarang, jadi diusulkan ditutup (menunggu
-  konfirmasi).
-- **Sudah selesai** (catatan riwayat): F1 #104 (kaki dan bayangan napak), `autoSides` #107, dan
-  perbaikan script terakhir #108–#110.
+- **Hapus gambar tertanam Calysta** (`STAGE_FRAMES_BUNDLED`, folder `calysta-turn-*`): set
+  dari data sudah tayang, jadi bisa dihapus di R2 (menunggu approval).
+- PR #115 dan #117 ditutup (2026-10-06).
+- **Sudah selesai** (catatan riwayat): F1 #104 (kaki dan bayangan napak), `autoSides` #107,
+  perbaikan script #108–#110, set putaran lewat data S0–S3 (#118–#122), baris tombol
+  disembunyikan #123, tombol "Place Your Logo" #124.
 
 ## 8. Pertanyaan terbuka
 
