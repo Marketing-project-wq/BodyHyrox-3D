@@ -37,6 +37,11 @@ export const ERROR_CODES = [
   "upload_failed",
   "bg_model_failed",
   "markers_lost",
+  "sources_not_ready",
+  "source_not_found",
+  "source_invalid",
+  "source_too_big",
+  "source_limit",
 ] as const;
 export type ErrorCode = (typeof ERROR_CODES)[number];
 
