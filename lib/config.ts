@@ -310,6 +310,14 @@ export const STAGE_TURN_FRAMES_AUTO = true;
  */
 export const STAGE_VIEW_CONTROLS = false;
 /**
+ * "Place Your Logo" button on the stage: it sits over the athlete's shoes.
+ * liftPct: its centre above the feet line (VIEWER_360.feetLinePct), in % of
+ * the frame height (about the middle of the shoes). heightPct: its height in
+ * % of the frame height (the shoes are ~10% tall), never below minHeightPx
+ * (touch target).
+ */
+export const STAGE_CTA = { liftPct: 4.8, heightPct: 10.5, minHeightPx: 44 };
+/**
  * Picture turns shipped with the site (public/media/...), per athlete id,
  * shown instead of the data's frames until that athlete's own turn set is
  * published (a turn set in the data always wins; then remove the entry): `count`

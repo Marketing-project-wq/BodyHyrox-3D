@@ -40,8 +40,10 @@ landscape**. Treat these as requirements, not nice-to-haves.
 - Tunable numbers (sizes, offsets, speeds, thresholds) live in `lib/config.ts`,
   never inline in components or CSS.
 - No horizontal page scroll at any width down to 320px.
-- Keep the stage card's view tabs and the "Place Your Logo" button clear of the
-  athlete, the platform and the zone markers at every size.
+- Keep the stage card's view tabs clear of the athlete, the platform and the
+  zone markers at every size. Exception (owner, 2026-10-06): the "Place Your
+  Logo" button sits over the athlete's shoes (anchored to the feet line,
+  `STAGE_CTA`); zone markers stay above it and must stay tappable.
 
 ### Touch and input
 - Use Pointer Events rather than mouse-only events.
