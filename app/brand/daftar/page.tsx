@@ -10,7 +10,7 @@ import { brandRegister } from "@/app/brand/actions";
 export const dynamic = "force-dynamic";
 
 const field =
-  "mt-1 w-full rounded-lg border border-white/15 bg-white/5 px-3 py-2.5 text-sm text-white outline-none transition-colors focus:border-[#ff3b57]";
+  "mt-1 w-full rounded-lg border border-white/15 bg-white/5 px-3 py-2.5 text-sm text-white outline-none transition-colors focus:border-[#00b4ff]";
 
 export default function BrandRegisterPage({
   searchParams,
@@ -64,13 +64,13 @@ export default function BrandRegisterPage({
             <label className="text-xs text-white/50">{m.br_password}</label>
             <input name="password" type="password" required minLength={6} className={field} />
           </div>
-          <button className="mt-1 rounded-lg bg-[#ff3b57] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#e42e48]">
+          <button className="mt-1 rounded-lg bg-[#00b4ff] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#0093d1]">
             {m.br_signup}
           </button>
         </form>
         <Link
           href={`/brand/masuk?next=${encodeURIComponent(next)}`}
-          className="mt-5 inline-block text-sm text-[#ff3b57] hover:underline"
+          className="mt-5 inline-block text-sm text-[#00b4ff] hover:underline"
         >
           {m.br_toLogin}
         </Link>

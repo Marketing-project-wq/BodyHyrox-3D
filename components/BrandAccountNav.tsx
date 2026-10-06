@@ -23,7 +23,7 @@ export function BrandAccountNav({
     >
       {label}
       {badge != null && badge > 0 && (
-        <span className="ml-1.5 rounded-full bg-[#ff3b57] px-1.5 py-0.5 text-[10px] font-semibold text-white">
+        <span className="ml-1.5 rounded-full bg-[#00b4ff] px-1.5 py-0.5 text-[10px] font-semibold text-white">
           {badge}
         </span>
       )}

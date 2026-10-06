@@ -12,7 +12,7 @@ import { cartAdd } from "@/app/brand/actions";
 export const dynamic = "force-dynamic";
 
 const field =
-  "mt-1 w-full rounded-lg border border-white/15 bg-white/5 px-3 py-2.5 text-sm text-white outline-none transition-colors focus:border-[#ff3b57]";
+  "mt-1 w-full rounded-lg border border-white/15 bg-white/5 px-3 py-2.5 text-sm text-white outline-none transition-colors focus:border-[#00b4ff]";
 
 export default async function TambahKeranjangPage({
   params,
@@ -42,7 +42,7 @@ export default async function TambahKeranjangPage({
     return wrap(
       <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6 text-center">
         <p className="text-sm text-white/70">{m.aj_err_zone_unavailable}</p>
-        <Link href={`/atlet/${a.id}`} className="mt-4 inline-block text-sm text-[#ff3b57] hover:underline">
+        <Link href={`/atlet/${a.id}`} className="mt-4 inline-block text-sm text-[#00b4ff] hover:underline">
           {m.aj_back_athlete}
         </Link>
       </div>,
@@ -76,7 +76,7 @@ export default async function TambahKeranjangPage({
           <textarea name="note" rows={3} placeholder={m.aj_note_ph} className={field} />
         </div>
         <div className="flex items-center gap-3">
-          <button className="rounded-lg bg-[#ff3b57] px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#e42e48]">
+          <button className="rounded-lg bg-[#00b4ff] px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#0093d1]">
             {m.cart_add}
           </button>
           <Link href="/brand/keranjang" className="text-sm text-white/60 hover:text-white">

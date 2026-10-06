@@ -246,9 +246,9 @@ function useGlowTexture() {
     c.width = c.height = 128;
     const g = c.getContext("2d")!;
     const grd = g.createRadialGradient(64, 64, 0, 64, 64, 64);
-    grd.addColorStop(0, "rgba(255,45,85,0.9)");
-    grd.addColorStop(0.35, "rgba(255,45,85,0.35)");
-    grd.addColorStop(1, "rgba(255,45,85,0)");
+    grd.addColorStop(0, "rgba(0, 180, 255,0.9)");
+    grd.addColorStop(0.35, "rgba(0, 180, 255,0.35)");
+    grd.addColorStop(1, "rgba(0, 180, 255,0)");
     g.fillStyle = grd;
     g.fillRect(0, 0, 128, 128);
     const t = new THREE.CanvasTexture(c);
@@ -283,7 +283,7 @@ function Platform({ handle, platform, platformLocked }: Pick<Props, "handle" | "
       {/* Body + top face (hexagon: 6 radial segments; round: many) */}
       <mesh position={[0, -0.05, 0]}>
         <cylinderGeometry args={[R, R * 1.05, 0.1, n]} />
-        <meshBasicMaterial color="#1c0c11" />
+        <meshBasicMaterial color="#0b1218" />
       </mesh>
       <mesh position={[0, 0.001, 0]} rotation={[-Math.PI / 2, 0, 0]}>
         <circleGeometry args={[R * 0.97, n, Math.PI / 2]} />
@@ -362,7 +362,7 @@ function Floor({ platform }: Pick<Props, "platform">) {
     <group>
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.1, 0]}>
         <circleGeometry args={[30, 48]} />
-        <meshBasicMaterial color="#0b0708" />
+        <meshBasicMaterial color="#06090c" />
       </mesh>
       <lineSegments geometry={lines}>
         <lineBasicMaterial color={A.color} transparent opacity={0.3} toneMapped={false} />
@@ -461,7 +461,7 @@ function Scenery() {
   return (
     <group>
       <mesh geometry={geos.bodies}>
-        <meshBasicMaterial color="#150a0d" />
+        <meshBasicMaterial color="#0a1016" />
       </mesh>
       <mesh geometry={geos.cores}>
         <meshBasicMaterial color={A.color} toneMapped={false} />

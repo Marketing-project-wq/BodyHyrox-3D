@@ -14,7 +14,7 @@
   --text: #141414;
   --muted: #6b6b70;
   --faint: #9a9aa0;
-  --accent: #e8112d;
+  --accent: #00b4ff;
   --green: #12965a;
   --amber: #b7791f;
 }
@@ -83,7 +83,7 @@ body {
     @apply rounded-card border border-border bg-surface shadow-card;
   }
 
-  /* Section title with a thin red accent bar */
+  /* Section title with a thin accent bar */
   .section-title {
     @apply relative pl-2.5 font-sans text-[13px] font-semibold uppercase tracking-wide text-text;
   }
@@ -117,7 +117,7 @@ body {
     @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-lg px-3.5 py-2 text-sm font-medium transition-colors;
   }
   .btn-primary {
-    @apply bg-accent text-white hover:bg-[#c60f27];
+    @apply bg-accent text-white hover:bg-[#0093d1];
   }
   .btn-ghost {
     @apply border border-border bg-surface text-text hover:bg-surface-2;
@@ -175,7 +175,7 @@ body {
   background: linear-gradient(
     180deg,
     rgba(255, 255, 255, 0.12),
-    rgba(255, 45, 85, 0.06) 58%,
+    rgba(0, 180, 255, 0.06) 58%,
     transparent 100%
   );
   clip-path: polygon(43% 0, 57% 0, 92% 100%, 8% 100%);
@@ -222,17 +222,17 @@ body {
   width: min(74cqw, 760px);
   aspect-ratio: 1 / var(--stage-tilt, 0.14);
   height: auto;
-  border: 1px solid rgba(255, 45, 85, 0.16);
+  border: 1px solid rgba(0, 180, 255, 0.16);
 }
 .stagecard-ring {
   width: min(34vw, 430px);
   width: min(46cqw, 430px);
   aspect-ratio: 1 / var(--stage-tilt, 0.14);
   height: auto;
-  border: 2px solid rgba(255, 45, 85, 0.92);
+  border: 2px solid rgba(0, 180, 255, 0.92);
   box-shadow:
-    0 0 26px 2px rgba(255, 45, 85, 0.5),
-    inset 0 0 22px rgba(255, 45, 85, 0.35);
+    0 0 26px 2px rgba(0, 180, 255, 0.5),
+    inset 0 0 22px rgba(0, 180, 255, 0.35);
 }
 .stagecard-ring-ticks {
   position: absolute;
@@ -250,13 +250,13 @@ body {
   mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.35), #000 70%);
 }
 .stagecard-tick {
-  stroke: rgba(255, 120, 140, 0.55);
+  stroke: rgba(110, 210, 255, 0.55);
   stroke-width: 1.5px;
 }
 .stagecard-tick-major {
-  stroke: rgba(255, 210, 220, 0.95);
+  stroke: rgba(205, 238, 255, 0.95);
   stroke-width: 2.5px;
-  filter: drop-shadow(0 0 3px rgba(255, 45, 85, 0.9));
+  filter: drop-shadow(0 0 3px rgba(0, 180, 255, 0.9));
 }
 /* Sole/pool shadows on the athlete stage: fixed full-box size, placed and
    sized with transform only (no layout per frame). JS sets
@@ -410,11 +410,11 @@ body {
 }
 /* Darkens the arena behind the stats column (left on desktop, top on phones). */
 .stagecard-arena-shade {
-  background: linear-gradient(180deg, rgba(13, 8, 9, 0.9) 0%, rgba(13, 8, 9, 0.55) 22%, transparent 42%);
+  background: linear-gradient(180deg, rgba(7, 10, 13, 0.9) 0%, rgba(7, 10, 13, 0.55) 22%, transparent 42%);
 }
 @media (min-width: 1024px) {
   .stagecard-arena-shade {
-    background: linear-gradient(90deg, rgba(13, 8, 9, 0.92) 0%, rgba(13, 8, 9, 0.6) 26%, transparent 46%);
+    background: linear-gradient(90deg, rgba(7, 10, 13, 0.92) 0%, rgba(7, 10, 13, 0.6) 26%, transparent 46%);
   }
 }
 .stagecard-floorglow {
@@ -424,8 +424,8 @@ body {
   height: auto;
   background: radial-gradient(
     50% 62% at 50% 50%,
-    rgba(255, 45, 85, 0.6),
-    rgba(255, 45, 85, 0.16) 48%,
+    rgba(0, 180, 255, 0.6),
+    rgba(0, 180, 255, 0.16) 48%,
     transparent 74%
   );
 }
@@ -458,7 +458,7 @@ body {
     90deg,
     transparent 0,
     transparent calc(var(--bgl-period) - 2px),
-    rgba(255, 45, 85, 0.32) calc(var(--bgl-period) - 2px),
-    rgba(255, 45, 85, 0.32) var(--bgl-period)
+    rgba(0, 180, 255, 0.32) calc(var(--bgl-period) - 2px),
+    rgba(0, 180, 255, 0.32) var(--bgl-period)
   );
 }

@@ -497,7 +497,7 @@ export const AthleteViews = forwardRef<
         const gy = (line * box.height + S.footOverlapPx).toFixed(1);
         dbg.innerHTML =
           (pts ? `<polygon points="${pts}" fill="rgba(0,255,255,0.12)" stroke="#22d3ee" stroke-width="2"/>` : "") +
-          `<line x1="-40" x2="${box.width + 40}" y1="${gy}" y2="${gy}" stroke="#ff2d55" stroke-dasharray="6 4"/>` +
+          `<line x1="-40" x2="${box.width + 40}" y1="${gy}" y2="${gy}" stroke="#00b4ff" stroke-dasharray="6 4"/>` +
           contacts
             .map((c) => {
               const x = (c.cx - box.left).toFixed(1);
@@ -1168,7 +1168,7 @@ export const AthleteViews = forwardRef<
   return (
     <div
       ref={rootRef}
-      className={`relative mx-auto select-none outline-none focus-visible:ring-2 focus-visible:ring-[#ff2d55]/70 ${VIEWER_360_FRAME_CLASS}`}
+      className={`relative mx-auto select-none outline-none focus-visible:ring-2 focus-visible:ring-[#00b4ff]/70 ${VIEWER_360_FRAME_CLASS}`}
       style={{ ...viewer360FrameStyle(), touchAction: "pan-y", overscrollBehaviorX: "contain" }}
       tabIndex={0}
       role="group"
@@ -1314,7 +1314,7 @@ export const AthleteViews = forwardRef<
               >
                 <span
                   className={`block h-3.5 w-3.5 rounded-full border-2 border-white shadow ${
-                    taken ? "bg-white/40" : "bg-[#ff3b57]"
+                    taken ? "bg-white/40" : "bg-[#00b4ff]"
                   } ${canApply ? "cursor-pointer" : "cursor-default"}`}
                 />
                 {hoverZone === h.label + frameNo && !card && (
@@ -1335,7 +1335,7 @@ export const AthleteViews = forwardRef<
           role="dialog"
           aria-label={cardZone.zoneNama ?? cardZone.label}
           onPointerDown={(e) => e.stopPropagation()}
-          className="absolute z-40 w-[min(15rem,calc(100vw-2rem))] rounded-xl border border-white/15 bg-[#140a0d]/95 p-3 text-white shadow-2xl"
+          className="absolute z-40 w-[min(15rem,calc(100vw-2rem))] rounded-xl border border-white/15 bg-[#09111a]/95 p-3 text-white shadow-2xl"
           style={{ left: 0, top: 0, visibility: "hidden" }}
         >
           <div className="flex items-start justify-between gap-2">
@@ -1362,7 +1362,7 @@ export const AthleteViews = forwardRef<
             <button
               type="button"
               onClick={() => router.push(`/atlet/${athleteId}/ajukan?zone=${cardZone.athleteZoneId}`)}
-              className="mt-2 flex min-h-11 w-full items-center justify-center rounded-full bg-[#ff2d55] px-4 text-sm font-semibold text-white"
+              className="mt-2 flex min-h-11 w-full items-center justify-center rounded-full bg-[#00b4ff] px-4 text-sm font-semibold text-white"
             >
               {m.v360_apply_zone}
             </button>

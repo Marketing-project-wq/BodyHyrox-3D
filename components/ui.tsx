@@ -185,16 +185,16 @@ export function RevenueChart({
       <svg viewBox={`0 0 ${W} ${H}`} className="w-full flex-1 min-h-0" preserveAspectRatio="none">
         <defs>
           <linearGradient id="smb-area" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#e8112d" stopOpacity="0.18" />
-            <stop offset="100%" stopColor="#e8112d" stopOpacity="0" />
+            <stop offset="0%" stopColor="#00b4ff" stopOpacity="0.18" />
+            <stop offset="100%" stopColor="#00b4ff" stopOpacity="0" />
           </linearGradient>
         </defs>
         {grid.map((gy, i) => (
           <line key={i} x1="0" y1={gy} x2={W} y2={gy} stroke="#e6e6e8" strokeWidth="1" />
         ))}
         <path d={area} fill="url(#smb-area)" />
-        <path d={line} fill="none" stroke="#e8112d" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />
-        <circle cx={last.x} cy={last.y} r="4.5" fill="#e8112d" stroke="#ffffff" strokeWidth="2.5" />
+        <path d={line} fill="none" stroke="#00b4ff" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />
+        <circle cx={last.x} cy={last.y} r="4.5" fill="#00b4ff" stroke="#ffffff" strokeWidth="2.5" />
       </svg>
       <div className="mt-1.5 flex shrink-0 justify-between px-1">
         {points.map((p, i) => (

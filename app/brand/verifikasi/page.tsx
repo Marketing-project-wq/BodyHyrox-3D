@@ -11,7 +11,7 @@ import { resendVerification } from "@/app/brand/actions";
 export const dynamic = "force-dynamic";
 
 const field =
-  "mt-1 w-full rounded-lg border border-white/15 bg-white/5 px-3 py-2.5 text-sm text-white outline-none transition-colors focus:border-[#ff3b57]";
+  "mt-1 w-full rounded-lg border border-white/15 bg-white/5 px-3 py-2.5 text-sm text-white outline-none transition-colors focus:border-[#00b4ff]";
 const card = "mt-6 rounded-2xl border border-white/10 bg-white/[0.03] p-6";
 
 export default async function VerifikasiPage({
@@ -47,7 +47,7 @@ export default async function VerifikasiPage({
         <p className="mt-2 text-sm text-white/60">{m.ver_ok_body}</p>
         <Link
           href="/brand/masuk"
-          className="mt-5 inline-block rounded-lg bg-[#ff3b57] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#e42e48]"
+          className="mt-5 inline-block rounded-lg bg-[#00b4ff] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#0093d1]"
         >
           {m.ver_signin}
         </Link>
@@ -62,7 +62,7 @@ export default async function VerifikasiPage({
         <form action={resendVerification} className="mt-5 flex flex-col gap-3">
           <input name="email" type="email" required defaultValue={email} placeholder={m.br_email} className={field} />
           <input type="hidden" name="next" value={next} />
-          <button className="rounded-lg bg-[#ff3b57] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#e42e48]">
+          <button className="rounded-lg bg-[#00b4ff] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#0093d1]">
             {m.ver_resend}
           </button>
         </form>
@@ -90,7 +90,7 @@ export default async function VerifikasiPage({
           </form>
         </div>
       )}
-      <Link href="/brand/masuk" className="mt-5 inline-block text-sm text-[#ff3b57] hover:underline">
+      <Link href="/brand/masuk" className="mt-5 inline-block text-sm text-[#00b4ff] hover:underline">
         {m.ver_back_login}
       </Link>
     </>,

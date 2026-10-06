@@ -459,8 +459,8 @@ export const VIEWER_VIDEO = {
 export const STAGE_VIDEO_BUNDLED: Record<string, { baseUrl: string; video: unknown }> = {};
 
 export const STAGE_ARENA = {
-  color: "#ff2d55",
-  background: "#0d0809",
+  color: "#00b4ff",
+  background: "#070a0d",
   /** Fog start/end (m from camera): far scenery fades into the background. */
   fogNear: 6,
   fogFar: 17,
@@ -491,8 +491,8 @@ export const STAGE_ARENA = {
    * backdrop (that contrast is what makes the athlete read as standing on it).
    * poolRadius is a share of the platform radius; poolOpacity 0..1.
    */
-  topFaceColor: "#3a1520",
-  poolColor: "#ffd0da",
+  topFaceColor: "#12324a",
+  poolColor: "#cdeeff",
   poolRadius: 0.5,
   poolOpacity: 0.65,
   minSceneryRadiusM: 6,

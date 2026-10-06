@@ -60,8 +60,10 @@ Terakhir diperbarui: 2026-10-06 (setelah #121–#124: SQL S0 jalan, set putaran 
    - Pengaman Publish (PR 0, #91) aktif.
    - Sisi viewer dan titik zona disimpan lewat draft (PR 7, #87).
    - SQL "video + 72" **belum dijalankan**. Pihak pemilik yang menjalankannya.
-9. Berlaku untuk **semua atlet**, sekarang dan yang akan ditambahkan lewat dashboard.
-10. **Verifikasi:** daftar perangkat di "Verify before shipping" `CLAUDE.md`.
+9. **Warna (keputusan 2026-10-06):** biru cyan `#00B4FF` (hover `#0093D1`), putih, dan hitam
+   di seluruh situs (panggung, platform, arena 3D, tombol, admin). Pesan error tetap merah.
+10. Berlaku untuk **semua atlet**, sekarang dan yang akan ditambahkan lewat dashboard.
+11. **Verifikasi:** daftar perangkat di "Verify before shipping" `CLAUDE.md`.
 
 ## 2. Sudah tidak berlaku
 

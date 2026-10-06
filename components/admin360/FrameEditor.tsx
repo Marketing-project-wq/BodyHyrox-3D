@@ -241,7 +241,7 @@ export function FrameEditor({
           step={step}
           value={value}
           onChange={(e) => onV(Number(e.target.value))}
-          className="h-8 w-full accent-red-600"
+          className="h-8 w-full accent-sky-500"
         />
         <input
           type="number"
@@ -305,7 +305,7 @@ export function FrameEditor({
             {slider(m.st_scale, t.s, 0.8, 1.2, 0.001, (v) => set({ s: v }), (v) => `${pct(v).toFixed(1)}%`, pct, unpct)}
 
             <label className="flex min-h-11 items-start gap-2 py-3 text-sm">
-              <input type="checkbox" className="mt-0.5 accent-red-600" checked={t.lock !== false} onChange={(e) => set({ lock: e.target.checked ? undefined : false })} />
+              <input type="checkbox" className="mt-0.5 accent-sky-500" checked={t.lock !== false} onChange={(e) => set({ lock: e.target.checked ? undefined : false })} />
               <span>
                 {m.st_lockFeet}
                 <span className="block text-xs text-faint">{m.st_lockFeetHint}</span>
@@ -339,7 +339,7 @@ export function FrameEditor({
                     </span>
                     <span className="flex items-center gap-2">
                       <label className="flex min-h-11 items-center gap-1.5 text-xs">
-                        <input type="checkbox" className="accent-red-600" checked={soleLifted(s)} onChange={(e) => toggleLifted(k, e.target.checked)} />
+                        <input type="checkbox" className="accent-sky-500" checked={soleLifted(s)} onChange={(e) => toggleLifted(k, e.target.checked)} />
                         {m.st_lifted}
                       </label>
                       {soles.length > 1 && (
@@ -367,18 +367,18 @@ export function FrameEditor({
 
             <div className="flex flex-col gap-2 border-t border-border pt-3 text-sm">
               <label className="flex min-h-11 items-center gap-2">
-                <input type="checkbox" className="accent-red-600" checked={onion} onChange={(e) => setOnion(e.target.checked)} />
+                <input type="checkbox" className="accent-sky-500" checked={onion} onChange={(e) => setOnion(e.target.checked)} />
                 <Layers className="h-4 w-4 text-muted" /> {m.st_onion}
               </label>
               {onion && (
-                <input type="range" min={0.1} max={0.8} step={0.05} value={onionOpacity} onChange={(e) => setOnionOpacity(Number(e.target.value))} className="accent-red-600" aria-label={m.st_onionOpacity} />
+                <input type="range" min={0.1} max={0.8} step={0.05} value={onionOpacity} onChange={(e) => setOnionOpacity(Number(e.target.value))} className="accent-sky-500" aria-label={m.st_onionOpacity} />
               )}
               <label className="flex min-h-11 items-center gap-2">
-                <input type="checkbox" className="accent-red-600" checked={guides} onChange={(e) => setGuides(e.target.checked)} />
+                <input type="checkbox" className="accent-sky-500" checked={guides} onChange={(e) => setGuides(e.target.checked)} />
                 <Ruler className="h-4 w-4 text-muted" /> {m.st_guides}
               </label>
               <label className="flex min-h-11 items-center gap-2">
-                <input type="checkbox" className="accent-red-600" checked={raw} onChange={(e) => setRaw(e.target.checked)} />
+                <input type="checkbox" className="accent-sky-500" checked={raw} onChange={(e) => setRaw(e.target.checked)} />
                 {m.st_showOriginal}
               </label>
               <p className="text-xs text-faint">{m.st_guidesLegend}</p>

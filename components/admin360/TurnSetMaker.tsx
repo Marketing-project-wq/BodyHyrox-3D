@@ -374,7 +374,7 @@ export function TurnSetMaker({ athleteId, items, m }: { athleteId: string; items
                     type="button"
                     onClick={() => setOpen(open === si ? null : si)}
                     disabled={busy || s.options.length < 2}
-                    className={`relative flex aspect-[3/5] w-full items-end justify-center overflow-hidden rounded-lg border bg-[#170a0d] ${open === si ? "border-accent" : "border-border"} disabled:cursor-default`}
+                    className={`relative flex aspect-[3/5] w-full items-end justify-center overflow-hidden rounded-lg border bg-[#0a1118] ${open === si ? "border-accent" : "border-border"} disabled:cursor-default`}
                     aria-label={`${angleLabel(s.angle)}: ${o.c.label}`}
                     aria-expanded={open === si}
                   >
@@ -407,7 +407,7 @@ export function TurnSetMaker({ athleteId, items, m }: { athleteId: string; items
                         setSlots((all) => all.map((x, i) => (i === open ? { ...x, pick: oi } : x)));
                         if (phase === "saved") setPhase("ready");
                       }}
-                      className={`relative flex aspect-[3/5] w-full items-end justify-center overflow-hidden rounded-lg border bg-[#170a0d] ${slots[open].pick === oi ? "border-accent ring-2 ring-accent" : "border-border"}`}
+                      className={`relative flex aspect-[3/5] w-full items-end justify-center overflow-hidden rounded-lg border bg-[#0a1118] ${slots[open].pick === oi ? "border-accent ring-2 ring-accent" : "border-border"}`}
                       aria-pressed={slots[open].pick === oi}
                       aria-label={o.c.label}
                     >

@@ -150,7 +150,7 @@ export function AthleteZonesPlacer({
                 >
                   <span
                     className={`block h-3.5 w-3.5 rounded-full border-2 border-white shadow ${
-                      active ? "bg-[#ff2d55] ring-2 ring-[#ff2d55]/40" : "bg-[#ff2d55]/70"
+                      active ? "bg-[#00b4ff] ring-2 ring-[#00b4ff]/40" : "bg-[#00b4ff]/70"
                     }`}
                   />
                   <span className="pointer-events-none absolute left-1/2 top-[calc(50%+0.625rem)] -translate-x-1/2 whitespace-nowrap rounded bg-black/80 px-1.5 py-0.5 text-[9px] text-white">
@@ -177,7 +177,7 @@ export function AthleteZonesPlacer({
                 }`}
               >
                 <button type="button" onClick={() => setSelected(id)} className="flex min-h-11 flex-1 items-center gap-2 text-left text-text">
-                  <span className={`h-2 w-2 rounded-full ${here ? "bg-[#ff2d55]" : "bg-border"}`} />
+                  <span className={`h-2 w-2 rounded-full ${here ? "bg-[#00b4ff]" : "bg-border"}`} />
                   {z.nama}
                 </button>
                 {here && (
