@@ -33,11 +33,11 @@ landscape**. Treat these as requirements, not nice-to-haves.
   bars change the viewport height).
 - Respect iOS safe areas: `viewport-fit=cover` in the viewport meta and
   `env(safe-area-inset-*)` padding, so bottom controls (view tabs,
-  "View sponsors") never sit under the home indicator.
+  "Place Your Logo") never sit under the home indicator.
 - Tunable numbers (sizes, offsets, speeds, thresholds) live in `lib/config.ts`,
   never inline in components or CSS.
 - No horizontal page scroll at any width down to 320px.
-- Keep the stage card's view tabs and the "View sponsors" button clear of the
+- Keep the stage card's view tabs and the "Place Your Logo" button clear of the
   athlete, the platform and the zone markers at every size.
 
 ### Touch and input

@@ -1101,13 +1101,13 @@ export function AthleteStageCard({
             </div>
           )}
 
-          {/* View sponsors CTA (bottom-center) */}
+          {/* "Place Your Logo" CTA (bottom-center): to the zone list (#zona-sponsor). */}
           <div className="absolute inset-x-0 bottom-0 z-20 flex justify-center">
             <a
               href="#zona-sponsor"
-              className="rounded-full bg-[#ff2d55] px-8 py-3 text-sm font-semibold text-white shadow-[0_0_26px_rgba(255,45,85,0.45)] transition-colors hover:bg-[#e42648]"
+              className="whitespace-nowrap rounded-full bg-[#ff2d55] px-8 py-3 text-sm font-semibold text-white shadow-[0_0_26px_rgba(255,45,85,0.45)] transition-colors hover:bg-[#e42648]"
             >
-              {m.pub_viewSponsors}
+              {m.pub_placeLogo}
             </a>
           </div>
         </div>

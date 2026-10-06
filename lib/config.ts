@@ -738,7 +738,7 @@ export function stageMotionVars(): Record<string, string> {
 
 /**
  * Phones and tablets (below lg): the athlete photo also shrinks so that, with
- * the view name right under the header, the view tabs, the "View sponsors"
+ * the view name right under the header, the view tabs, the "Place Your Logo"
  * button and the carousel dots all sit above a band reserved for the browser's
  * floating bottom toolbar (iOS Safari). Everything stacked around the photo is
  * listed here (px); the photo gets 100svh minus all of it. Desktop (lg+) never
@@ -757,7 +757,7 @@ export const STAGE_FIT = {
   headerPadTopPx: 14,
   /** Stage column top padding (room for the view name): phones / sm+. */
   topPadPx: { xs: 56, sm: 40 },
-  /** Stage column bottom padding (view tabs + View sponsors button). */
+  /** Stage column bottom padding (view tabs + Place Your Logo button). */
   bottomStackPx: 128,
   /** Card padding below the stage plus the carousel dots: phones / sm+. */
   belowStagePx: { xs: 46, sm: 54 },
