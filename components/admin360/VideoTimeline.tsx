@@ -21,7 +21,7 @@ type Band = { from: number; to: number; drop: boolean };
 
 const MARK_COLOR: Record<keyof TurnMarks, string> = {
   start: "#12b76a",
-  front: "#e11d48",
+  front: "#00b4ff",
   right: "#f79009",
   back: "#7a5af8",
   left: "#0ba5ec",

@@ -11,7 +11,7 @@ import {
 } from "@/app/admin/akun-sponsor/actions";
 
 const input =
-  "w-full rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm text-white outline-none transition-colors focus:border-[#ff3b57]";
+  "w-full rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm text-white outline-none transition-colors focus:border-[#00b4ff]";
 const label = "mb-1 block text-xs text-faint";
 
 /** Strong, human-friendly random password (avoids ambiguous chars). */
@@ -128,7 +128,7 @@ export function SponsorAccountsClient({
             </div>
           </div>
           <label className="flex min-h-11 items-center gap-2 text-sm text-muted sm:col-span-2">
-            <input type="checkbox" name="must_change" defaultChecked className="accent-[#ff3b57]" />
+            <input type="checkbox" name="must_change" defaultChecked className="accent-[#00b4ff]" />
             {m.sa_mustchange}
           </label>
           <div className="sm:col-span-2">
@@ -204,7 +204,7 @@ export function SponsorAccountsClient({
                   <input type="hidden" name="brand_user_id" value={a.id} />
                   <input name="password" required minLength={6} defaultValue={newPw} className={input + " max-w-xs"} />
                   <label className="flex min-h-11 items-center gap-1.5 text-xs text-muted">
-                    <input type="checkbox" name="must_change" defaultChecked className="accent-[#ff3b57]" />
+                    <input type="checkbox" name="must_change" defaultChecked className="accent-[#00b4ff]" />
                     {m.sa_must_change_short}
                   </label>
                   <button className="min-h-11 rounded-lg bg-accent px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90">

@@ -67,7 +67,7 @@ export function FrameStage({
       className={`relative overflow-hidden rounded-lg ${className}`}
       style={{
         aspectRatio: String(aspect),
-        background: "radial-gradient(120% 70% at 50% 35%, #3a1119 0%, #14080b 60%, #0b0708 100%)",
+        background: "radial-gradient(120% 70% at 50% 35%, #0f2a3d 0%, #081016 60%, #06090c 100%)",
         ...style,
       }}
     >
@@ -78,7 +78,7 @@ export function FrameStage({
           top: `${GROUND * 100}%`,
           width: "80%",
           height: "5%",
-          background: "radial-gradient(50% 50% at 50% 50%, rgba(255,45,85,0.45), rgba(255,45,85,0.12) 60%, transparent 100%)",
+          background: "radial-gradient(50% 50% at 50% 50%, rgba(0, 180, 255,0.45), rgba(0, 180, 255,0.12) 60%, transparent 100%)",
         }}
       />
       {layers.map((l) => {
@@ -121,7 +121,7 @@ export function FrameStage({
           {headY != null && (
             <div className="absolute inset-x-0 h-px border-t border-dashed border-amber-300/80" style={{ top: `${headY * 100}%` }} />
           )}
-          <div className="absolute inset-x-0 h-px bg-[#ff2d55]" style={{ top: `${GROUND * 100}%` }} />
+          <div className="absolute inset-x-0 h-px bg-[#00b4ff]" style={{ top: `${GROUND * 100}%` }} />
         </div>
       )}
       {children}

@@ -740,7 +740,7 @@ export function Admin360Studio({
                 <span className="absolute left-1 top-1 rounded bg-black/70 px-1.5 py-0.5 font-mono text-[10px] text-white">{i + 1}</span>
                 <span className="absolute right-1 top-1 flex flex-col items-end gap-0.5">
                   {views.map((k) => (
-                    <span key={k} className="rounded bg-[#ff2d55] px-1.5 py-0.5 text-[10px] font-semibold text-white">
+                    <span key={k} className="rounded bg-[#00b4ff] px-1.5 py-0.5 text-[10px] font-semibold text-white">
                       {viewNames[k]}
                     </span>
                   ))}
@@ -882,7 +882,7 @@ export function Admin360Studio({
             {zoom ? (
               // 1:1 pixels on a dark backdrop: cut-out fringe is easy to spot.
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={srcOf(frames[preview])} alt="" className="max-w-none" style={{ background: "#14080b", width: dims.w, height: dims.h }} />
+              <img src={srcOf(frames[preview])} alt="" className="max-w-none" style={{ background: "#081016", width: dims.w, height: dims.h }} />
             ) : (
               <FrameStage
                 aspect={aspect}

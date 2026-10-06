@@ -54,7 +54,7 @@ function shell(title: string, bodyHtml: string): string {
     `<div style="background:#0b0b0d;padding:32px 0;font-family:Arial,Helvetica,sans-serif">` +
     `<div style="max-width:480px;margin:0 auto;background:#141018;border:1px solid #2a2530;` +
     `border-radius:16px;padding:28px 28px 24px;color:#f3f3f4">` +
-    `<div style="font-weight:800;letter-spacing:1px;color:#ff3b57;font-size:18px">20FIT</div>` +
+    `<div style="font-weight:800;letter-spacing:1px;color:#00b4ff;font-size:18px">20FIT</div>` +
     `<h1 style="font-size:20px;margin:14px 0 8px;color:#fff">${title}</h1>` +
     bodyHtml +
     FOOTER_HTML +
@@ -65,7 +65,7 @@ function shell(title: string, bodyHtml: string): string {
 function button(href: string, label: string): string {
   return (
     `<a href="${href}" style="display:inline-block;margin:18px 0;padding:12px 22px;` +
-    `background:#ff3b57;color:#fff;text-decoration:none;border-radius:9999px;` +
+    `background:#00b4ff;color:#fff;text-decoration:none;border-radius:9999px;` +
     `font-weight:600;font-size:14px">${label}</a>`
   );
 }

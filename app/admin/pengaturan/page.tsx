@@ -58,7 +58,7 @@ export default async function PengaturanPage() {
                   name={key}
                   defaultChecked={notifications[key]}
                   disabled={!canManage}
-                  className="h-4 w-4 accent-[#e8112d]"
+                  className="h-4 w-4 accent-[#00b4ff]"
                 />
               </label>
             ))}

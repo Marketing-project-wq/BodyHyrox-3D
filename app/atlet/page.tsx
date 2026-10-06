@@ -19,7 +19,7 @@ export default async function AtletPage() {
     <div className="safe-x min-h-screen supports-[height:1dvh]:min-h-[100dvh] bg-[#0b0b0d] text-[#f3f3f4]">
       <PublicHeader locale={locale} />
       <main className="mx-auto max-w-6xl px-5 py-10 md:px-8">
-        <p className="font-mono text-xs uppercase tracking-[0.22em] text-[#ff3b57]">{m.pub_eyebrow}</p>
+        <p className="font-mono text-xs uppercase tracking-[0.22em] text-[#00b4ff]">{m.pub_eyebrow}</p>
         <h1 className="mt-3 font-condensed text-4xl font-bold uppercase leading-[0.95] sm:text-5xl">
           {m.pub_title}
         </h1>
@@ -33,7 +33,7 @@ export default async function AtletPage() {
               <Link
                 key={a.id}
                 href={`/atlet/${a.id}`}
-                className="group flex flex-col rounded-2xl border border-white/10 bg-white/[0.03] p-5 transition-colors hover:border-[#ff3b57]/60 hover:bg-white/[0.05]"
+                className="group flex flex-col rounded-2xl border border-white/10 bg-white/[0.03] p-5 transition-colors hover:border-[#00b4ff]/60 hover:bg-white/[0.05]"
               >
                 <div className="flex items-start gap-4">
                   <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-white/10 bg-white/5 text-[10px] text-white/30">
@@ -48,7 +48,7 @@ export default async function AtletPage() {
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
-                      <span className="font-mono text-xs text-[#ff3b57]">
+                      <span className="font-mono text-xs text-[#00b4ff]">
                         {a.rank != null ? String(a.rank).padStart(2, "0") : "--"}
                       </span>
                       <h2 className="truncate font-condensed text-xl font-bold uppercase leading-none">{a.nama}</h2>
@@ -69,7 +69,7 @@ export default async function AtletPage() {
                       ? fmt(m.pub_zonesAvailable, { n: formatNumber(a.zonesAvailable) })
                       : m.pub_zonesAllTaken}
                   </span>
-                  <span className="text-xs font-medium text-[#ff3b57] group-hover:underline">
+                  <span className="text-xs font-medium text-[#00b4ff] group-hover:underline">
                     {m.pub_viewDetail} →
                   </span>
                 </div>

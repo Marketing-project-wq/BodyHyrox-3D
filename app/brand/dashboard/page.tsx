@@ -51,7 +51,7 @@ export default async function DashboardPage({
             <p className="text-sm text-white/60">{m.dsh_empty}</p>
             <Link
               href="/atlet"
-              className="mt-4 inline-block rounded-lg bg-[#ff3b57] px-4 py-2 text-sm font-semibold text-white hover:bg-[#e42e48]"
+              className="mt-4 inline-block rounded-lg bg-[#00b4ff] px-4 py-2 text-sm font-semibold text-white hover:bg-[#0093d1]"
             >
               {m.crt_browse}
             </Link>

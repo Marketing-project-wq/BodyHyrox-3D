@@ -52,7 +52,7 @@ export default async function KeranjangPage({
             <p className="text-sm text-white/60">{m.crt_empty}</p>
             <Link
               href="/atlet"
-              className="mt-4 inline-block rounded-lg bg-[#ff3b57] px-4 py-2 text-sm font-semibold text-white hover:bg-[#e42e48]"
+              className="mt-4 inline-block rounded-lg bg-[#00b4ff] px-4 py-2 text-sm font-semibold text-white hover:bg-[#0093d1]"
             >
               {m.crt_browse}
             </Link>
@@ -64,7 +64,7 @@ export default async function KeranjangPage({
                 <li
                   key={i.id}
                   className={`flex items-center gap-3 rounded-xl border px-4 py-3 ${
-                    i.available ? "border-white/10 bg-white/[0.04]" : "border-[#ff3b57]/30 bg-[#ff3b57]/[0.06]"
+                    i.available ? "border-white/10 bg-white/[0.04]" : "border-[#00b4ff]/30 bg-[#00b4ff]/[0.06]"
                   }`}
                 >
                   <div className="min-w-0 flex-1">
@@ -106,7 +106,7 @@ export default async function KeranjangPage({
                       name="event_id"
                       required
                       defaultValue=""
-                      className="mt-1 w-full rounded-lg border border-white/15 bg-white/5 px-3 py-2.5 text-sm text-white outline-none focus:border-[#ff3b57]"
+                      className="mt-1 w-full rounded-lg border border-white/15 bg-white/5 px-3 py-2.5 text-sm text-white outline-none focus:border-[#00b4ff]"
                     >
                       <option value="" disabled>
                         {m.crt_choose_event}
@@ -120,7 +120,7 @@ export default async function KeranjangPage({
                   </div>
                   <button
                     disabled={available.length === 0}
-                    className="rounded-lg bg-[#ff3b57] px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#e42e48] disabled:cursor-not-allowed disabled:opacity-40"
+                    className="rounded-lg bg-[#00b4ff] px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#0093d1] disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     {m.crt_checkout_btn}
                   </button>

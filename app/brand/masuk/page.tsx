@@ -10,7 +10,7 @@ import { brandLogin } from "@/app/brand/actions";
 export const dynamic = "force-dynamic";
 
 const field =
-  "mt-1 w-full rounded-lg border border-white/15 bg-white/5 px-3 py-2.5 text-sm text-white outline-none transition-colors focus:border-[#ff3b57]";
+  "mt-1 w-full rounded-lg border border-white/15 bg-white/5 px-3 py-2.5 text-sm text-white outline-none transition-colors focus:border-[#00b4ff]";
 
 export default function BrandLoginPage({
   searchParams,
@@ -44,7 +44,7 @@ export default function BrandLoginPage({
         {searchParams.error === "unverified" && (
           <Link
             href={`/brand/verifikasi?email=${encodeURIComponent(searchParams.email || "")}&next=${encodeURIComponent(next)}`}
-            className="mt-2 inline-block text-sm text-[#ff3b57] hover:underline"
+            className="mt-2 inline-block text-sm text-[#00b4ff] hover:underline"
           >
             {m.br_resend_link}
           </Link>
@@ -59,14 +59,14 @@ export default function BrandLoginPage({
             <label className="text-xs text-white/50">{m.br_password}</label>
             <input name="password" type="password" required className={field} />
           </div>
-          <button className="mt-1 rounded-lg bg-[#ff3b57] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#e42e48]">
+          <button className="mt-1 rounded-lg bg-[#00b4ff] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#0093d1]">
             {m.br_signin}
           </button>
         </form>
         <div className="mt-5 flex items-center justify-between">
           <Link
             href={`/brand/daftar?next=${encodeURIComponent(next)}`}
-            className="text-sm text-[#ff3b57] hover:underline"
+            className="text-sm text-[#00b4ff] hover:underline"
           >
             {m.br_toRegister}
           </Link>

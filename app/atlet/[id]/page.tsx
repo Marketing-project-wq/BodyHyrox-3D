@@ -68,7 +68,7 @@ export default async function AtletDetailPage({
               <Link href="/brand/keranjang" className="text-white/70 hover:text-white">
                 {m.cart_view}
                 {cartCount > 0 && (
-                  <span className="ml-1.5 rounded-full bg-[#ff2d55] px-1.5 py-0.5 text-[10px] font-semibold text-white">
+                  <span className="ml-1.5 rounded-full bg-[#00b4ff] px-1.5 py-0.5 text-[10px] font-semibold text-white">
                     {cartCount}
                   </span>
                 )}
@@ -120,7 +120,7 @@ export default async function AtletDetailPage({
                           {z.nama}
                         </span>
                         {z.exclusive && (
-                          <span className="rounded-full border border-[#ff2d55]/50 px-2 py-0.5 font-mono text-[10px] uppercase text-[#ff2d55]">
+                          <span className="rounded-full border border-[#00b4ff]/50 px-2 py-0.5 font-mono text-[10px] uppercase text-[#00b4ff]">
                             {m.pub_exclusive}
                           </span>
                         )}
@@ -136,7 +136,7 @@ export default async function AtletDetailPage({
                         <span className="tabnum text-sm text-white">{formatIDR(z.basePrice)}</span>
                         <Link
                           href={`/atlet/${a.id}/ajukan?zone=${z.athleteZoneId}`}
-                          className="shrink-0 rounded-full bg-[#ff2d55] px-3.5 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-[#e42648]"
+                          className="shrink-0 rounded-full bg-[#00b4ff] px-3.5 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-[#0093d1]"
                         >
                           {m.cart_add}
                         </Link>
@@ -159,7 +159,7 @@ export default async function AtletDetailPage({
                     <div className="flex items-center justify-between gap-2">
                       <span className="font-condensed text-base font-semibold uppercase">{r.event}</span>
                       {r.isPodium && r.placement != null ? (
-                        <span className="shrink-0 rounded-full bg-[#ff2d55]/15 px-2.5 py-0.5 font-mono text-[10px] uppercase text-[#ff2d55]">
+                        <span className="shrink-0 rounded-full bg-[#00b4ff]/15 px-2.5 py-0.5 font-mono text-[10px] uppercase text-[#00b4ff]">
                           {fmt(m.pub_podiumBadge, { n: String(r.placement) })}
                         </span>
                       ) : (

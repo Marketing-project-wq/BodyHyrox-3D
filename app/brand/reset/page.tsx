@@ -8,7 +8,7 @@ import { consumePasswordReset } from "@/app/brand/actions";
 export const dynamic = "force-dynamic";
 
 const field =
-  "mt-1 w-full rounded-lg border border-white/15 bg-white/5 px-3 py-2.5 text-sm text-white outline-none transition-colors focus:border-[#ff3b57]";
+  "mt-1 w-full rounded-lg border border-white/15 bg-white/5 px-3 py-2.5 text-sm text-white outline-none transition-colors focus:border-[#00b4ff]";
 
 export default function ResetPage({
   searchParams,
@@ -32,7 +32,7 @@ export default function ResetPage({
         {!token ? (
           <div className="mt-6 rounded-2xl border border-white/10 bg-white/[0.03] p-5 text-sm text-white/70">
             {m.rs_incomplete_pre}
-            <Link href="/brand/lupa-password" className="text-[#ff3b57] hover:underline">
+            <Link href="/brand/lupa-password" className="text-[#00b4ff] hover:underline">
               {m.rs_request_new}
             </Link>
             .
@@ -44,7 +44,7 @@ export default function ResetPage({
               <label className="text-xs text-white/50">{m.rs_new_pw}</label>
               <input name="password" type="password" required minLength={6} autoFocus className={field} />
             </div>
-            <button className="mt-1 rounded-lg bg-[#ff3b57] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#e42e48]">
+            <button className="mt-1 rounded-lg bg-[#00b4ff] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#0093d1]">
               {m.rs_submit}
             </button>
           </form>

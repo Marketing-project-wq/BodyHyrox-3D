@@ -827,7 +827,7 @@ export function AthleteStageCard({
         aria-hidden
         style={{
           background:
-            "radial-gradient(620px 520px at 62% 42%, rgba(255,45,85,0.22), transparent 70%), radial-gradient(130% 100% at 50% 45%, transparent 55%, rgba(0,0,0,0.7) 100%)",
+            "radial-gradient(620px 520px at 62% 42%, rgba(0, 180, 255,0.22), transparent 70%), radial-gradient(130% 100% at 50% 45%, transparent 55%, rgba(0,0,0,0.7) 100%)",
         }}
       />
 
@@ -838,7 +838,7 @@ export function AthleteStageCard({
             stats follow below the stage. */}
         <div className="flex flex-col max-lg:contents">
           <div className="flex items-baseline gap-3 max-lg:order-1">
-            <span className="font-mono text-sm text-[#ff2d55]">
+            <span className="font-mono text-sm text-[#00b4ff]">
               {athlete.rank != null ? String(athlete.rank).padStart(2, "0") : "--"}
             </span>
             <h1 className="font-condensed text-4xl font-bold uppercase leading-[0.92] sm:text-5xl">{athlete.nama}</h1>
@@ -888,7 +888,7 @@ export function AthleteStageCard({
                       {num(athlete.totalTerbaikKg)} {m.sc_unitKg}
                     </span>
                     {athlete.totalTerbaikLabel && (
-                      <span className="font-mono text-xs text-[#ff2d55]">{athlete.totalTerbaikLabel}</span>
+                      <span className="font-mono text-xs text-[#00b4ff]">{athlete.totalTerbaikLabel}</span>
                     )}
                   </div>
                 </div>
@@ -902,7 +902,7 @@ export function AthleteStageCard({
             // would not fit); the 44px prev/next arrows at the card edges navigate.
             <div className="mt-8 hidden flex-wrap items-center gap-1.5 lg:flex" aria-hidden>
               {dots.map((d) => (
-                <span key={d.id} className={d.active ? "h-1.5 w-5 rounded-full bg-[#ff2d55]" : "h-1.5 w-1.5 rounded-full bg-white/25"} />
+                <span key={d.id} className={d.active ? "h-1.5 w-5 rounded-full bg-[#00b4ff]" : "h-1.5 w-1.5 rounded-full bg-white/25"} />
               ))}
             </div>
           )}
@@ -938,7 +938,7 @@ export function AthleteStageCard({
               <div ref={sideNameRef} className="stagecard-readout-name font-condensed font-bold uppercase leading-none transition-opacity">
                 {viewNames[view]}
               </div>
-              <div ref={degRef} className="stagecard-readout-deg font-mono text-xs text-[#ff2d55] tabular-nums">
+              <div ref={degRef} className="stagecard-readout-deg font-mono text-xs text-[#00b4ff] tabular-nums">
                 0°
               </div>
               <p className="stagecard-readout-hint font-mono text-[11px] leading-snug">{isStatic ? m.sc_hintStatic : m.sc_hint}</p>
@@ -1039,7 +1039,7 @@ export function AthleteStageCard({
                 Above the photo, below the zone markers (z-10) and the zone card. */}
             <a
               href="#zona-sponsor"
-              className="absolute left-1/2 z-[5] flex -translate-x-1/2 translate-y-1/2 items-center whitespace-nowrap rounded-full bg-[#ff2d55] px-8 text-sm font-semibold text-white shadow-[0_0_26px_rgba(255,45,85,0.45)] transition-colors hover:bg-[#e42648]"
+              className="absolute left-1/2 z-[5] flex -translate-x-1/2 translate-y-1/2 items-center whitespace-nowrap rounded-full bg-[#00b4ff] px-8 text-sm font-semibold text-white shadow-[0_0_26px_rgba(0, 180, 255,0.45)] transition-colors hover:bg-[#0093d1]"
               style={{
                 bottom: `${VIEWER_360.feetLinePct + STAGE_CTA.liftPct}%`,
                 height: `max(${STAGE_CTA.minHeightPx}px, ${STAGE_CTA.heightPct}%)`,
@@ -1092,7 +1092,7 @@ export function AthleteStageCard({
                     <span
                       className={`rounded-full px-2.5 py-1 text-[11px] font-semibold transition-colors sm:px-3.5 sm:text-xs ${
                         view === i
-                          ? "bg-[#ff2d55] text-white shadow-[0_0_14px_rgba(255,45,85,0.55)]"
+                          ? "bg-[#00b4ff] text-white shadow-[0_0_14px_rgba(0, 180, 255,0.55)]"
                           : "text-white/60 group-hover:text-white"
                       }`}
                     >
@@ -1141,7 +1141,7 @@ export function AthleteStageCard({
       {dots.length > 1 && (
         <div className="relative z-10 flex flex-wrap items-center justify-center gap-1.5 pb-5 lg:hidden" aria-hidden>
           {dots.map((d) => (
-            <span key={d.id} className={d.active ? "h-1.5 w-5 rounded-full bg-[#ff2d55]" : "h-1.5 w-1.5 rounded-full bg-white/25"} />
+            <span key={d.id} className={d.active ? "h-1.5 w-5 rounded-full bg-[#00b4ff]" : "h-1.5 w-1.5 rounded-full bg-white/25"} />
           ))}
         </div>
       )}
