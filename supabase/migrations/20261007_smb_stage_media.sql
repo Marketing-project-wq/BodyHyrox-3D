@@ -1,6 +1,8 @@
 -- =============================================================================
 -- M0: "Media frame panggung" (stage frame media per athlete)
--- NOT APPLIED. The owner reviews and runs this in the Supabase SQL editor.
+-- APPLIED 2026-10-06 (on the owner's explicit request) as migrations
+-- smb_stage_media_1_tables, _2_check, _3_functions, _4_grants; this file is
+-- exactly what ran (kind 'instagram' included).
 -- Adds new smb_* objects only; existing tables, functions, RLS and buckets are
 -- untouched. Pictures (YouTube thumbnails, image copies, video posters) go to
 -- the existing public bucket smb-athlete-360 under <athlete>/stage-media/.
@@ -46,9 +48,10 @@ begin
     n := (s->>'slot')::int;
     if n is null or n < 0 or n > 5 or n = any(seen) then raise exception 'Slot media tidak valid'; end if;
     seen := seen || n;
-    if coalesce(s->>'kind','') not in ('youtube','video','image') then raise exception 'Jenis media tidak valid'; end if;
+    if coalesce(s->>'kind','') not in ('youtube','video','image','instagram') then raise exception 'Jenis media tidak valid'; end if;
     if coalesce(s->>'url','') !~ '^https://' or length(s->>'url') > 500 then raise exception 'Link harus https'; end if;
     if (s->>'kind') = 'youtube' and coalesce(s->>'ytId','') !~ '^[A-Za-z0-9_-]{11}$' then raise exception 'ID YouTube tidak valid'; end if;
+    if (s->>'kind') = 'instagram' and coalesce(s->>'url','') !~ '^https://www\.instagram\.com/(p|reel|tv)/[A-Za-z0-9_-]{5,40}/$' then raise exception 'Link Instagram tidak valid'; end if;
     if length(coalesce(s->>'title','')) > 80 then raise exception 'Judul terlalu panjang'; end if;
   end loop;
 end $$;

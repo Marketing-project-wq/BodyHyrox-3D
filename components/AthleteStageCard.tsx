@@ -1180,7 +1180,7 @@ export function AthleteStageCard({
                 onClick={() => openMedia(sc)}
                 className="sr-only rounded-full bg-black/80 px-4 py-2 text-xs font-semibold text-white focus:not-sr-only focus:inline-flex focus:min-h-11 focus:items-center"
               >
-                {fmt(sc.kind === "image" ? m.sml_view : m.sml_play, { title: sc.title || fmt(m.sml_screen, { n: sc.slot + 1 }) })}
+                {fmt(sc.kind === "image" ? m.sml_view : sc.kind === "instagram" ? m.sml_open_ig : m.sml_play, { title: sc.title || fmt(m.sml_screen, { n: sc.slot + 1 }) })}
               </button>
             </li>
           ))}

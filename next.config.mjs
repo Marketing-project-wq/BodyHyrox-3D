@@ -2,13 +2,13 @@
 const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
-  // Athlete pages may embed only the official YouTube player (stage frame
-  // media lightbox); every other directive stays as before.
+  // Athlete pages may embed only the official YouTube player and Instagram's
+  // embed (stage frame media lightbox); every other directive stays as before.
   async headers() {
     return [
       {
         source: "/atlet/:path*",
-        headers: [{ key: "Content-Security-Policy", value: "frame-src 'self' https://www.youtube-nocookie.com" }],
+        headers: [{ key: "Content-Security-Policy", value: "frame-src 'self' https://www.youtube-nocookie.com https://www.instagram.com" }],
       },
     ];
   },

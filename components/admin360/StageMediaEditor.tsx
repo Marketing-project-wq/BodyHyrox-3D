@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { AlertTriangle, ArrowDown, ArrowUp, Check, ImageIcon, Link2, PlayCircle, RotateCw, Trash2, UploadCloud, Video } from "lucide-react";
+import { AlertTriangle, ArrowDown, ArrowUp, Camera, Check, ImageIcon, Link2, PlayCircle, RotateCw, Trash2, UploadCloud, Video } from "lucide-react";
 import { STAGE_MEDIA } from "@/lib/config";
 import { type Dict, errorMessage, errorText, fmt } from "@/lib/i18n";
 import { unwrap, ActionFailure } from "@/lib/action-result";
@@ -239,9 +239,18 @@ export function StageMediaEditor({ athleteId, m, embedded = false }: { athleteId
     }
   }
 
-  const kindLabel = (k: StageMediaSlot["kind"]) => (k === "youtube" ? m.sm_kind_youtube : k === "video" ? m.sm_kind_video : m.sm_kind_image);
+  const kindLabel = (k: StageMediaSlot["kind"]) =>
+    k === "youtube" ? m.sm_kind_youtube : k === "video" ? m.sm_kind_video : k === "instagram" ? m.sm_kind_instagram : m.sm_kind_image;
   const KindIcon = ({ k }: { k: StageMediaSlot["kind"] }) =>
-    k === "youtube" ? <PlayCircle className="h-3.5 w-3.5" aria-hidden /> : k === "video" ? <Video className="h-3.5 w-3.5" aria-hidden /> : <ImageIcon className="h-3.5 w-3.5" aria-hidden />;
+    k === "youtube" ? (
+      <PlayCircle className="h-3.5 w-3.5" aria-hidden />
+    ) : k === "video" ? (
+      <Video className="h-3.5 w-3.5" aria-hidden />
+    ) : k === "instagram" ? (
+      <Camera className="h-3.5 w-3.5" aria-hidden />
+    ) : (
+      <ImageIcon className="h-3.5 w-3.5" aria-hidden />
+    );
 
   return (
     <section className={embedded ? "" : "card p-4"} aria-labelledby="sm-title">
@@ -267,6 +276,10 @@ export function StageMediaEditor({ athleteId, m, embedded = false }: { athleteId
                 {r.picture ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={r.picture} alt="" className="h-full w-full object-contain" />
+                ) : r.checked?.kind === "instagram" ? (
+                  <span className="flex h-full w-full items-center justify-center bg-[linear-gradient(135deg,#feda75,#d62976_50%,#4f5bd5)] text-white">
+                    <Camera className="h-8 w-8" aria-hidden />
+                  </span>
                 ) : r.checked?.kind === "video" ? (
                   <video src={r.checked.url} muted playsInline preload="metadata" className="h-full w-full object-contain" />
                 ) : (

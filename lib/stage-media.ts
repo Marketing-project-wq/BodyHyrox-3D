@@ -6,13 +6,13 @@ import { STAGE_MEDIA } from "@/lib/config";
  * app/atlet/[id]/stage-media-actions.ts) before it is stored.
  */
 
-export type StageMediaKind = "youtube" | "video" | "image";
+export type StageMediaKind = "youtube" | "video" | "image" | "instagram";
 
 export type StageMediaSlot = {
   /** Screen index 0..STAGE_MEDIA.slots-1. */
   slot: number;
   kind: StageMediaKind;
-  /** Normalized https link (YouTube: https://www.youtube.com/watch?v=<id>). */
+  /** Normalized https link (YouTube: https://www.youtube.com/watch?v=<id>; Instagram: https://www.instagram.com/<p|reel|tv>/<code>/). */
   url: string;
   ytId: string | null;
   /** Picture shown on the screen: path inside the public 360 bucket (thumbnail, image copy or video poster). */
@@ -32,7 +32,9 @@ export type LinkClass = { ok: true; kind: StageMediaKind; url: string; ytId: str
 
 const YT_ID = /^[A-Za-z0-9_-]{11}$/;
 const YT_HOSTS = new Set(["youtube.com", "www.youtube.com", "m.youtube.com", "music.youtube.com", "youtube-nocookie.com", "www.youtube-nocookie.com"]);
-const SOCIAL = /(^|\.)(instagram\.com|instagr\.am|tiktok\.com|facebook\.com|fb\.watch|x\.com|twitter\.com|vimeo\.com)$/i;
+const SOCIAL = /(^|\.)(instagr\.am|tiktok\.com|facebook\.com|fb\.watch|x\.com|twitter\.com|vimeo\.com)$/i;
+const IG_HOSTS = new Set(["instagram.com", "www.instagram.com", "m.instagram.com"]);
+const IG_CODE = /^[A-Za-z0-9_-]{5,40}$/;
 const DRIVE = /(^|\.)(drive\.google\.com|docs\.google\.com|dropbox\.com|onedrive\.live\.com|1drv\.ms)$/i;
 const VIDEO_EXT = /\.(mp4|m4v|webm)$/i;
 const IMAGE_EXT = /\.(jpe?g|png|webp)$/i;
@@ -58,6 +60,19 @@ export function youtubeId(u: URL): string | null {
   return id && YT_ID.test(id) ? id : null;
 }
 
+/**
+ * Instagram post / reel / IGTV from any common link form (also
+ * instagram.com/<user>/p/<code>/), normalized to https://www.instagram.com/<type>/<code>/.
+ */
+export function instagramUrl(u: URL): string | null {
+  if (!IG_HOSTS.has(u.hostname.toLowerCase())) return null;
+  const parts = u.pathname.split("/").filter(Boolean);
+  const i = parts.findIndex((x) => ["p", "reel", "reels", "tv"].includes(x));
+  if (i < 0 || i > 1 || !parts[i + 1] || !IG_CODE.test(parts[i + 1])) return null;
+  const type = parts[i] === "reels" ? "reel" : parts[i];
+  return `https://www.instagram.com/${type}/${parts[i + 1]}/`;
+}
+
 /** First-pass check of a pasted link: what it is and its normalized form. */
 export function classifyLink(raw: string): LinkClass {
   const text = String(raw ?? "").trim();
@@ -76,12 +91,21 @@ export function classifyLink(raw: string): LinkClass {
   const yt = youtubeId(u);
   if (yt) return { ok: true, kind: "youtube", url: `https://www.youtube.com/watch?v=${yt}`, ytId: yt };
   if (host === "youtu.be" || YT_HOSTS.has(host)) return { ok: false, problem: "unsupported" };
+  const ig = instagramUrl(u);
+  if (ig) return { ok: true, kind: "instagram", url: ig, ytId: null };
+  if (IG_HOSTS.has(host)) return { ok: false, problem: "unsupported" };
   if (DRIVE.test(host)) return { ok: false, problem: "drive" };
   if (SOCIAL.test(host)) return { ok: false, problem: "social" };
   u.hash = "";
   if (VIDEO_EXT.test(u.pathname)) return { ok: true, kind: "video", url: u.toString(), ytId: null };
   if (IMAGE_EXT.test(u.pathname)) return { ok: true, kind: "image", url: u.toString(), ytId: null };
   return { ok: false, problem: "unsupported" };
+}
+
+/** Instagram's official embed for a normalized post / reel link (lightbox). */
+export function instagramEmbedUrl(url: string): string | null {
+  const m = url.match(/^https:\/\/www\.instagram\.com\/(p|reel|tv)\/([A-Za-z0-9_-]{5,40})\/$/);
+  return m ? `https://www.instagram.com/${m[1]}/${m[2]}/embed/` : null;
 }
 
 /** The official, privacy-enhanced YouTube player for the lightbox (built from the id only). */
@@ -145,6 +169,6 @@ export type StageScreen = {
 
 export function stageScreens(media: StageMedia, supabaseUrl: string): StageScreen[] {
   return media.slots
-    .filter((s) => s.thumb || s.kind === "video")
+    .filter((s) => s.thumb || s.kind === "video" || s.kind === "instagram")
     .map((s) => ({ slot: s.slot, kind: s.kind, picture: stageMediaPictureUrl(supabaseUrl, s.thumb), ytId: s.ytId, url: s.url, title: s.title }));
 }

@@ -3,11 +3,12 @@
 import { useEffect, useRef } from "react";
 import { X } from "lucide-react";
 import type { Dict } from "@/lib/i18n";
-import { youtubeEmbedUrl, type StageScreen } from "@/lib/stage-media";
+import { instagramEmbedUrl, youtubeEmbedUrl, type StageScreen } from "@/lib/stage-media";
 
 /**
  * One stage screen's media, full size: the official YouTube player
- * (youtube-nocookie, built from the id only), a video, or an image. Closes
+ * (youtube-nocookie, built from the id only), Instagram's official embed, a
+ * video, or an image. Closes
  * with ×, Escape or a tap outside; focus moves in and comes back.
  */
 export function StageMediaLightbox({ screen, m, onClose }: { screen: StageScreen; m: Dict; onClose: () => void }) {
@@ -47,6 +48,18 @@ export function StageMediaLightbox({ screen, m, onClose }: { screen: StageScreen
             <X className="h-5 w-5" aria-hidden />
           </button>
         </div>
+        {screen.kind === "instagram" ? (
+          // Instagram's own embed (portrait card); scrolls inside on small screens.
+          <div className="mx-auto w-full max-w-[540px] overflow-hidden rounded-xl bg-white" style={{ height: "min(80svh, 760px)" }}>
+            <iframe
+              src={instagramEmbedUrl(screen.url) ?? undefined}
+              title={label}
+              className="h-full w-full"
+              allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
+              referrerPolicy="strict-origin-when-cross-origin"
+            />
+          </div>
+        ) : (
         <div className="relative w-full overflow-hidden rounded-xl bg-black" style={{ aspectRatio: "16 / 9", maxHeight: "calc(100svh - 7rem)" }}>
           {screen.kind === "youtube" && screen.ytId ? (
             <iframe
@@ -64,6 +77,7 @@ export function StageMediaLightbox({ screen, m, onClose }: { screen: StageScreen
             <img src={screen.picture ?? screen.url} alt={label} className="absolute inset-0 h-full w-full object-contain" />
           )}
         </div>
+        )}
       </div>
     </div>
   );

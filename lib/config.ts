@@ -724,7 +724,7 @@ export const STAGE_MEDIA = {
   siteOrigin: "https://avatar.20fit.id",
   fetchTimeoutMs: 8000,
   maxRedirects: 3,
-  maxImageMB: 8,
+  maxImageMB: 5, // the public 360 bucket's file limit
   maxVideoMB: 40,
   maxThumbMB: 4,
   posterPx: 1280,

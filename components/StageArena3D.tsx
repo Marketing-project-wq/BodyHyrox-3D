@@ -431,6 +431,57 @@ function playIcon(): THREE.CanvasTexture {
   return playTexture;
 }
 
+/** Instagram look (gradient + camera glyph): the badge, or a whole card when there is no cover image. */
+const igCache = new Map<string, THREE.CanvasTexture>();
+function instagramTexture(kind: "badge" | "card", caption?: string | null): THREE.CanvasTexture {
+  const key = `${kind}:${caption ?? ""}`;
+  const hit = igCache.get(key);
+  if (hit) return hit;
+  const W = kind === "card" ? 1024 : 128;
+  const H = kind === "card" ? 576 : 128;
+  const c = document.createElement("canvas");
+  c.width = W;
+  c.height = H;
+  const g = c.getContext("2d")!;
+  const grad = g.createLinearGradient(0, H, W, 0);
+  grad.addColorStop(0, "#feda75");
+  grad.addColorStop(0.45, "#d62976");
+  grad.addColorStop(1, "#4f5bd5");
+  g.fillStyle = grad;
+  // roundRect: Safari 16+ / Chrome 99+; plain rectangles on older browsers.
+  const rr = (x: number, y: number, w: number, h: number, r: number) => (g.roundRect ? g.roundRect(x, y, w, h, r) : g.rect(x, y, w, h));
+  if (kind === "badge") {
+    g.beginPath();
+    rr(8, 8, W - 16, H - 16, 28);
+    g.fill();
+  } else g.fillRect(0, 0, W, H);
+  // camera glyph
+  const s = kind === "card" ? 180 : 72;
+  const x = W / 2 - s / 2;
+  const y = (kind === "card" ? H * 0.42 : H / 2) - s / 2;
+  g.strokeStyle = "#fff";
+  g.lineWidth = s * 0.09;
+  g.beginPath();
+  rr(x, y, s, s, s * 0.28);
+  g.stroke();
+  g.beginPath();
+  g.arc(x + s / 2, y + s / 2, s * 0.22, 0, Math.PI * 2);
+  g.stroke();
+  g.fillStyle = "#fff";
+  g.beginPath();
+  g.arc(x + s * 0.76, y + s * 0.24, s * 0.06, 0, Math.PI * 2);
+  g.fill();
+  if (kind === "card" && caption) {
+    g.font = "600 44px system-ui, sans-serif";
+    g.textAlign = "center";
+    g.fillText(caption.length > 36 ? caption.slice(0, 35) + "…" : caption, W / 2, H * 0.82);
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  igCache.set(key, t);
+  return t;
+}
+
 /**
  * Media on the screens: each picture fitted ("contain") inside its frame,
  * dimmed / tinted (A.screens), plus a ▶ for videos. Pictures load only once
@@ -446,6 +497,13 @@ function Screens({ handle, screens, active }: { handle: MutableRefObject<ArenaHa
   useEffect(() => {
     if (!active) return;
     let off = false;
+    // Instagram without a cover image: a drawn Instagram card (no network).
+    const cards: Record<number, THREE.Texture> = {};
+    for (const s of screens) if (s.kind === "instagram" && !s.picture && s.slot < SC.count) cards[s.slot] = instagramTexture("card", s.title);
+    if (Object.keys(cards).length) {
+      setTex((m) => ({ ...m, ...cards }));
+      invalidate();
+    }
     const loader = new THREE.TextureLoader();
     loader.setCrossOrigin("anonymous");
     const made: THREE.Texture[] = [];
@@ -508,10 +566,16 @@ function Screens({ handle, screens, active }: { handle: MutableRefObject<ArenaHa
               <planeGeometry args={[w, hh]} />
               <meshBasicMaterial map={t} color={tint} fog={false} toneMapped={false} />
             </mesh>
-            {s.kind !== "image" && (
+            {(s.kind === "youtube" || s.kind === "video") && (
               <mesh position={[0, 0, 0.01]} userData={{ slot: s.slot }}>
                 <planeGeometry args={[SC.playIconM, SC.playIconM]} />
                 <meshBasicMaterial map={playIcon()} transparent opacity={SC.playIconOpacity} fog={false} toneMapped={false} depthWrite={false} />
+              </mesh>
+            )}
+            {s.kind === "instagram" && s.picture && (
+              <mesh position={[w / 2 - SC.playIconM * 0.45, hh / 2 - SC.playIconM * 0.45, 0.01]} userData={{ slot: s.slot }}>
+                <planeGeometry args={[SC.playIconM * 0.6, SC.playIconM * 0.6]} />
+                <meshBasicMaterial map={instagramTexture("badge")} transparent opacity={SC.playIconOpacity} fog={false} toneMapped={false} depthWrite={false} />
               </mesh>
             )}
           </group>
