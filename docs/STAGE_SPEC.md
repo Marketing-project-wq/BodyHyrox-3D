@@ -44,8 +44,10 @@ Terakhir diperbarui: 2026-10-06 (setelah #121–#124: SQL S0 jalan, set putaran 
      (keputusan 2026-10-06, #123, `STAGE_VIEW_CONTROLS = false`). Tidak ada tombol Pause/Play.
    - Swipe/drag dan panah keyboard memutar ke sisi yang dipilih, lalu putaran lanjut sendiri
      setelah jeda singkat.
-   - **Tombol utama** di bawah panggung: EN "Place Your Logo" / ID "Pasang Logo di Sini" (#124),
-     menuju daftar zona (`#zona-sponsor`: zona tersedia, harga, tambah/ajukan).
+   - **Tombol utama:** EN "Place Your Logo" / ID "Pasang Logo di Sini" (#124), menuju daftar
+     zona (`#zona-sponsor`: zona tersedia, harga, tambah/ajukan). Posisinya **menutupi sepatu
+     atlet** (keputusan 2026-10-06): dikunci ke garis kaki (`STAGE_CTA.liftPct`), di atas foto
+     atlet tetapi di bawah titik zona, jadi titik zona tetap terlihat dan bisa diketuk.
    - Kartu zona menahan putaran selama terbuka.
    - Tab browser tidak aktif dan `prefers-reduced-motion`: putaran berhenti.
 6. **Platform dan tata letak:**
