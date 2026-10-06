@@ -478,7 +478,9 @@ export async function publishDraft(
       frameMeta[file] = { ...(m.t ? { t: m.t } : {}), ...(m.foot ? { foot: m.foot } : {}), ...(prev.length ? { prev } : {}) };
     }
 
-    const { data: out, error } = await db().rpc("smb_publish_athlete_media_360", {
+    // A turn set goes through smb_publish_athlete_media_360_turn (SQL S0); a
+    // plain set through the original function (which stores no turn set).
+    const { data: out, error } = await db().rpc(draft.turn ? "smb_publish_athlete_media_360_turn" : "smb_publish_athlete_media_360", {
       p_athlete_id: athleteId,
       p_base_url: target,
       p_frames: frames,
@@ -487,7 +489,6 @@ export async function publishDraft(
       p_hotspots: hotspots,
       p_actor_id: s.sub,
       p_actor_name: s.nama,
-      // Only for a turn set: a plain publish keeps the call the database had before SQL S0.
       ...(draft.turn ? { p_turn: draft.turn } : {}),
     });
     if (error) throw new Error(error.message);
