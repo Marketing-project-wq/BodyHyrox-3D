@@ -133,18 +133,32 @@ Semua angka yang bisa disetel ada di `lib/config.ts`, bukan di komponen atau CSS
   bulat).
 - **Lainnya** dijadwalkan dihapus atau dibatasi ke development di R2.
 
-## 5. Alur admin untuk atlet baru
+## 5. Alur admin untuk atlet baru (semua atlet)
+
+Berlaku untuk setiap atlet, termasuk yang ditambahkan lewat dashboard. Bagian 2–4 membutuhkan SQL S0
+([#117](https://github.com/Marketing-project-wq/BodyHyrox-3D/pull/117)) dan PR S1–S3
+([#118](https://github.com/Marketing-project-wq/BodyHyrox-3D/pull/118),
+[#119](https://github.com/Marketing-project-wq/BodyHyrox-3D/pull/119),
+[#120](https://github.com/Marketing-project-wq/BodyHyrox-3D/pull/120)).
 
 1. **Admin → Atlet → Tambah:** isi profil atlet.
-2. **Atlet → Kelola foto 360°:**
-   - Upload set foto (atau satu video putar; studio mengambil frame-nya).
-   - Semua perubahan masuk ke **draft**.
-   - Atur Depan/Kanan/Belakang/Kiri, rapikan posisi kaki di editor frame, dan pasang titik zona
-     per sisi.
-3. **Publish:** pengaman Publish menolak kalau titik zona hilang dari sisi yang dipakai.
-4. Tanpa video di data, atlet tampil di **mode sementara** (bagian 1.3).
-5. Setelah V4 tersedia: upload video putaran dan keyframe hasil `scripts/video360` ke draft
-   lalu Publish. Atlet itu otomatis mendapat mode putaran (bagian 1.4).
+2. **Bahan 360:** upload foto (idealnya 12–24, dari sudut yang berbeda mengelilingi atlet,
+   tinggi dan jarak kamera sama) dan/atau video putar.
+   - Semua bahan tersimpan privat, terdaftar (pratinjau, ukuran, durasi, siapa, kapan), bisa
+     dilihat dan dihapus.
+   - File asli **tetap disimpan** setelah set putaran dibuat (keputusan 2026-10-06).
+3. **Buat set putaran:**
+   - Atur sudut foto kalau perlu (otomatis: urut upload, foto pertama = Depan).
+   - Pilih video (opsional), lalu klik **Pilih pose terbaik**.
+   - Jumlah pose: tanpa video = jumlah foto yang bagus (12–24); dengan video = 24 sudut rata
+     (foto mengisi sudut terdekatnya, video mengisi sisanya).
+   - Pose dinilai dari ketajaman, resolusi, dan selisih sudut. Pose yang melangkah, kakinya
+     tidak terdeteksi, atau warnanya beda dari set ditandai ⚠️.
+   - Ganti pose per sudut kalau perlu, lalu **Simpan ke draft** (pose dikunci di garis telapak,
+     tinggi, dan tengah yang sama, 714×1680).
+4. **Studio 360:** cek putaran, sisi Depan/Kanan/Belakang/Kiri, dan titik zona di draft.
+5. **Publish:** pengaman Publish menolak kalau titik zona hilang. Setelah tayang, atlet otomatis
+   mendapat mode putaran (bagian 1.4). Atlet tanpa set putaran tetap di mode sementara (bagian 1.3).
 
 ## 6. Alur membuat video putaran (`scripts/video360`)
 
@@ -173,9 +187,9 @@ sudut. Script tidak bisa menghilangkannya; rekam ulang di meja putar.
   default, keputusan resmi pemilik belum ada.
 - **R2:** rapikan kode (lihat audit). **R3:** GitHub, Railway, dan Supabase. Keduanya menunggu
   approval.
-- **Set 12–24 foto per atlet lewat data** (pengganti gambar tertanam Calysta): penanda "set
-  putaran" dan `blendShare` di data, serta pemilihan mode dari data. Menunggu set foto dan
-  approval.
+- **Set putaran lewat data untuk semua atlet** (S0–S3, #117–#120): menunggu SQL S0 dan approval.
+  Setelah set Calysta sendiri tayang, `STAGE_FRAMES_BUNDLED` dan folder `calysta-turn-*`
+  dihapus.
 - **[PR #115](https://github.com/Marketing-project-wq/BodyHyrox-3D/pull/115):** terbuka.
   Pemilik memilih tetap memakai yang tayang sekarang, jadi diusulkan ditutup (menunggu
   konfirmasi).
@@ -191,6 +205,6 @@ Jangan ditebak; tanyakan ke pemilik.
 2. Di mode putaran, apakah platform ikut berputar atau diam?
 3. "Deteksi kaki v3": aturan deteksi di browser bernomor `FOOT_VERSION = 4`, sedangkan file
    `feet.json` berformat versi 3. Keduanya dianggap sesuai bagian 1.7.
-4. Bagaimana data menandai bahwa set frame atlet adalah set putaran 12–24 foto (dengan mode
-   putaran tahan + crossfade), dan bukan set lama? Contoh: tanda di studio "set putaran", atau
-   otomatis kalau jumlah foto 12–24 dan sudutnya rata.
+4. ~~Penanda set putaran~~: dijawab lewat rencana yang disetujui 2026-10-06. Set dibuat dengan
+   "Buat set putaran" dan disimpan di kolom `turn` (sudut per foto + `blendShare`). Jumlah pose
+   mengikuti jumlah foto yang di-upload.
