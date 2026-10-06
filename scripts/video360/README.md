@@ -121,9 +121,10 @@ SIDE_PHOTOS=~/Movies/atlet-kanan.jpg,~/Movies/atlet-kiri.jpg RIFE_BIN=~/v360/rif
   dan tengah badan. Atlet harus berdiri tegak di garis yang sama di semua sudut.
 
 ## 4a. Urutan gambar untuk panggung (sementara)
-> **Sementara.** Langkah ini dipakai untuk Calysta sebelum V4 ada: gambarnya ditanam di kode
-> (`STAGE_FRAMES_BUNDLED`). Itu bertentangan dengan `docs/STAGE_SPEC.md` bagian 1.4 dan akan
-> dihapus setelah V4. Jangan dipakai untuk atlet baru; atlet baru menunggu upload lewat V4.
+> **Sementara.** Langkah ini dipakai untuk Calysta: gambarnya ditanam di kode
+> (`STAGE_FRAMES_BUNDLED`), sebagai pengecualian sementara di `docs/STAGE_SPEC.md` bagian 1.4, dan akan
+> dihapus setelah set foto Calysta masuk lewat data. Jangan dipakai untuk atlet baru; atlet baru
+> memakai 12–24 foto yang disimpan sebagai data atlet.
 
 Urutan gambar (bukan video) jalan di semua browser, termasuk Safari dan iPhone, tanpa beban decode
 video:
