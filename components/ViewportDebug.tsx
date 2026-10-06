@@ -6,7 +6,7 @@ import { createPortal } from "react-dom";
 /**
  * ?debug=viewport — internal measuring aid for real phones (English only, not
  * user-facing). Shows the viewport units, the visual viewport, the safe-area
- * insets and where the stage's "View sponsors" button sits relative to the
+ * insets and where the stage's "Place Your Logo" button sits relative to the
  * visible bottom edge, so toolbar overlap can be measured on the device.
  * Mounted only with the parameter; nothing here runs otherwise.
  */
