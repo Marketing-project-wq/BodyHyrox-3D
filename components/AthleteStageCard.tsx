@@ -5,7 +5,7 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { ChevronLeft, ChevronRight, Pause, Play, RotateCcw } from "lucide-react";
 import type { PublicAthleteDetail } from "@/lib/data";
-import { STAGE_ARENA, STAGE_MODE, STAGE_PLATFORM, STAGE_READOUT, STAGE_STATIC, STAGE_FRAMES_BUNDLED, STAGE_TURN_FRAMES_AUTO, STAGE_TURN_VIDEO_AUTO, STAGE_VIDEO_BUNDLED, VIEWER_360, VIEWER_360_FRAME_CLASS, VIEWER_SPIN, VIEWER_VIDEO, VIEWER_VIEWS, stageFitVars, viewer360FrameStyle } from "@/lib/config";
+import { STAGE_ARENA, STAGE_MODE, STAGE_PLATFORM, STAGE_READOUT, STAGE_STATIC, STAGE_TURN_FRAMES_AUTO, STAGE_TURN_VIDEO_AUTO, STAGE_VIDEO_BUNDLED, VIEWER_360, VIEWER_360_FRAME_CLASS, VIEWER_SPIN, VIEWER_VIDEO, VIEWER_VIEWS, stageFitVars, viewer360FrameStyle } from "@/lib/config";
 import { decayVelocity, degreeLabel, nearestSide, nextSideTarget, norm360, shortestDelta, sideTarget } from "@/lib/spin";
 import { VIEW_KEYS } from "@/lib/views";
 import { parseStageVideo, turnVideoUsable } from "@/lib/stage-video";
@@ -92,8 +92,8 @@ export function AthleteStageCard({
     const mode = new URLSearchParams(window.location.search).get("stage");
     if (mode === "turntable") setStageMode("turntable");
     else if (mode === "static") setStageMode("static-athlete");
-    else if (STAGE_TURN_FRAMES_AUTO && has360 && STAGE_FRAMES_BUNDLED[athlete.id] && STAGE_ARENA.autoRotateDirection === 1) {
-      // An athlete with a picture turn: the full turn in every browser.
+    else if (STAGE_TURN_FRAMES_AUTO && has360 && media360?.turn && STAGE_ARENA.autoRotateDirection === 1) {
+      // An athlete with a turn set (data, or the temporary bundled one): the full turn in every browser.
       if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches) setStageMode("turntable");
     } else if (STAGE_TURN_VIDEO_AUTO && has360 && STAGE_ARENA.autoRotateDirection === 1) {
       // An athlete with a turn video: the full turn, where this browser can show it.

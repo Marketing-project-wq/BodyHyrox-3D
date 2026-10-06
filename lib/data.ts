@@ -2,7 +2,7 @@ import { db } from "./supabase";
 import { resolveViews, type Media360Views, type HotspotInput } from "./views";
 export { VIEW_KEYS, resolveViews, type ViewKey, type Media360Views } from "./views";
 import { SPONSOR_360_UPLOAD, type TxStatus, type ActiveStatus, type Visibility } from "./config";
-import type { FrameMetaMap, Media360Draft } from "./media360";
+import { parseTurnSet, type FrameMetaMap, type Media360Draft, type TurnSet } from "./media360";
 import { parseStageVideo, type StageVideo } from "./stage-video";
 
 /** PostgREST returns bigint as string; coerce to number safely. */
@@ -352,12 +352,8 @@ export type Media360 = {
    * exists: nothing here reads a column that isn't there).
    */
   video: StageVideo | null;
-  /**
-   * Share of the step between two neighbouring pictures spent crossfading
-   * (centred on the midpoint); each picture holds still for the rest. Unset =
-   * VIEWER_SPIN.crossfadeShare. Set by bundled picture turns (STAGE_FRAMES_BUNDLED).
-   */
-  blendShare?: number;
+  /** A turn set (per-frame angles + crossfade share), or null: see lib/media360.ts TurnSet. */
+  turn: TurnSet | null;
 };
 /** Optional profile stats shown on the stage card. Null = not filled → hidden. */
 export type AthleteProfileStats = {
@@ -389,6 +385,7 @@ function mapMedia360(raw: unknown): Media360 | null {
     frameMeta: (m.frame_meta && typeof m.frame_meta === "object" ? m.frame_meta : {}) as FrameMetaMap,
     version: Number(m.version ?? 1),
     video: parseStageVideo(m.video),
+    turn: parseTurnSet(m.turn, frames.length),
     hotspots: hotspotsRaw.map((h) => {
       const pointsRaw = (h.points ?? {}) as Record<string, { x: number; y: number }>;
       const points: Record<string, { x: number; y: number }> = {};
