@@ -677,7 +677,11 @@ export const MEDIA_SOURCES = {
  * - cutoutMaxPx: longest side sent to the background remover.
  * - videoCandidates: video frames tried per slot (the best one is kept).
  * - standMaxSpread: (lowest sole - highest sole) / body height above this =
- *   stepping (the pose is only used when nothing better exists).
+ *   stepping (the pose is only used when nothing better exists). Photos are
+ *   posed standing, but from the side the far foot sits higher in the picture
+ *   (camera above the feet: up to ~14% on Calysta's 90° photo), so they get
+ *   a looser limit than video frames, where the athlete really steps while
+ *   turning.
  * - colorMax: mean colour distance (0..441) from the set's median above this
  *   flags a pose as "different camera / light".
  * - sharpBodyPx: body height the sharpness is measured at (so poses compare).
@@ -695,7 +699,7 @@ export const TURN_SET = {
   maxPoses: 24,
   cutoutMaxPx: 1600,
   videoCandidates: 3,
-  standMaxSpread: 0.06,
+  standMaxSpread: { photo: 0.2, video: 0.06 },
   colorMax: 45,
   sharpBodyPx: 400,
   fullResBodyPx: 1000,
