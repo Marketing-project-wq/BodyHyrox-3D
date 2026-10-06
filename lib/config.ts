@@ -664,6 +664,45 @@ export const MEDIA_SOURCES = {
 };
 
 /**
+ * "Buat set putaran" (admin, every athlete): the turn set made from the
+ * materials (photos and/or one video). See lib/turn-set.ts.
+ * - canvas / fit: every pose is locked onto this canvas (sole line, body
+ *   height, centre: fractions of the canvas), like scripts/video360.
+ * - blendShare: crossfade share of each step on the stage (the rest holds).
+ * - videoSlots: with a video, the poses are this many evenly spaced angles
+ *   (photos fill the slots they match, the video fills the rest).
+ * - minPoses: fewest poses that can be saved (Publish needs 8);
+ *   suggestPoses: below this the admin is told the turn will look rough;
+ *   maxPoses: most poses kept from photos alone.
+ * - cutoutMaxPx: longest side sent to the background remover.
+ * - videoCandidates: video frames tried per slot (the best one is kept).
+ * - standMaxSpread: (lowest sole - highest sole) / body height above this =
+ *   stepping (the pose is only used when nothing better exists).
+ * - colorMax: mean colour distance (0..441) from the set's median above this
+ *   flags a pose as "different camera / light".
+ * - sharpBodyPx: body height the sharpness is measured at (so poses compare).
+ * - fullResBodyPx: body height (source pixels) that counts as full resolution.
+ * - weights: score = sharp x sharpness + res x resolution - angle x angle
+ *   error (share of half a step) - mismatch x flagged.
+ */
+export const TURN_SET = {
+  canvas: { w: 714, h: 1680 },
+  fit: { top: 0.066, toe: 0.964, cx: 0.5 },
+  blendShare: 0.15,
+  videoSlots: 24,
+  minPoses: 8,
+  suggestPoses: 12,
+  maxPoses: 24,
+  cutoutMaxPx: 1600,
+  videoCandidates: 3,
+  standMaxSpread: 0.06,
+  colorMax: 45,
+  sharpBodyPx: 400,
+  fullResBodyPx: 1000,
+  weights: { sharp: 1, res: 0.8, angle: 1.2, mismatch: 1 },
+};
+
+/**
  * Ambient motion of the neon stage (durations in seconds, intensity 0..1).
  * Kept slow/subtle ("halus & elegan"); all animation is CSS and is disabled
  * under `prefers-reduced-motion`. Exposed as CSS variables by <AthleteStage>

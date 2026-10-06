@@ -7,6 +7,7 @@ import { type Dict, errorMessage, fmt } from "@/lib/i18n";
 import { unwrap } from "@/lib/action-result";
 import { deleteSource, issueSourceUploads, listSources, recordSources, signSource } from "@/app/atlet/[id]/source-actions";
 import { formatBytes, formatDuration, prepareSources, putSigned, type SourceItem } from "@/lib/media-sources";
+import { TurnSetMaker } from "@/components/admin360/TurnSetMaker";
 
 type Busy = { step: "prepare" | "upload"; done: number; total: number } | null;
 
@@ -276,6 +277,8 @@ export function MediaSources({ athleteId, m, onChange }: { athleteId: string; m:
           </ul>
         )}
       </div>
+
+      {items && <TurnSetMaker athleteId={athleteId} items={items} m={m} />}
 
       {viewing && (
         <div
