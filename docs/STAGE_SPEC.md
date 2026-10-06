@@ -6,7 +6,7 @@ Kalau kode, komentar, config, atau dokumen lain bertentangan dengan dokumen ini,
 yang benar. Kalau instruksi pemilik yang lebih baru bertentangan dengan dokumen ini, ikuti
 instruksi terbaru dan perbarui dokumen ini di PR yang sama.
 
-Terakhir diperbarui: 2026-10-05 (PR R1, tugas "rapikan").
+Terakhir diperbarui: 2026-10-06 (PR R1, tugas "rapikan"; keputusan pemilik 2026-10-06 tentang bahan foto dan logika putaran).
 
 ---
 
@@ -18,19 +18,27 @@ Terakhir diperbarui: 2026-10-05 (PR R1, tugas "rapikan").
    - Atlet berdiri **diam** di satu posisi. Posisi, ukuran, dan kaki di platform tidak pernah
      berubah.
    - Hanya **background** (pilar, frame neon, lantai) yang berputar pelan dan terus-menerus.
-   - Seiring background berputar, sudut badan atlet yang terlihat ikut berubah **secara mulus
-     dari sudut mana pun**, seperti kamera yang mengorbit.
-   - Bahan: urutan gambar/video putaran per atlet, dibuat dengan `scripts/video360` (hanya
-     frame berdiri, celah diisi interpolasi, posisi dan ukuran dikunci, `GAP_FILL=mirror`), dan
-     disimpan sebagai **data atlet lewat V4**.
+   - Seiring background berputar, sudut badan atlet yang terlihat ikut berubah, seperti kamera
+     yang mengorbit.
+   - **Logika putaran (sudah benar, keputusan 2026-10-06):** logika yang sekarang tayang untuk
+     Calysta. Panggung memilih pose sesuai sudut background dan menahan setiap pose (atlet diam
+     total). Pose berikutnya masuk lewat crossfade singkat yang berpusat di antara dua pose
+     (`blendShare`, sekarang 0,15).
+   - **Bahan (ke depan):** **12–24 foto** atlet dari sudut yang berbeda, rata mengelilingi
+     putaran: foto pertama = Depan, Kanan di 1/4, Belakang di 1/2, Kiri di 3/4. Setiap foto
+     dikunci (garis telapak, tinggi, tengah badan), dan disimpan sebagai **data atlet**.
+     `scripts/video360` (`export_frames.py`, `PHOTOS_AT`) boleh dipakai untuk menyiapkannya.
 3. **Mode sementara** untuk atlet yang belum punya video di data (`static-athlete` +
    `autoSides`):
    - Atlet diam.
    - Empat sisi (depan/kanan/belakang/kiri) berganti otomatis mengikuti putaran background,
      dengan crossfade.
-4. **Mode putaran (`turntable`)** hanya aktif kalau **data atlet** punya video. Video atau
-   gambar yang ditanam di kode tidak boleh dipakai untuk mengaktifkan putaran, dan harus
-   dihapus setelah V4 berjalan.
+4. **Mode putaran (`turntable`)** hanya aktif kalau **data atlet** punya set putaran (12–24
+   foto, atau video). Video atau gambar yang ditanam di kode tidak boleh dipakai untuk
+   mengaktifkan putaran.
+   - **Pengecualian sementara (keputusan 2026-10-06):** Calysta tetap memakai putaran yang
+     sekarang tayang (gambar tertanam, `STAGE_FRAMES_BUNDLED`) sampai diganti 12–24 foto lewat
+     data. Setelah itu gambar tertanam dihapus.
 5. **Interaksi:**
    - Tab, swipe, dan panah keyboard memutar ke sisi yang dipilih, lalu putaran lanjut sendiri
      setelah jeda singkat.
@@ -55,7 +63,9 @@ Terakhir diperbarui: 2026-10-05 (PR R1, tugas "rapikan").
 Jangan diikuti. Sisa kodenya adalah kandidat untuk dihapus (lihat bagian 7).
 
 - Drag → Pause permanen. Jeda saat mouse hover.
-- Atlet berputar dengan 18/24 frame sebagai tampilan default.
+- Atlet berputar dengan 18/24 frame sebagai tampilan default, artinya set lama yang memutar
+  frame berjalan terus tanpa menahan pose. Set 12–24 foto dengan logika tahan + crossfade
+  (bagian 1.2) tetap berlaku.
 - Mode `static-athlete` yang hanya menampilkan sisi depan tanpa pergantian sisi.
 - PR C (resample 72 frame di browser) dan PR F2 (pengurangan kesan meluncur).
 - Jalur cepat "ganti video yang ditanam di kode".
@@ -64,12 +74,13 @@ Jangan diikuti. Sisa kodenya adalah kandidat untuk dihapus (lihat bagian 7).
 
 ## 3. Keadaan sekarang vs target
 
-Keadaan main per 2026-10-05, deploy #114. Selisih dengan bagian 1 diselesaikan bertahap (R2,
-V4); jangan ditiru untuk atlet baru.
+Keadaan main per 2026-10-06, deploy #114. Selisih dengan bagian 1 diselesaikan bertahap (R2,
+lalu set foto lewat data); jangan ditiru untuk atlet baru.
 
 | Hal | Sekarang di main | Target (bagian 1) | Status |
 |---|---|---|---|
-| Calysta | Mode putaran memakai 12 gambar yang **ditanam di kode** (`STAGE_FRAMES_BUNDLED`, `public/media/atlet-360/calysta-turn-v2`). Kanan/Belakang/Kiri berupa foto, pose ditahan, lalu fade 15% | Putaran dari **data** (V4), mulus dari sudut mana pun | Bertentangan dengan 1.2 dan 1.4. Menunggu keputusan pemilik dan V4. [PR #115](https://github.com/Marketing-project-wq/BodyHyrox-3D/pull/115) (12 pose tanpa foto) masih terbuka |
+| Calysta | Mode putaran memakai 12 gambar yang **ditanam di kode** (`STAGE_FRAMES_BUNDLED`, `public/media/atlet-360/calysta-turn-v2`). Kanan/Belakang/Kiri berupa foto, pose ditahan, lalu fade 15% | 12–24 foto dari **data**, dengan logika yang sama | **Pengecualian sementara yang disetujui** (bagian 1.4). Diganti setelah set foto baru ada. [PR #115](https://github.com/Marketing-project-wq/BodyHyrox-3D/pull/115) (12 pose tanpa foto) masih terbuka; diusulkan ditutup |
+| Set foto putaran dari data | Studio sudah bisa menyimpan sampai 36 frame per atlet, tetapi data belum punya penanda "set putaran" dan `blendShare`. Mode putaran dari data hanya aktif untuk video | Set 12–24 foto di data otomatis mendapat mode putaran dengan logika tahan + crossfade | Pertanyaan terbuka (bagian 8), lalu R2/V4 |
 | Atlet lain | Mode sementara (4 sisi, `autoSides`) | Sama sampai mereka punya video di data | Sesuai |
 | Pemilihan mode | Diputuskan di beberapa tempat (konstanta, `?stage=`, gambar tertanam, video tertanam/data, plus pemilihan video di `AthleteViews`) | Satu aturan berdasarkan data | R2 |
 | Platform di mode putaran | Ikut berputar bersama arena (`platformLocked` hanya di mode sementara) | Bagian 1.2: hanya pilar, frame, dan lantai yang berputar | Pertanyaan terbuka (bagian 8) |
@@ -162,8 +173,12 @@ sudut. Script tidak bisa menghilangkannya; rekam ulang di meja putar.
   default, keputusan resmi pemilik belum ada.
 - **R2:** rapikan kode (lihat audit). **R3:** GitHub, Railway, dan Supabase. Keduanya menunggu
   approval.
-- **[PR #115](https://github.com/Marketing-project-wq/BodyHyrox-3D/pull/115):** terbuka,
-  menunggu keputusan.
+- **Set 12–24 foto per atlet lewat data** (pengganti gambar tertanam Calysta): penanda "set
+  putaran" dan `blendShare` di data, serta pemilihan mode dari data. Menunggu set foto dan
+  approval.
+- **[PR #115](https://github.com/Marketing-project-wq/BodyHyrox-3D/pull/115):** terbuka.
+  Pemilik memilih tetap memakai yang tayang sekarang, jadi diusulkan ditutup (menunggu
+  konfirmasi).
 - **Sudah selesai** (catatan riwayat): F1 #104 (kaki dan bayangan napak), `autoSides` #107, dan
   perbaikan script terakhir #108–#110.
 
@@ -171,8 +186,11 @@ sudut. Script tidak bisa menghilangkannya; rekam ulang di meja putar.
 
 Jangan ditebak; tanyakan ke pemilik.
 
-1. Calysta saat ini berputar dari gambar yang ditanam di kode (bertentangan dengan bagian 1.4).
-   Pilihannya: biarkan sampai V4, atau kembalikan Calysta ke mode sementara sekarang.
+1. ~~Calysta dan gambar tertanam~~: dijawab 2026-10-06. Tetap dipakai sampai diganti 12–24
+   foto (bagian 1.4).
 2. Di mode putaran, apakah platform ikut berputar atau diam?
 3. "Deteksi kaki v3": aturan deteksi di browser bernomor `FOOT_VERSION = 4`, sedangkan file
    `feet.json` berformat versi 3. Keduanya dianggap sesuai bagian 1.7.
+4. Bagaimana data menandai bahwa set frame atlet adalah set putaran 12–24 foto (dengan mode
+   putaran tahan + crossfade), dan bukan set lama? Contoh: tanda di studio "set putaran", atau
+   otomatis kalau jumlah foto 12–24 dan sudutnya rata.
