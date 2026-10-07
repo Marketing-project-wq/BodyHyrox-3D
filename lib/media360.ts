@@ -8,6 +8,8 @@
  * the platform.
  */
 
+import { solidifyCanvas } from "@/lib/sole-solid";
+
 /** Where the feet touch the ground, as fractions of the image (see scripts/foot-baseline.py). */
 export type Foot = {
   toe: number;
@@ -393,6 +395,7 @@ export async function normalizeToSet(
       const y = ref.toe * canvasH - m.toe * h;
       g.drawImage(img, x, y, w, h);
     }
+    solidifyCanvas(g, canvasW, canvasH); // "sol padat": new frames ship with solid soles
     const out = await new Promise<Blob | null>((res) => c.toBlob(res, "image/webp", 0.92));
     if (out && out.type === "image/webp") return out;
     return (await new Promise<Blob | null>((res) => c.toBlob(res, "image/png"))) || blob;

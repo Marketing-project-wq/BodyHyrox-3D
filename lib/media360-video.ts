@@ -2,6 +2,7 @@
 
 import { VIDEO_360 } from "@/lib/config";
 import { loadImage, setReference, type Foot } from "@/lib/media360";
+import { solidifyCanvas } from "@/lib/sole-solid";
 
 /**
  * 360 set from one video, entirely in the browser: the file is decoded by a
@@ -378,6 +379,7 @@ export async function fitVideoFrames(cutouts: Blob[], feet: (Foot | null)[], onP
       const g = c.getContext("2d");
       if (!g) throw new Error("canvas");
       g.drawImage(img, x, y, sw * k, sh * k);
+      solidifyCanvas(g, c.width, c.height); // "sol padat": new frames ship with solid soles
       const webp = await new Promise<Blob | null>((res) => c.toBlob(res, "image/webp", 0.92));
       const blob = webp && webp.type === "image/webp" ? webp : await new Promise<Blob | null>((res) => c.toBlob(res, "image/png"));
       if (!blob) throw new Error("canvas");

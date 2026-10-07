@@ -277,6 +277,9 @@ body {
 .stage-shadow-core {
   background: radial-gradient(50% 50% at 50% 50%, rgba(0, 0, 0, 0.97), rgba(0, 0, 0, 0.85) 45%, rgba(0, 0, 0, 0.35) 75%, transparent 100%);
 }
+.stage-shadow-contact {
+  background: radial-gradient(50% 50% at 50% 50%, rgba(0, 0, 0, 1), rgba(0, 0, 0, 0.9) 55%, rgba(0, 0, 0, 0.4) 80%, transparent 100%);
+}
 .stage-shadow-soft {
   background: radial-gradient(50% 50% at 50% 50%, rgba(0, 0, 0, 0.72), rgba(0, 0, 0, 0.38) 55%, transparent 100%);
 }
@@ -461,11 +464,4 @@ body {
     rgba(0, 180, 255, 0.32) calc(var(--bgl-period) - 2px),
     rgba(0, 180, 255, 0.32) var(--bgl-period)
   );
-}
-
-/* Feet glow over the shoes (STAGE_FEET_BLEND): platform light rising from the
-   sole line, so the athlete reads as standing in the lit floor. */
-.stage-feet-glow {
-  background: radial-gradient(42% 50% at 50% 50%, rgba(0, 180, 255, var(--feet-glow, 0.4)), rgba(0, 180, 255, 0) 100%);
-  mix-blend-mode: screen;
 }
