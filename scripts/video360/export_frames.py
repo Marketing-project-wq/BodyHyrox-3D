@@ -57,6 +57,7 @@ def main():
     n = len(names)
     if n % count:
         sys.exit(f"{n} pictures can't be split evenly into {count}")
+    solid = load("sole_solid", os.path.join(HERE, "sole_solid.py"))
     photos = {}
     spec = os.environ.get("PHOTOS_AT", "").strip()
     if spec:
@@ -84,6 +85,7 @@ def main():
         w = round(im.width * height / im.height)
         if im.height != height:
             im = im.resize((w, height), Image.LANCZOS)
+        im = solid.solidify(im)  # "sol padat": solid, slightly darker soles
         name = f"{k:03d}.webp"
         path = os.path.join(dest, name)
         im.save(path, quality=82, method=6, alpha_quality=90)

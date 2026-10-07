@@ -1,4 +1,5 @@
 import { TURN_SET } from "@/lib/config";
+import { solidifyCanvas } from "@/lib/sole-solid";
 import { loadImage, measureFrame, type Foot } from "@/lib/media360";
 
 /**
@@ -241,6 +242,7 @@ export async function fitPose(cutout: Blob, foot: Foot | null): Promise<Blob> {
     if (!g) throw new Error("canvas");
     g.imageSmoothingQuality = "high";
     g.drawImage(img, x, y, sw * k, sh * k);
+    solidifyCanvas(g, c.width, c.height); // "sol padat": new frames ship with solid soles
     const webp = await new Promise<Blob | null>((res) => c.toBlob(res, "image/webp", 0.92));
     const blob = webp && webp.type === "image/webp" ? webp : await new Promise<Blob | null>((res) => c.toBlob(res, "image/png"));
     if (!blob) throw new Error("canvas");

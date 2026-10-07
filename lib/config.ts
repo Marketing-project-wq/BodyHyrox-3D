@@ -317,14 +317,6 @@ export const STAGE_VIEW_CONTROLS = false;
  */
 export const STAGE_CTA = { dropPct: 15.5 };
 /**
- * Feet blend ("hologram" base) so the athlete doesn't look like floating:
- * - fadePct / minOpacity: the photo fades from full to minOpacity over the
- *   last fadePct (% of the frame height) above the sole line.
- * - glowHeightPct / glowOpacity: a soft platform-colour glow centred on the
- *   sole line, over the shoes.
- */
-export const STAGE_FEET_BLEND = { fadePct: 4, minOpacity: 0.6, glowHeightPct: 9, glowOpacity: 0.4 };
-/**
  * Picture turns shipped with the site (public/media/...), per athlete id,
  * shown instead of the data's frames until that athlete's own turn set is
  * published (a turn set in the data always wins; then remove the entry): `count`
@@ -502,6 +494,8 @@ export const STAGE_ARENA = {
   poolColor: "#cdeeff",
   poolRadius: 0.5,
   poolOpacity: 0.65,
+  /** The pool is a little dimmer right under the feet (0 = brightest there, 1 = dark centre), so the step reads darkest. */
+  poolCenterDim: 0.45,
   minSceneryRadiusM: 6,
   pillars: 10,
   /**
@@ -569,6 +563,19 @@ export const STAGE_ARENA = {
   liftedShadowWidth: 1.6,
   liftedShadowHeight: 1.8,
   poolShadowHeight: 0.06,
+  /**
+   * Contact (ambient-occlusion) shadow: a thin, tight, nearly black ellipse
+   * right under each sole, on top of the wider shadows, following the same
+   * soles (data feet, crossfades and turns). Width = sole span x
+   * contactShadowWidth, height contactShadowHeight of the frame, centre
+   * contactShadowRise above the sole bottom. A lifted / off-platform sole gets
+   * liftedContactOpacity of it. Always neutral dark, whatever the theme colour.
+   */
+  contactShadowWidth: 1.08,
+  contactShadowHeight: 0.009,
+  contactShadowRise: 0.001,
+  contactShadowOpacity: 0.95,
+  liftedContactOpacity: 0.2,
   /**
    * The platform check (a 3D raycast per sole) is cached and redone only when
    * the leading frame changes, the stage turns more than this many degrees,
@@ -702,6 +709,27 @@ export const MEDIA_SOURCES = {
   viewUrlSec: 60 * 60 * 6,
   photoMime: ["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"] as const,
   videoMime: ["video/mp4", "video/quicktime", "video/webm"] as const,
+};
+
+/**
+ * "Sol padat" (lib/sole-solid.ts): the bottom of each shoe solid and slightly
+ * darker so the athlete stands ON the platform. Shares of the picture height:
+ * - scanPct: bottom part of the picture looked at; spreadPct: how far above
+ *   the lowest sole another sole may stand (raised back shoe in side views);
+ * - bandPct: band above each sole bottom made solid; interiorPct: a pixel is
+ *   "inside the shoe" when nothing transparent is this close; holePct: largest
+ *   see-through hole filled;
+ * - darkPct / darkStrength: soft dark gradient at the very bottom (0..1).
+ */
+export const STAGE_SOLE = {
+  enabled: true,
+  scanPct: 0.3,
+  spreadPct: 0.16,
+  bandPct: 0.045,
+  interiorPct: 0.0012,
+  holePct: 0.0025,
+  darkPct: 0.016,
+  darkStrength: 0.35,
 };
 
 /**

@@ -4,7 +4,8 @@ import { forwardRef, useCallback, useEffect, useImperativeHandle, useLayoutEffec
 import { useRouter } from "next/navigation";
 import type { Media360 } from "@/lib/data";
 import { VIEW_ANGLES, VIEW_KEYS, frameAngles } from "@/lib/views";
-import { STAGE_ARENA, STAGE_FEET_BLEND, STAGE_VIDEO_BUNDLED, VIEWER_360, VIEWER_360_FRAME_CLASS, VIEWER_SPIN, VIEWER_VIDEO, VIEWER_VIEWS, viewer360FrameStyle } from "@/lib/config";
+import { solidifyCanvas } from "@/lib/sole-solid";
+import { STAGE_ARENA, STAGE_VIDEO_BUNDLED, VIEWER_360, VIEWER_360_FRAME_CLASS, VIEWER_SPIN, VIEWER_VIDEO, VIEWER_VIEWS, viewer360FrameStyle } from "@/lib/config";
 import { alphaLooksRight, isHevc, parseStageVideo, sourceOrder, timeForAngle, videoAngle, type StageVideoSource } from "@/lib/stage-video";
 import { blendAmount, bracket, loadOrder, nearestSide, norm360 } from "@/lib/spin";
 import { contactsOf, footShift, mixContacts, parseVideoFeet, videoFootAt, type VideoFeet } from "@/lib/stage-feet";
@@ -50,18 +51,6 @@ type DragCallbacks = {
 type GroundHit = { inside: boolean; scale: number };
 
 /** Place a full-box .stage-shadow-t: centre (cx, cy) and size (w, h), as fractions of the box. */
-/**
- * Feet blend: the photo fades out a little over the last STAGE_FEET_BLEND.fadePct
- * above the sole line (VIEWER_360.feetLinePct), so the shoes melt into the lit
- * platform instead of ending on a hard, floating-looking edge.
- */
-const feetFadeMask = (() => {
-  const { fadePct, minOpacity } = STAGE_FEET_BLEND;
-  const sole = VIEWER_360.feetLinePct;
-  const g = `linear-gradient(to top, rgba(0,0,0,${minOpacity}) 0%, rgba(0,0,0,${minOpacity}) ${sole}%, #000 ${sole + fadePct}%)`;
-  return { maskImage: g, WebkitMaskImage: g } as React.CSSProperties;
-})();
-
 const shadowTransform = (cx: number, cy: number, w: number, h: number) =>
   `translate(${(cx * 100).toFixed(2)}%, ${(cy * 100).toFixed(2)}%) scale(${w.toFixed(4)}, ${h.toFixed(4)}) translate(-50%, -50%)`;
 
@@ -177,6 +166,7 @@ export const AthleteViews = forwardRef<
   const groundCacheRef = useRef<{ key: string; a: number; hits: (GroundHit | null)[] } | null>(null);
   const poolRef = useRef<HTMLDivElement>(null);
   const soleRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const contactRefs = useRef<(HTMLDivElement | null)[]>([]);
   const feetRef = useRef<(Foot | null)[]>([]); // per frame index, after its transform
   const rawFeetRef = useRef<(Foot | null)[]>([]); // as measured (transform pivot)
   // The turn video's own soles (one entry per video frame); "loading" holds the video back.
@@ -234,6 +224,7 @@ export const AthleteViews = forwardRef<
     g.imageSmoothingQuality = "high";
     g.clearRect(0, 0, c.width, c.height);
     g.drawImage(bmp, 0, 0, c.width, c.height);
+    solidifyCanvas(g, c.width, c.height); // "sol padat": live frames as drawn, files untouched
     layerFrame.current[layer] = i;
     // The frame's own (non-destructive) transform pivots on its measured feet;
     // paint puts the feet shift in front of it.
@@ -488,6 +479,21 @@ export const AthleteViews = forwardRef<
             c.b - S.soleShadowRise * c.scale,
             Math.max(c.x1 - c.x0, S.soleShadowMinSpan) * S.soleShadowWidth * wide * c.scale,
             S.soleShadowHeight * tall * c.scale,
+          );
+        });
+        contactRefs.current.forEach((el, k) => {
+          if (!el) return;
+          const c = contacts[k];
+          if (!c) {
+            el.style.opacity = "0";
+            return;
+          }
+          el.style.opacity = String(c.planted ? S.contactShadowOpacity : S.contactShadowOpacity * S.liftedContactOpacity);
+          el.style.transform = shadowTransform(
+            (c.x0 + c.x1) / 2,
+            c.b - S.contactShadowRise * c.scale,
+            Math.max(c.x1 - c.x0, S.soleShadowMinSpan) * S.contactShadowWidth * c.scale,
+            S.contactShadowHeight * c.scale,
           );
         });
         const pool = poolRef.current;
@@ -1243,9 +1249,19 @@ export const AthleteViews = forwardRef<
             className="stage-shadow-t stage-shadow-core"
           />
         ))}
+        {/* Thin, tight dark contact right where each sole meets the floor (on top of the wider ones). */}
+        {[0, 1].map((k) => (
+          <div
+            key={`c${k}`}
+            ref={(el) => {
+              contactRefs.current[k] = el;
+            }}
+            className="stage-shadow-t stage-shadow-contact"
+          />
+        ))}
       </div>
 
-      <div ref={stackRef} role="img" aria-label={describe(0)} className="absolute inset-0" style={{ transformOrigin: "50% 100%", isolation: "isolate", ...feetFadeMask }}>
+      <div ref={stackRef} role="img" aria-label={describe(0)} className="absolute inset-0" style={{ transformOrigin: "50% 100%", isolation: "isolate" }}>
         {[0, 1].map((k) => (
           <canvas
             key={k}

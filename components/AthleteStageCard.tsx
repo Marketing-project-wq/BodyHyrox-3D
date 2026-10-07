@@ -5,7 +5,7 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { ChevronLeft, ChevronRight, Pause, Play, RotateCcw } from "lucide-react";
 import type { PublicAthleteDetail } from "@/lib/data";
-import { STAGE_ARENA, STAGE_CTA, STAGE_FEET_BLEND, STAGE_MODE, STAGE_PLATFORM, STAGE_READOUT, STAGE_STATIC, STAGE_TURN_FRAMES_AUTO, STAGE_TURN_VIDEO_AUTO, STAGE_VIEW_CONTROLS, STAGE_VIDEO_BUNDLED, VIEWER_360, VIEWER_360_FRAME_CLASS, VIEWER_SPIN, VIEWER_VIDEO, VIEWER_VIEWS, stageFitVars, viewer360FrameStyle } from "@/lib/config";
+import { STAGE_ARENA, STAGE_CTA, STAGE_MODE, STAGE_PLATFORM, STAGE_READOUT, STAGE_STATIC, STAGE_TURN_FRAMES_AUTO, STAGE_TURN_VIDEO_AUTO, STAGE_VIEW_CONTROLS, STAGE_VIDEO_BUNDLED, VIEWER_360, VIEWER_360_FRAME_CLASS, VIEWER_SPIN, VIEWER_VIDEO, VIEWER_VIEWS, stageFitVars, viewer360FrameStyle } from "@/lib/config";
 import { decayVelocity, degreeLabel, nearestSide, nextSideTarget, norm360, shortestDelta, sideTarget } from "@/lib/spin";
 import { VIEW_KEYS } from "@/lib/views";
 import { parseStageVideo, turnVideoUsable } from "@/lib/stage-video";
@@ -1086,19 +1086,6 @@ export function AthleteStageCard({
             >
               {m.pub_placeLogo}
             </a>
-            {/* Feet glow: platform light rising over the shoes, so the soles blend
-                into the lit floor instead of ending on a hard edge. */}
-            <div
-              aria-hidden
-              className="stage-feet-glow pointer-events-none absolute inset-x-0 z-[4]"
-              style={
-                {
-                  bottom: `${VIEWER_360.feetLinePct - STAGE_FEET_BLEND.glowHeightPct / 2}%`,
-                  height: `${STAGE_FEET_BLEND.glowHeightPct}%`,
-                  "--feet-glow": STAGE_FEET_BLEND.glowOpacity,
-                } as React.CSSProperties
-              }
-            />
           </div>
 
           {/* View switcher: ‹ ⏯ Depan · Kanan · Belakang · Kiri › (above the CTA);

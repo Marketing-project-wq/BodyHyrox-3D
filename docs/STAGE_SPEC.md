@@ -48,9 +48,19 @@ Terakhir diperbarui: 2026-10-06 (media frame panggung M0–M1; setelah #121–#1
      zona (`#zona-sponsor`: zona tersedia, harga, tambah/ajukan). Posisinya **tepat di bawah tepi
      depan platform** (keputusan 2026-10-06, menggantikan "menutupi sepatu"): dikunci ke garis
      kaki (`STAGE_CTA.dropPct`), tidak menutupi kaki.
-   - **Kaki menapak:** bayangan kontak per sepatu lebih tegas, dan bagian bawah sepatu sedikit
-     memudar ke cahaya platform dengan glow biru (`STAGE_FEET_BLEND`), supaya kaki tidak
-     terlihat mengambang saat berputar.
+   - **Kaki menapak (sol padat, keputusan 2026-10-07):** fade/glow `STAGE_FEET_BLEND` (#128)
+     dihapus karena membuat sol tampak tembus. Gantinya, di viewer (tanpa memproses ulang file):
+     - **Sol padat** (`STAGE_SOLE`, `lib/sole-solid.ts`): pita ±4,5% di atas dasar sol dibuat
+       100% opak (piksel semi-transparan di bagian dalam), lubang kecil diisi; tepi antialias
+       dan siluet tidak berubah, tidak ada bentuk baru.
+     - **Gradasi gelap halus** di ±1,6% terbawah sol (`darkPct`, `darkStrength`), bukan garis hitam.
+     - **Bayangan kontak tipis** per sepatu (`STAGE_ARENA.contactShadow*`), di atas bayangan
+       yang sudah ada, mengikuti data feet saat ganti sisi, putaran, dan crossfade; melemah
+       saat kaki terangkat (`liftedContactOpacity`). Warna gelap netral untuk semua tema.
+     - **Cahaya platform** tepat di bawah sol sedikit diredupkan (`STAGE_ARENA.poolCenterDim`).
+     - Materi baru ikut dipadatkan: import studio (`turn-set`, `media360`, `media360-video`) dan
+       `scripts/video360/sole_solid.py` (dipanggil `export_frames.py`). Mode video (`<video>`)
+       tidak dipadatkan, hanya bayangan kontak dan peredupan platform.
    - Kartu zona menahan putaran selama terbuka.
    - Tab browser tidak aktif dan `prefers-reduced-motion`: putaran berhenti.
 6. **Platform dan tata letak:**
