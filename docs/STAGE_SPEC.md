@@ -62,7 +62,35 @@ Terakhir diperbarui: 2026-10-06 (media frame panggung M0–M1; setelah #121–#1
      - Materi baru ikut dipadatkan: import studio (`turn-set`, `media360`, `media360-video`) dan
        `scripts/video360/sole_solid.py` (dipanggil `export_frames.py`). Mode video (`<video>`)
        tidak dipadatkan, hanya bayangan kontak dan peredupan platform.
-   - Kartu zona menahan putaran selama terbuka.
+   - **Penanda zona sponsor (keputusan 2026-10-08, `STAGE_ZONES`):**
+     - Lingkaran bergaris putus-putus warna tema (`--accent`) dengan isi tipis dan titik kecil
+       di tengah, menggantikan titik bulat solid. Ukuran ±5,2% tinggi atlet (22–40 px di
+       layar, tetap sama saat zoom), area sentuh 44×44 px.
+     - Status: **tersedia** = warna tema, garis berputar pelan (12 dtk/putaran); **terisi** =
+       abu-abu, diam; **nonaktif** = abu-abu bertitik, lebih pudar, diam; titik **tanpa zona**
+       (hanya label) = warna tema, diam. `prefers-reduced-motion`: tanpa animasi garis.
+     - Hover (mouse/pen) atau fokus keyboard: **satu** label "Nama zona · Rp harga" (terisi /
+       nonaktif: status sebagai ganti harga). Label pindah ke atas/bawah/kanan/kiri supaya utuh
+       di dalam kartu panggung dan layar; nama panjang dibungkus, harga tidak pernah terpotong.
+     - Pembaca layar: "Lengan Kanan, Rp 6.000.000, tersedia". Tab berpindah antar zona.
+   - **Zoom ke zona:** klik/tap/Enter pada lingkaran.
+     - Atlet, penanda, bayangan dan platform CSS diperbesar bersama (transform figure);
+       kamera arena 3D menyesuaikan tiap frame, jadi platform tetap tepat di bawah kaki dan
+       tetap tajam. Arena digelapkan (`sceneDim`), tanpa blur (ringan di HP). Konten samping,
+       readout, tombol "Place Your Logo" dan panah memudar.
+     - Lingkaran terpilih ke tengah area kosong: di samping kartu (layar lebar) atau di atas
+       kartu (HP/iPad potret). Animasi 0,6 dtk ease-out; `prefers-reduced-motion`: langsung.
+     - Kartu zona: status, nama, harga, tombol "Pasang Logo di Sini" (alur pengajuan zona;
+       hanya untuk zona tersedia), tombol × 44 px. Penanda lain diredupkan.
+     - Lingkaran lain saat zoom: geser halus ke zona itu tanpa zoom out.
+     - Keluar: ×, Esc, tap di luar atlet/kartu, atau gestur kembali (entri riwayat). Fokus
+       kembali ke lingkaran yang sama. Putaran dan pergantian sisi berhenti selama zoom dan
+       lanjut setelah jeda biasa (`autoRotateResumeMs` / `STAGE_STATIC.resumeMs`).
+     - Faktor zoom: HP 2,2×, tablet 2,0×, desktop 2,4×, dibatasi resolusi foto atlet (maks
+       15% pembesaran piksel, min 1,5×). Dengan foto 1680 px sekarang: Mac Retina/iPad
+       ±1,7–2,0×, iPhone ±1,7–2,2×, desktop DPR 1 2,4×. Untuk 2,4× di Retina perlu foto
+       ±2.800 px tinggi.
+   - Kartu zona dan zoom menahan putaran selama terbuka.
    - Tab browser tidak aktif dan `prefers-reduced-motion`: putaran berhenti.
 6. **Platform dan tata letak:**
    - Platform default `"hex"`, opsi `"round"` (#105, pratinjau `?platform=round`).

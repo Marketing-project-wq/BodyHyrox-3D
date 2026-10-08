@@ -1,21 +1,20 @@
 "use client";
 
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
-import type { Media360 } from "@/lib/data";
+import { createPortal } from "react-dom";
+import type { Media360, Media360Hotspot } from "@/lib/data";
 import { VIEW_ANGLES, VIEW_KEYS, frameAngles } from "@/lib/views";
 import { solidifyCanvas } from "@/lib/sole-solid";
-import { STAGE_ARENA, STAGE_VIDEO_BUNDLED, VIEWER_360, VIEWER_360_FRAME_CLASS, VIEWER_SPIN, VIEWER_VIDEO, VIEWER_VIEWS, viewer360FrameStyle } from "@/lib/config";
+import { STAGE_ARENA, STAGE_VIDEO_BUNDLED, STAGE_ZONES, VIEWER_360, VIEWER_360_FRAME_CLASS, VIEWER_SPIN, VIEWER_VIDEO, VIEWER_VIEWS, viewer360FrameStyle } from "@/lib/config";
 import { alphaLooksRight, isHevc, parseStageVideo, sourceOrder, timeForAngle, videoAngle, type StageVideoSource } from "@/lib/stage-video";
 import { blendAmount, bracket, loadOrder, nearestSide, norm360 } from "@/lib/spin";
 import { contactsOf, footShift, mixContacts, parseVideoFeet, videoFootAt, type VideoFeet } from "@/lib/stage-feet";
 import { FrameCache } from "@/lib/frame-cache";
-import { type Dict } from "@/lib/i18n";
+import { fmt, type Dict } from "@/lib/i18n";
 import { formatIDR } from "@/lib/format";
 import { footIsCurrent, frameCss, measureFrame, transformFoot, type Foot } from "@/lib/media360";
 import type { ArenaHandle } from "@/components/StageArena3D";
 import type { MutableRefObject } from "react";
-import { X } from "lucide-react";
 
 /** Imperative API: the stage card's single orbit loop paints the athlete here. */
 export type AthleteViewsHandle = {
@@ -38,7 +37,51 @@ export type AthleteViewsHandle = {
    * can). The video's playback rate follows `speed`.
    */
   video: (speed: number, envDeg: number, now: number) => number | null;
+  /**
+   * Zone zoom: the figure is shown at `scale` right now (CSS transform set by
+   * the stage card), and `res` is the zoom the canvases should be sharp for.
+   * `settled` (the zoom's last frame): re-reads the layout and repaints
+   * (shadows, raycasts) at once; mid-animation frames only keep the scale
+   * (shadows and markers are relative to the box, so they follow by themselves).
+   */
+  setZoom: (scale: number, res: number, settled?: boolean) => void;
+  /** The marker button of a zone key (as given to onZoneSelect), if on screen. */
+  marker: (key: string) => HTMLButtonElement | null;
+  /** The frames' own height in px (0 while unknown): limits a sharp zoom. */
+  frameHeight: () => number;
+  /** Is there athlete (not transparent picture) under this screen point? */
+  onAthlete: (clientX: number, clientY: number) => boolean;
 };
+
+/** A zone marker chosen (click / tap / Enter): the stage card zooms onto it. */
+export type ZoneSelection = { key: string; hotspot: Media360Hotspot };
+
+/** Marker look by zone status (STAGE_ZONES): available / taken / inactive / no zone. */
+export type ZoneLook = "available" | "taken" | "inactive" | "none";
+export const zoneLook = (h: Media360Hotspot): ZoneLook =>
+  !h.athleteZoneId || h.status == null ? "none" : h.status === "tersedia" ? "available" : h.status === "terisi" ? "taken" : "inactive";
+
+/** "Lengan Kanan · Rp 6.000.000", or the status instead of a price when the zone isn't open. */
+export function zoneLabel(m: Dict, h: Media360Hotspot): string {
+  const name = h.zoneNama ?? h.label;
+  const look = zoneLook(h);
+  if (look === "taken") return fmt(m.zm_label, { name, price: m.zm_status_taken });
+  if (look === "inactive") return fmt(m.zm_label, { name, price: m.zm_status_inactive });
+  // the price never breaks across lines ("Rp" + amount stay together)
+  if (h.effectivePrice != null) return fmt(m.zm_label, { name, price: formatIDR(h.effectivePrice).replace(/\s/g, "\u00a0") });
+  return name;
+}
+
+/** Screen-reader name of a marker: "Lengan Kanan, Rp 6.000.000, tersedia". */
+export function zoneAria(m: Dict, h: Media360Hotspot): string {
+  const name = h.zoneNama ?? h.label;
+  const look = zoneLook(h);
+  if (look === "none") return name;
+  const status = look === "available" ? m.zm_st_available : look === "taken" ? m.zm_st_taken : m.zm_st_inactive;
+  return look === "available" && h.effectivePrice != null
+    ? fmt(m.zm_aria, { name, price: formatIDR(h.effectivePrice), status })
+    : fmt(m.zm_aria_noprice, { name, status });
+}
 
 type DragCallbacks = {
   onDragStart: () => void;
@@ -104,8 +147,14 @@ export const AthleteViews = forwardRef<
     debugVideo?: boolean;
     /** Accessible name of the athlete picture at an angle (updated at rest only). */
     describe: (angleDeg: number) => string;
-    /** A zone card opened (touch) or closed: the stage holds its idle spin meanwhile. */
-    onZoneCardChange?: (open: boolean) => void;
+    /** A zone marker was chosen (click, tap, Enter / Space): the stage card zooms onto it. */
+    onZoneSelect?: (sel: ZoneSelection) => void;
+    /** The zone being zoomed onto (its marker is highlighted, the others dimmed), or null. */
+    zoomKey?: string | null;
+    /** Zoomed: no drag / swipe / key turns on the athlete. */
+    locked?: boolean;
+    /** The markers went away (the athlete turned): close a zoom. */
+    onMarkersHidden?: () => void;
     /** Mouse over / off the athlete. */
     onHoverChange?: (over: boolean) => void;
     /** A press on the athlete that did not become a drag (tap / click). */
@@ -114,7 +163,7 @@ export const AthleteViews = forwardRef<
     onFocusChange?: (focused: boolean) => void;
   } & DragCallbacks
 >(function AthleteViews(
-  { athleteId, media, view, m, label, onKeyTurn, onTogglePlay, onWheelTurn, onReady, onVideoSettled, staticSides = false, onHoverChange, onTap, onFocusChange, onDragStart, onDragMove, onDragEnd, arena, debug, debugPerf, debugVideo, describe, onZoneCardChange },
+  { athleteId, media, view, m, label, onKeyTurn, onTogglePlay, onWheelTurn, onReady, onVideoSettled, staticSides = false, onHoverChange, onTap, onFocusChange, onDragStart, onDragMove, onDragEnd, arena, debug, debugPerf, debugVideo, describe, onZoneSelect, zoomKey = null, locked = false, onMarkersHidden },
   ref,
 ) {
   const rootRef = useRef<HTMLDivElement>(null);
@@ -131,9 +180,14 @@ export const AthleteViews = forwardRef<
   const describeRef = useRef(describe);
   describeRef.current = describe;
   const imgLabelRef = useRef("");
-  // Set below; paint() closes an open zone card when the stage starts moving.
-  const closeCardRef = useRef<() => void>(() => {});
-  const router = useRouter();
+  // Zone markers: hidden (the stage moves) → close the hover label and a zoom.
+  const onMarkersHiddenRef = useRef(onMarkersHidden);
+  onMarkersHiddenRef.current = onMarkersHidden;
+  const zoomKeyRef = useRef(zoomKey);
+  zoomKeyRef.current = zoomKey;
+  const lockedRef = useRef(locked);
+  lockedRef.current = locked;
+  const hideLabelRef = useRef<() => void>(() => {});
   const base = media.baseUrl.replace(/\/$/, "");
   const frames = media.frames;
   const viewFiles = VIEW_KEYS.map((k) => media.views?.[k] ?? frames[0]);
@@ -190,18 +244,49 @@ export const AthleteViews = forwardRef<
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [angles, viewIdx.join(",")]);
 
-  // Canvas backing size = its CSS size × DPR (capped); frames decode at that height.
+  // Zone zoom: the scale the figure is shown at now (CSS transform of the
+  // stage card's figure) and the zoom the canvases are made sharp for.
+  const zoomRef = useRef({ s: 1, res: 1 });
+  // A canvas resized for the zoom keeps its old picture (scaled) until its
+  // frame is decoded at the new size: no blank flash.
+  const layerStale = useRef([false, false]);
+  // Canvas backing size = its CSS size × DPR (capped) × the zoom it must be
+  // sharp for (never above the frames' own height); frames decode at that height.
   const sizeCanvases = useCallback((box: DOMRect) => {
+    const z = zoomRef.current;
+    const baseW = box.width / z.s;
+    const baseH = box.height / z.s;
     const dpr = Math.min(window.devicePixelRatio || 1, VIEWER_SPIN.maxDpr);
-    const w = Math.max(1, Math.round(box.width * dpr));
-    const h = Math.max(1, Math.round(box.height * dpr));
-    for (const c of canvasRefs.current) {
-      if (c && (c.width !== w || c.height !== h)) {
-        c.width = w;
-        c.height = h;
-        layerFrame.current = [-1, -1];
-      }
+    let h = baseH * dpr;
+    if (z.res > 1) {
+      const zoomDpr = Math.min(window.devicePixelRatio || 1, STAGE_ZONES.zoom.maxDpr);
+      const nat = cacheRef.current?.naturalHeight ?? 0;
+      const want = baseH * zoomDpr * z.res;
+      h = Math.max(h, nat ? Math.min(want, nat) : want);
     }
+    h = Math.max(1, Math.round(h));
+    const w = Math.max(1, Math.round((h * baseW) / Math.max(1, baseH)));
+    canvasRefs.current.forEach((c, k) => {
+      if (!c || (c.width === w && c.height === h)) return;
+      const keep = layerFrame.current[k] >= 0 && c.width > 1 && c.height > 1;
+      let old: HTMLCanvasElement | null = null;
+      if (keep) {
+        old = document.createElement("canvas");
+        old.width = c.width;
+        old.height = c.height;
+        old.getContext("2d")?.drawImage(c, 0, 0);
+      }
+      c.width = w;
+      c.height = h;
+      if (old) {
+        const g = c.getContext("2d");
+        if (g) {
+          g.imageSmoothingQuality = "high";
+          g.drawImage(old, 0, 0, w, h);
+        }
+        layerStale.current[k] = true;
+      } else layerFrame.current[k] = -1;
+    });
     cacheRef.current?.setTargetHeight(h);
   }, []);
 
@@ -211,14 +296,16 @@ export const AthleteViews = forwardRef<
     const c = canvasRefs.current[layer];
     const cache = cacheRef.current;
     if (!c || !cache) return false;
-    if (layerFrame.current[layer] === i) return true;
+    const same = layerFrame.current[layer] === i;
+    if (same && !layerStale.current[layer]) return true;
     const bmp = cache.get(i);
     if (!bmp) {
       cache.request(i).then((b) => {
         if (b) schedulePaint();
       });
-      return false;
+      return same; // a resized canvas still shows this frame (scaled) meanwhile
     }
+    layerStale.current[layer] = false;
     const g = c.getContext("2d");
     if (!g) return false;
     g.imageSmoothingQuality = "high";
@@ -530,10 +617,12 @@ export const AthleteViews = forwardRef<
       // Zone markers (option A): a side's markers show while the athlete is
       // at rest within VIEWER_SPIN.markerWindowDeg of that side.
       const mk = markersRef.current;
-      if (moving) closeCardRef.current();
       const near = nearestSide(A).off <= VIEWER_SPIN.markerWindowDeg;
       const showMk = !moving && near;
-      if (!near) closeCardRef.current();
+      if (!showMk) {
+        hideLabelRef.current();
+        if (zoomKeyRef.current) onMarkersHiddenRef.current?.();
+      }
       if (mk) {
         mk.style.opacity = showMk ? "1" : "0";
         mk.style.visibility = showMk ? "visible" : "hidden";
@@ -865,7 +954,53 @@ export const AthleteViews = forwardRef<
     },
     [paint],
   );
-  useImperativeHandle(ref, () => ({ render: paint, renderSide, video: videoTick }), [paint, renderSide, videoTick]);
+  // Zone zoom (see AthleteViewsHandle.setZoom).
+  const setZoom = useCallback(
+    (scale: number, res: number, settled = true) => {
+      const z = zoomRef.current;
+      const resChanged = Math.abs(res - z.res) > 1e-3;
+      z.s = scale;
+      z.res = res;
+      const root = rootRef.current;
+      if (resChanged && root) sizeCanvases(root.getBoundingClientRect());
+      if (!settled) return;
+      boxRef.current = null;
+      layoutVerRef.current++;
+      paint(lastRef.current.a, lastRef.current.moving, lastRef.current.turning);
+    },
+    [paint, sizeCanvases],
+  );
+  const markerEl = useCallback(
+    (key: string) => (markersRef.current?.querySelector(`[data-zone-key="${CSS.escape(key)}"]`) as HTMLButtonElement | null) ?? null,
+    [],
+  );
+  const frameHeight = useCallback(() => cacheRef.current?.naturalHeight ?? 0, []);
+  // Athlete pixels under a point: the visible canvas, a few px around it.
+  const onAthlete = useCallback((x: number, y: number) => {
+    for (const c of canvasRefs.current) {
+      if (!c || Number(c.style.opacity || "1") < 0.5 || !c.width) continue;
+      const r = c.getBoundingClientRect();
+      if (x < r.left || x > r.right || y < r.top || y > r.bottom) continue;
+      const px = Math.round(((x - r.left) / r.width) * c.width);
+      const py = Math.round(((y - r.top) / r.height) * c.height);
+      const rad = Math.max(1, Math.round((6 * c.width) / Math.max(1, r.width)));
+      try {
+        const g = c.getContext("2d");
+        const x0 = Math.max(0, px - rad);
+        const y0 = Math.max(0, py - rad);
+        const d = g?.getImageData(x0, y0, Math.min(c.width - x0, 2 * rad + 1), Math.min(c.height - y0, 2 * rad + 1)).data;
+        if (d) for (let k = 3; k < d.length; k += 4) if (d[k] > 24) return true;
+      } catch {
+        return true; // unreadable: treat the whole picture as the athlete
+      }
+    }
+    return false;
+  }, []);
+  useImperativeHandle(
+    ref,
+    () => ({ render: paint, renderSide, video: videoTick, setZoom, marker: markerEl, frameHeight, onAthlete }),
+    [paint, renderSide, videoTick, setZoom, markerEl, frameHeight, onAthlete],
+  );
 
   // Feet metrics: the precomputed feet.json next to the frames, else measure
   // each decoded frame in the browser, else the config feet line.
@@ -1065,7 +1200,7 @@ export const AthleteViews = forwardRef<
   } | null>(null);
 
   const onPointerDown = (e: React.PointerEvent) => {
-    if (!ready) return;
+    if (!ready || lockedRef.current) return;
     dragRef.current = { id: e.pointerId, x0: e.clientX, y0: e.clientY, active: false, samples: [{ t: performance.now(), x: e.clientX }] };
   };
   const onPointerMove = (e: React.PointerEvent) => {
@@ -1079,7 +1214,6 @@ export const AthleteViews = forwardRef<
         return;
       }
       d.active = true;
-      closeCardRef.current();
       try {
         (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
       } catch {
@@ -1110,78 +1244,80 @@ export const AthleteViews = forwardRef<
   const frameNo = String(viewIdx[view] + 1);
   const activeHotspots = media.hotspots.filter((h) => h.points[frameNo]);
 
-  // ---- zone markers: touch opens a card, mouse/pen hovers + clicks through ----
-  // Decided per event from the pointer that pressed the marker (not a media
-  // query), so an iPad with a trackpad or a touch laptop behaves right either way.
-  const markerPointer = useRef<string>("");
-  const [hoverZone, setHoverZone] = useState<string | null>(null);
-  const [card, setCard] = useState<{ key: string; x: number; y: number } | null>(null);
-  const cardRef = useRef<HTMLDivElement>(null);
-  const cardOpen = useRef(false);
-  const onZoneCardChangeRef = useRef(onZoneCardChange);
-  onZoneCardChangeRef.current = onZoneCardChange;
-  const closeCard = useCallback(() => {
-    if (!cardOpen.current) return;
-    cardOpen.current = false;
-    setCard(null);
-    onZoneCardChangeRef.current?.(false);
-  }, []);
-  closeCardRef.current = closeCard;
-  const openCard = (key: string, el: HTMLElement) => {
-    const root = rootRef.current?.getBoundingClientRect();
-    const b = el.getBoundingClientRect();
-    if (!root) return;
-    cardOpen.current = true;
-    setCard({ key, x: b.left + b.width / 2 - root.left, y: b.top + b.height / 2 - root.top });
-    onZoneCardChangeRef.current?.(true);
-  };
-  // Close on a press outside the card / markers, on Escape, and when the view changes.
+  // ---- zone markers (STAGE_ZONES): dashed rings; click / tap / Enter zooms
+  // (the stage card), mouse / pen hover or keyboard focus shows ONE label ----
+  const Z = STAGE_ZONES;
+  // Ring diameter: a share of the frame height (untransformed), clamped.
+  const [ringPx, setRingPx] = useState<number>(Z.ringMinPx);
+  const [zoneTip, setZoneTip] = useState<{ key: string; text: string } | null>(null);
+  const labelElRef = useRef<HTMLDivElement>(null);
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  hideLabelRef.current = () => setZoneTip((l) => (l ? null : l));
   useEffect(() => {
-    if (!card) return;
-    const onDown = (e: PointerEvent) => {
-      const t = e.target as Node;
-      if (cardRef.current?.contains(t) || markersRef.current?.contains(t)) return;
-      closeCard();
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") closeCard();
-    };
-    document.addEventListener("pointerdown", onDown, true);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("pointerdown", onDown, true);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [card, closeCard]);
-  useEffect(() => {
-    closeCard();
-  }, [view, closeCard]);
-  useEffect(() => () => closeCard(), [closeCard]);
-  // Keep the card inside the stage card (and the screen), flipping above the
-  // marker when there is no room below.
-  useLayoutEffect(() => {
-    const el = cardRef.current;
     const root = rootRef.current;
-    if (!card || !el || !root) return;
-    const r = root.getBoundingClientRect();
-    const bounds = (root.closest("section") ?? document.body).getBoundingClientRect();
-    const pad = 8;
-    const minX = Math.max(bounds.left, 0) + pad;
-    const maxX = Math.min(bounds.right, window.innerWidth) - pad;
-    const w = el.offsetWidth;
-    const h = el.offsetHeight;
-    let left = r.left + card.x - w / 2;
-    left = Math.min(Math.max(left, minX), maxX - w);
-    const gap = 26;
-    let top = r.top + card.y + gap;
-    const maxY = Math.min(bounds.bottom, window.innerHeight) - pad;
-    if (top + h > maxY) top = r.top + card.y - gap - h;
-    top = Math.max(top, Math.max(bounds.top, 0) + pad);
-    el.style.left = `${left - r.left}px`;
-    el.style.top = `${top - r.top}px`;
-    el.style.visibility = "visible";
-  }, [card]);
-  const cardZone = card ? activeHotspots.find((h) => h.label + frameNo === card.key) : null;
+    if (!root) return;
+    const measure = () => {
+      const h = root.getBoundingClientRect().height / zoomRef.current.s;
+      const d = Math.round(Math.min(Z.ringMaxPx, Math.max(Z.ringMinPx, h * Z.ringFrac)) * 2) / 2;
+      setRingPx((p) => (p === d ? p : d));
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(root);
+    return () => ro.disconnect();
+  }, [Z.ringFrac, Z.ringMaxPx, Z.ringMinPx]);
+  // The label sits beside its ring (above, below, right, left: the first side
+  // where it fits whole inside the stage card and the screen), else clamped.
+  useLayoutEffect(() => {
+    const el = labelElRef.current;
+    if (!zoneTip || !el) return;
+    const place = () => {
+      const btn = markerEl(zoneTip.key);
+      if (!btn) return;
+      const b = btn.getBoundingClientRect();
+      const cx = b.left + b.width / 2;
+      const cy = b.top + b.height / 2;
+      const R = ringPx / 2;
+      const sec = (rootRef.current?.closest("section") ?? document.body).getBoundingClientRect();
+      const m = Z.labelEdgePx;
+      const L = Math.max(sec.left, 0) + m;
+      const T = Math.max(sec.top, 0) + m;
+      const Rr = Math.min(sec.right, window.innerWidth) - m;
+      const B = Math.min(sec.bottom, window.innerHeight) - m;
+      el.style.maxWidth = `${Math.max(120, Math.min(280, Rr - L))}px`;
+      const w = el.offsetWidth;
+      const h = el.offsetHeight;
+      const g = Z.labelGapPx;
+      const clampX = (x: number) => Math.min(Math.max(x, L), Rr - w);
+      const clampY = (y: number) => Math.min(Math.max(y, T), B - h);
+      const cands = [
+        { x: clampX(cx - w / 2), y: cy - R - g - h }, // above
+        { x: clampX(cx - w / 2), y: cy + R + g }, // below
+        { x: cx + R + g, y: clampY(cy - h / 2) }, // right
+        { x: cx - R - g - w, y: clampY(cy - h / 2) }, // left
+      ];
+      const fits = (c: { x: number; y: number }) => c.x >= L - 0.5 && c.y >= T - 0.5 && c.x + w <= Rr + 0.5 && c.y + h <= B + 0.5;
+      const pick = cands.find(fits) ?? { x: clampX(cx - w / 2), y: clampY(cy - R - g - h) };
+      el.style.left = `${pick.x}px`;
+      el.style.top = `${pick.y}px`;
+      el.style.visibility = "visible";
+    };
+    place();
+    window.addEventListener("scroll", place, { passive: true, capture: true });
+    window.addEventListener("resize", place);
+    return () => {
+      window.removeEventListener("scroll", place, { capture: true });
+      window.removeEventListener("resize", place);
+    };
+  }, [zoneTip, ringPx, markerEl, Z.labelEdgePx, Z.labelGapPx]);
+  useEffect(() => {
+    if (zoneTip && zoneTip.key === zoomKey) setZoneTip(null);
+  }, [zoomKey, zoneTip]);
+  const showLabel = (h: Media360Hotspot, key: string) => {
+    if (key === zoomKeyRef.current) return;
+    setZoneTip({ key, text: zoneLabel(m, h) });
+  };
 
   return (
     <div
@@ -1206,7 +1342,7 @@ export const AthleteViews = forwardRef<
       onKeyDown={(e) => {
         // Only while the stage itself has focus (a zone marker inside keeps its
         // own keys; elsewhere the page keeps Space / arrows for scrolling).
-        if (e.target !== e.currentTarget || e.altKey || e.ctrlKey || e.metaKey) return;
+        if (e.target !== e.currentTarget || e.altKey || e.ctrlKey || e.metaKey || lockedRef.current) return;
         if (e.key === "ArrowRight") {
           e.preventDefault();
           onKeyTurn(VIEWER_SPIN.keyStepDeg);
@@ -1298,105 +1434,91 @@ export const AthleteViews = forwardRef<
       <div
         ref={markersRef}
         className="absolute inset-0 z-10"
-        style={{
-          transition: `opacity ${VIEWER_VIEWS.markerFadeMs}ms ease, visibility ${VIEWER_VIEWS.markerFadeMs}ms`,
-          pointerEvents: "none",
-        }}
+        style={
+          {
+            transition: `opacity ${VIEWER_VIEWS.markerFadeMs}ms ease, visibility ${VIEWER_VIEWS.markerFadeMs}ms`,
+            pointerEvents: "none",
+            "--zm-spin": `${Z.spinSec}s`,
+            "--zm-taken": Z.takenColor,
+            "--zm-dim": Z.zoom.dimOthers,
+            "--zm-inactive": Z.inactiveOpacity,
+          } as React.CSSProperties
+        }
       >
         {ready &&
           activeHotspots.map((h) => {
             const p = h.points[frameNo];
-            const taken = h.status === "terisi";
-            const canApply = !!h.athleteZoneId && h.status === "tersedia";
+            const key = h.label + frameNo;
+            const look = zoneLook(h);
+            const on = zoomKey === key;
+            const dashed = look === "inactive" ? `${Z.dotDashPx} ${Z.dotGapPx}` : `${Z.dashPx} ${Z.gapPx}`;
+            const r = ringPx / 2 - Z.strokePx / 2;
             return (
               <button
-                key={h.label + frameNo}
+                key={key}
                 type="button"
-                title={
-                  h.zoneNama
-                    ? `${h.zoneNama}${h.effectivePrice != null && !taken ? " · " + formatIDR(h.effectivePrice) : taken ? " · " + m.v360_taken : ""}`
-                    : h.label
-                }
-                aria-expanded={card?.key === h.label + frameNo}
-                onPointerDown={(e) => {
-                  e.stopPropagation();
-                  markerPointer.current = e.pointerType;
-                }}
+                data-zone-key={key}
+                data-st={look}
+                data-on={on ? "" : undefined}
+                data-dim={zoomKey && !on ? "" : undefined}
+                aria-label={zoneAria(m, h)}
+                aria-pressed={on}
+                onPointerDown={(e) => e.stopPropagation()}
                 onPointerEnter={(e) => {
-                  if (e.pointerType !== "touch") setHoverZone(h.label + frameNo);
+                  if (e.pointerType !== "touch") showLabel(h, key);
                 }}
-                onPointerLeave={() => setHoverZone(null)}
-                onClick={(e) => {
-                  const touch = markerPointer.current === "touch";
-                  markerPointer.current = "";
-                  if (touch) {
-                    // Touch: first tap shows what the zone is; the card's button applies.
-                    if (card?.key === h.label + frameNo) closeCard();
-                    else openCard(h.label + frameNo, e.currentTarget);
-                    return;
-                  }
-                  if (canApply) router.push(`/atlet/${athleteId}/ajukan?zone=${h.athleteZoneId}`);
+                onPointerLeave={() => setZoneTip((t) => (t?.key === key ? null : t))}
+                onFocus={(e) => {
+                  if (e.currentTarget.matches(":focus-visible")) showLabel(h, key);
                 }}
-                className="pointer-events-auto absolute flex h-11 w-11 -translate-x-1/2 -translate-y-1/2 items-center justify-center"
-                style={{ left: `${p.x * 100}%`, top: `${p.y * 100}%` }}
+                onBlur={() => setZoneTip((t) => (t?.key === key ? null : t))}
+                onClick={() => {
+                  setZoneTip(null);
+                  onZoneSelect?.({ key, hotspot: h });
+                }}
+                className="stage-zone pointer-events-auto cursor-pointer"
+                style={{ left: `${p.x * 100}%`, top: `${p.y * 100}%`, width: Z.hitPx, height: Z.hitPx }}
               >
-                <span
-                  className={`block h-3.5 w-3.5 rounded-full border-2 border-white shadow ${
-                    taken ? "bg-white/40" : "bg-[#00b4ff]"
-                  } ${canApply ? "cursor-pointer" : "cursor-default"}`}
-                />
-                {hoverZone === h.label + frameNo && !card && (
-                  <span className="pointer-events-none absolute left-1/2 top-9 -translate-x-1/2 whitespace-nowrap rounded-md bg-black/85 px-2 py-1 text-[10px] text-white">
-                    {h.zoneNama ?? h.label}
-                    {taken ? ` · ${m.v360_taken}` : h.effectivePrice != null ? ` · ${formatIDR(h.effectivePrice)}` : ""}
-                  </span>
-                )}
+                <span className="stage-zone-ring" style={{ width: ringPx, height: ringPx }} aria-hidden>
+                  <svg width={ringPx} height={ringPx} viewBox={`0 0 ${ringPx} ${ringPx}`}>
+                    {/* soft dark rim under the dashes: readable on skin and on dark clothes */}
+                    <circle cx={ringPx / 2} cy={ringPx / 2} r={r} fill="none" stroke="rgba(0,0,0,0.28)" strokeWidth={Z.strokePx + 1.5} />
+                    <g className="stage-zone-dash">
+                      <circle
+                        cx={ringPx / 2}
+                        cy={ringPx / 2}
+                        r={r}
+                        fill={look === "taken" || look === "inactive" ? Z.takenColor : "var(--accent)"}
+                        fillOpacity={Z.fillOpacity}
+                        stroke={look === "taken" || look === "inactive" ? Z.takenColor : "var(--accent)"}
+                        strokeWidth={on ? Z.strokePx + 0.75 : Z.strokePx}
+                        strokeDasharray={dashed}
+                        strokeLinecap={look === "inactive" ? "round" : "butt"}
+                      />
+                    </g>
+                  </svg>
+                  <span className="stage-zone-dot" style={{ width: Z.dotPx, height: Z.dotPx }} />
+                </span>
               </button>
             );
           })}
       </div>
 
-      {/* Zone card (touch): what the tapped zone is, and the way to apply */}
-      {card && cardZone && (
-        <div
-          ref={cardRef}
-          role="dialog"
-          aria-label={cardZone.zoneNama ?? cardZone.label}
-          onPointerDown={(e) => e.stopPropagation()}
-          className="absolute z-40 w-[min(15rem,calc(100vw-2rem))] rounded-xl border border-white/15 bg-[#09111a]/95 p-3 text-white shadow-2xl"
-          style={{ left: 0, top: 0, visibility: "hidden" }}
-        >
-          <div className="flex items-start justify-between gap-2">
-            <div className="min-w-0 pt-1">
-              <div className="truncate text-sm font-semibold">{cardZone.zoneNama ?? cardZone.label}</div>
-              <div className="mt-0.5 text-xs text-white/60">
-                {cardZone.status === "terisi"
-                  ? m.v360_taken
-                  : cardZone.effectivePrice != null
-                    ? formatIDR(cardZone.effectivePrice)
-                    : ""}
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={closeCard}
-              aria-label={m.v360_close}
-              className="-mr-2 -mt-2 flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-white/60 hover:text-white"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          </div>
-          {!!cardZone.athleteZoneId && cardZone.status === "tersedia" && (
-            <button
-              type="button"
-              onClick={() => router.push(`/atlet/${athleteId}/ajukan?zone=${cardZone.athleteZoneId}`)}
-              className="mt-2 flex min-h-11 w-full items-center justify-center rounded-full bg-[#00b4ff] px-4 text-sm font-semibold text-white"
-            >
-              {m.v360_apply_zone}
-            </button>
-          )}
-        </div>
-      )}
+      {/* One hover / focus label at a time, outside the zoomed figure (so it
+          is never scaled) and kept whole inside the stage card and the screen. */}
+      {mounted &&
+        zoneTip &&
+        createPortal(
+          <div
+            ref={labelElRef}
+            role="presentation"
+            className="pointer-events-none fixed z-[60] rounded-md bg-black/85 px-2.5 py-1.5 text-xs font-medium leading-snug text-white shadow-lg"
+            style={{ left: 0, top: 0, visibility: "hidden" }}
+          >
+            {zoneTip.text}
+          </div>,
+          document.body,
+        )}
     </div>
   );
 });

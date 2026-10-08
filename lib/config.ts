@@ -201,6 +201,74 @@ export const VIEWER_VIEWS = {
 } as const;
 
 /**
+ * Sponsor zone markers on the stage athlete (price per body part) and the
+ * zoom onto a zone (decision 2026-10-08, docs/STAGE_SPEC.md).
+ *
+ * Marker: a dashed ring with a thin fill and a small dot in the middle, in the
+ * theme colour (CSS --accent). Status: "tersedia" = theme ring whose dashes
+ * turn slowly (spinSec per turn; none under prefers-reduced-motion);
+ * "terisi" = grey, still; "nonaktif" = grey, dotted and fainter, still; a
+ * marker without a zone = theme ring, still.
+ * - ringFrac: ring diameter as a share of the athlete frame height, kept
+ *   between ringMinPx and ringMaxPx (CSS px on screen, also while zoomed).
+ * - hitPx: the tap / click target around each ring (>= 44).
+ * - strokePx / dashPx / gapPx: the dashed line (dotted: dotDashPx / dotGapPx).
+ * - dotPx: the centre dot. fillOpacity: the ring's fill.
+ * - labelGapPx: hover label distance from the ring; labelEdgePx: minimum
+ *   margin to the stage card / screen edge (the label flips side to stay whole).
+ */
+export const STAGE_ZONES = {
+  ringFrac: 0.052,
+  ringMinPx: 22,
+  ringMaxPx: 40,
+  hitPx: 44,
+  strokePx: 1.75,
+  dashPx: 4.5,
+  gapPx: 3.5,
+  dotDashPx: 1.5,
+  dotGapPx: 3,
+  dotPx: 5,
+  fillOpacity: 0.1,
+  spinSec: 12,
+  takenColor: "rgba(196, 202, 210, 0.85)",
+  inactiveOpacity: 0.6,
+  labelGapPx: 8,
+  labelEdgePx: 8,
+  /**
+   * Click / tap on a ring: the athlete (with the markers, shadows and the 3D
+   * platform, whose camera follows) zooms so that ring sits in the middle of
+   * the free area beside / above the zone card.
+   * - durationMs: zoom in / out / move to another zone (eased); 0 under
+   *   prefers-reduced-motion.
+   * - scale: wanted zoom per device class (phone < 640 px wide, tablet < 1024
+   *   px or touch, desktop); capped so the athlete picture is never shown more
+   *   than upscaleMax times its own pixels (frame height vs. drawn height ×
+   *   pixel ratio, maxDpr at most), but never below minScale.
+   * - dimOthers: opacity of the other rings while zoomed.
+   * - sceneDim: darkening of the arena behind (0..1) while zoomed.
+   * - cardMaxPx / cardPadPx: zone card width and distance from the edges.
+   * - sideCardMinPx / sideCardAspect: the card goes beside the athlete when
+   *   the visible stage is at least this wide and this much wider than tall,
+   *   else below it.
+   * - tapSlopPx: movement still counted as a tap (closing by a tap outside).
+   */
+  zoom: {
+    durationMs: 600,
+    scale: { phone: 2.2, tablet: 2.0, desktop: 2.4 },
+    upscaleMax: 1.15,
+    minScale: 1.5,
+    maxDpr: 2,
+    dimOthers: 0.35,
+    sceneDim: 0.5,
+    cardMaxPx: 300,
+    cardPadPx: 16,
+    sideCardMinPx: 600,
+    sideCardAspect: 1.3,
+    tapSlopPx: 10,
+  },
+} as const;
+
+/**
  * 3D neon arena behind the stage-card athlete (react-three-fiber). The camera
  * orbits the athlete on the same angle as the photo frames, so the floor,
  * platform and pillars turn in real perspective/parallax with the figure.

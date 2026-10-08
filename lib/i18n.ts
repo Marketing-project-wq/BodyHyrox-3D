@@ -259,6 +259,18 @@ const en = {
   v360_close: "Close",
   v360_frameOf: "{n} / {total}",
   v360_hint: "Drag to rotate",
+  // stage zone markers + zoom
+  zm_label: "{name} · {price}",
+  zm_aria: "{name}, {price}, {status}",
+  zm_aria_noprice: "{name}, {status}",
+  zm_st_available: "available",
+  zm_st_taken: "taken",
+  zm_st_inactive: "unavailable",
+  zm_status_available: "Available",
+  zm_status_taken: "Taken",
+  zm_status_inactive: "Unavailable",
+  zm_close: "Close zoom",
+  zm_card: "Sponsor zone: {name}",
   v3d_fallback: "Your browser doesn't support 3D — showing photos instead.",
 
   // athlete stage card (landscape hero)
@@ -1055,6 +1067,18 @@ const id: Dict = {
   v360_close: "Tutup",
   v360_frameOf: "{n} / {total}",
   v360_hint: "Seret untuk memutar",
+  // penanda zona panggung + zoom
+  zm_label: "{name} · {price}",
+  zm_aria: "{name}, {price}, {status}",
+  zm_aria_noprice: "{name}, {status}",
+  zm_st_available: "tersedia",
+  zm_st_taken: "sudah terisi",
+  zm_st_inactive: "tidak tersedia",
+  zm_status_available: "Tersedia",
+  zm_status_taken: "Sudah terisi",
+  zm_status_inactive: "Tidak tersedia",
+  zm_close: "Tutup zoom",
+  zm_card: "Zona sponsor: {name}",
 
   // athlete stage card (landscape hero)
   sc_podiumSeason: "Podium musim ini",

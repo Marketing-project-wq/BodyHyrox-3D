@@ -1,19 +1,20 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { ChevronLeft, ChevronRight, Pause, Play, RotateCcw } from "lucide-react";
-import type { PublicAthleteDetail } from "@/lib/data";
-import { STAGE_ARENA, STAGE_CTA, STAGE_MODE, STAGE_PLATFORM, STAGE_READOUT, STAGE_STATIC, STAGE_TURN_FRAMES_AUTO, STAGE_TURN_VIDEO_AUTO, STAGE_VIEW_CONTROLS, STAGE_VIDEO_BUNDLED, VIEWER_360, VIEWER_360_FRAME_CLASS, VIEWER_SPIN, VIEWER_VIDEO, VIEWER_VIEWS, stageFitVars, viewer360FrameStyle } from "@/lib/config";
+import { useRouter } from "next/navigation";
+import { ChevronLeft, ChevronRight, Pause, Play, RotateCcw, X } from "lucide-react";
+import type { Media360Hotspot, PublicAthleteDetail } from "@/lib/data";
+import { STAGE_ARENA, STAGE_CTA, STAGE_MODE, STAGE_PLATFORM, STAGE_READOUT, STAGE_STATIC, STAGE_TURN_FRAMES_AUTO, STAGE_TURN_VIDEO_AUTO, STAGE_VIEW_CONTROLS, STAGE_VIDEO_BUNDLED, STAGE_ZONES, VIEWER_360, VIEWER_360_FRAME_CLASS, VIEWER_SPIN, VIEWER_VIDEO, VIEWER_VIEWS, stageFitVars, viewer360FrameStyle } from "@/lib/config";
 import { decayVelocity, degreeLabel, nearestSide, nextSideTarget, norm360, shortestDelta, sideTarget } from "@/lib/spin";
 import { VIEW_KEYS } from "@/lib/views";
 import { parseStageVideo, turnVideoUsable } from "@/lib/stage-video";
 import { withBundledFrames } from "@/lib/stage-frames";
 import { type Dict, fmt } from "@/lib/i18n";
 import { tGender } from "@/lib/i18n";
-import { initials } from "@/lib/format";
-import { AthleteViews, type AthleteViewsHandle } from "@/components/AthleteViews";
+import { formatIDR, initials } from "@/lib/format";
+import { AthleteViews, zoneLook, type AthleteViewsHandle, type ZoneSelection } from "@/components/AthleteViews";
 import type { ArenaHandle } from "@/components/StageArena3D";
 import { StageMediaLightbox } from "@/components/StageMediaLightbox";
 import type { StageScreen } from "@/lib/stage-media";
@@ -39,6 +40,28 @@ function hasWebGL(): boolean {
 }
 
 type NeighborLink = { id: string; nama: string } | null;
+
+/** Bottom of a sticky / fixed page header over the top of the screen (px), else 0. */
+function stickyTop(): number {
+  let top = 0;
+  for (const el of Array.from(document.querySelectorAll("header"))) {
+    const pos = getComputedStyle(el).position;
+    if (pos !== "sticky" && pos !== "fixed") continue;
+    const r = el.getBoundingClientRect();
+    if (r.top <= 1 && r.bottom > top) top = r.bottom;
+  }
+  return top;
+}
+
+/** iOS home-indicator inset (px): the zone card stays above it. */
+function safeAreaBottom(): number {
+  const el = document.createElement("div");
+  el.style.cssText = "position:fixed;left:0;bottom:0;visibility:hidden;pointer-events:none;padding-bottom:env(safe-area-inset-bottom,0px)";
+  document.body.appendChild(el);
+  const v = Number.parseFloat(getComputedStyle(el).paddingBottom) || 0;
+  el.remove();
+  return v;
+}
 
 export function AthleteStageCard({
   athlete,
@@ -68,7 +91,7 @@ export function AthleteStageCard({
   const [view, setView] = useState(0);
   const viewRef = useRef(0);
   const ticksRef = useRef<SVGGElement>(null);
-  const arenaHandle = useRef<ArenaHandle>({ angleDeg: 0, invalidate: null, setDpr: null, groundHit: null, outline: null, pick: null, mediaHit: null });
+  const arenaHandle = useRef<ArenaHandle>({ angleDeg: 0, invalidate: null, setDpr: null, groundHit: null, outline: null, pick: null, mediaHit: null, refit: null });
   // ?debug=feet: draw the platform top face and each foot's contact point.
   // ?debug=viewport: viewport / toolbar measuring overlay (both: debug=feet,viewport).
   const [debugFeet, setDebugFeet] = useState(false);
@@ -210,7 +233,7 @@ export function AthleteStageCard({
         const dt = Math.min(STAGE_STATIC.maxStepMs / 1000, rawDt);
         const p = pausesRef.current;
         const auto = STAGE_STATIC.autoSides;
-        const held = p.has("hidden") || p.has("offscreen") || p.has("loading") || (auto && (p.has("manual") || p.has("zone")));
+        const held = p.has("hidden") || p.has("offscreen") || p.has("loading") || p.has("zoom") || (auto && (p.has("manual") || p.has("zone")));
         const wantBg = playingRef.current && !held ? 1 : 0;
         const tauS = STAGE_STATIC.easeMs / 1000 / 3;
         let fs = autoFactorRef.current + (wantBg - autoFactorRef.current) * (1 - Math.exp(-dt / tauS));
@@ -232,7 +255,7 @@ export function AthleteStageCard({
         // The side follows the orbit: it starts crossfading half a fade before
         // the side boundary, so the fade is centred on it. Not while a tab
         // turn, a fade, a manual hold or a zone card is on.
-        if (auto && !bgTweenRef.current && !fadeRef.current && !p.has("manual") && !p.has("zone")) {
+        if (auto && !bgTweenRef.current && !fadeRef.current && !p.has("manual") && !p.has("zone") && !p.has("zoom")) {
           const lead = (STAGE_STATIC.direction * (STAGE_STATIC.autoFadeMs / 2000) * 360) / STAGE_STATIC.secPerTurn;
           const target = ((Math.round((bg + lead) / 90) % 4) + 4) % 4;
           if (target !== sideRef.current) startFadeRef.current(target, STAGE_STATIC.autoFadeMs);
@@ -735,6 +758,7 @@ export function AthleteStageCard({
   const onStagePointerUp = (e: React.PointerEvent) => {
     const d = tapRef.current;
     tapRef.current = null;
+    if (zoomShownRef.current) return; // zoomed: a tap outside closes the zoom instead
     if (!d || Math.hypot(e.clientX - d.x, e.clientY - d.y) > 8 || performance.now() - d.t > 600) return;
     const sc = screenAt(e);
     if (sc) openMedia(sc);
@@ -786,6 +810,252 @@ export function AthleteStageCard({
     },
     [ensureLoop, changeSide],
   );
+  // ---- Zone zoom (STAGE_ZONES.zoom) ----------------------------------------
+  // A chosen zone: the figure (athlete, shadows, markers, CSS platform) scales
+  // around that zone's ring so it lands in the middle of the area left free by
+  // the zone card; the 3D arena's camera refits every frame (its platform stays
+  // under the feet) and darkens. Rotation and side changes hold meanwhile.
+  const router = useRouter();
+  const ZZ = STAGE_ZONES.zoom;
+  const [zoom, setZoom] = useState<{ key: string; hotspot: Media360Hotspot } | null>(null);
+  const zoomOpenRef = useRef<string | null>(null); // key while zoomed (also during the zoom out)
+  const zoomCurRef = useRef({ s: 1, tx: 0, ty: 0 }); // transform on the figure now (origin 0 0)
+  const zoomAnimRef = useRef(0);
+  const zoomResRef = useRef(1);
+  const zoomCardRef = useRef<HTMLDivElement>(null);
+  const zoomHistoryRef = useRef(false); // a history entry was pushed (the back gesture closes)
+  const lastZoneKeyRef = useRef<string | null>(null);
+  const zoomShownRef = useRef(false); // a zone is chosen (false again from the moment it closes)
+  const reducedMotion = () => typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  const applyZoom = useCallback((s: number, tx: number, ty: number, settled = true) => {
+    const fig = figureRef.current;
+    if (!fig) return;
+    zoomCurRef.current = { s, tx, ty };
+    const idle = Math.abs(s - 1) < 1e-4 && Math.abs(tx) < 0.05 && Math.abs(ty) < 0.05;
+    fig.style.transformOrigin = "0 0";
+    fig.style.transform = idle ? "" : `translate3d(${tx.toFixed(2)}px, ${ty.toFixed(2)}px, 0) scale(${s.toFixed(4)})`;
+    fig.style.setProperty("--zm-inv", (1 / s).toFixed(4));
+    viewsRef.current?.setZoom(s, zoomResRef.current, settled);
+    arenaHandle.current.refit?.();
+  }, []);
+
+  // Zoom wanted on this device, capped so the frames are never upscaled more than upscaleMax.
+  const zoomScale = useCallback(() => {
+    const w = window.innerWidth;
+    const coarse = window.matchMedia("(pointer: coarse)").matches;
+    let s: number = w < 640 ? ZZ.scale.phone : w < 1024 || coarse ? ZZ.scale.tablet : ZZ.scale.desktop;
+    const nat = viewsRef.current?.frameHeight() ?? 0;
+    const fig = figureRef.current?.querySelector<HTMLElement>("[role=group]");
+    const cssH = fig ? fig.getBoundingClientRect().height / zoomCurRef.current.s : 0;
+    const dpr = Math.min(window.devicePixelRatio || 1, ZZ.maxDpr);
+    if (nat && cssH) s = Math.min(s, (nat * ZZ.upscaleMax) / (cssH * dpr));
+    return Math.max(ZZ.minScale, s);
+  }, [ZZ]);
+
+  // Where the card goes and which point the zone ring should land on.
+  const zoomLayout = useCallback(() => {
+    const sec = sectionRef.current;
+    const card = zoomCardRef.current;
+    if (!sec || !card) return null;
+    const r = sec.getBoundingClientRect();
+    const safeB = safeAreaBottom();
+    const V = {
+      left: Math.max(r.left, 0),
+      top: Math.max(r.top, stickyTop()),
+      right: Math.min(r.right, window.innerWidth),
+      bottom: Math.min(r.bottom, window.innerHeight - safeB),
+    };
+    const vw = V.right - V.left;
+    const vh = V.bottom - V.top;
+    const pad = ZZ.cardPadPx;
+    const side = vw >= ZZ.sideCardMinPx && vw / Math.max(1, vh) >= ZZ.sideCardAspect;
+    const cw = Math.min(ZZ.cardMaxPx, vw - 2 * pad);
+    card.style.width = `${cw}px`;
+    const ch = card.offsetHeight;
+    let cx: number;
+    let cy: number;
+    let P: { x: number; y: number };
+    if (side) {
+      cx = V.left + pad;
+      cy = V.top + Math.max(pad, (vh - ch) / 2);
+      P = { x: (cx + cw + V.right) / 2, y: (V.top + V.bottom) / 2 };
+    } else {
+      cx = V.left + (vw - cw) / 2;
+      cy = V.bottom - pad - ch;
+      P = { x: (V.left + V.right) / 2, y: (V.top + cy - pad) / 2 };
+    }
+    card.style.left = `${cx - r.left}px`;
+    card.style.top = `${cy - r.top}px`;
+    card.style.visibility = "visible";
+    return P;
+  }, [ZZ]);
+
+  // The figure transform that puts zone `key`'s ring on P at scale s.
+  const zoomTarget = useCallback((key: string, s: number, P: { x: number; y: number }) => {
+    const fig = figureRef.current;
+    const btn = viewsRef.current?.marker(key);
+    if (!fig || !btn) return null;
+    const cur = zoomCurRef.current;
+    const fr = fig.getBoundingClientRect();
+    const b = btn.getBoundingClientRect();
+    const mx = (b.left + b.width / 2 - fr.left) / cur.s; // ring centre, figure px (unscaled)
+    const my = (b.top + b.height / 2 - fr.top) / cur.s;
+    const L = { left: fr.left - cur.tx, top: fr.top - cur.ty }; // figure origin without the zoom
+    return { s, tx: P.x - L.left - s * mx, ty: P.y - L.top - s * my };
+  }, []);
+
+  const animateZoom = useCallback(
+    (to: { s: number; tx: number; ty: number }, done?: () => void) => {
+      cancelAnimationFrame(zoomAnimRef.current);
+      const from = { ...zoomCurRef.current };
+      const ms = reducedMotion() ? 0 : ZZ.durationMs;
+      if (ms <= 0) {
+        applyZoom(to.s, to.tx, to.ty);
+        done?.();
+        return;
+      }
+      const t0 = performance.now();
+      const step = (now: number) => {
+        const t = Math.min(1, Math.max(0, (now - t0) / ms)); // a frame's timestamp may precede t0
+        const e = 1 - Math.pow(1 - t, 3); // ease-out: answers the tap at once, settles softly
+        applyZoom(from.s + (to.s - from.s) * e, from.tx + (to.tx - from.tx) * e, from.ty + (to.ty - from.ty) * e, t >= 1);
+        if (t < 1) zoomAnimRef.current = requestAnimationFrame(step);
+        else done?.();
+      };
+      zoomAnimRef.current = requestAnimationFrame(step);
+    },
+    [ZZ, applyZoom],
+  );
+
+  const closeZoom = useCallback(
+    (opts?: { fromHistory?: boolean; keepFocus?: boolean }) => {
+      const key = zoomOpenRef.current;
+      if (!key || !zoomShownRef.current) return;
+      zoomShownRef.current = false;
+      if (zoomHistoryRef.current && !opts?.fromHistory) {
+        zoomHistoryRef.current = false;
+        window.history.back();
+      }
+      zoomHistoryRef.current = false;
+      setZoom(null);
+      sectionRef.current?.removeAttribute("data-zoomed");
+      animateZoom({ s: 1, tx: 0, ty: 0 }, () => {
+        zoomOpenRef.current = null;
+        zoomResRef.current = 1;
+        applyZoom(1, 0, 0);
+        resumeLater("zoom", staticRef.current ? STAGE_STATIC.resumeMs : STAGE_ARENA.autoRotateResumeMs);
+      });
+      if (!opts?.keepFocus) viewsRef.current?.marker(lastZoneKeyRef.current ?? key)?.focus({ preventScroll: true });
+    },
+    [animateZoom, applyZoom, resumeLater],
+  );
+
+  const onZoneSelect = useCallback(
+    (sel: ZoneSelection) => {
+      const opening = !zoomShownRef.current;
+      zoomShownRef.current = true;
+      if (opening) {
+        // Hold the spin / orbit and side changes right away.
+        const t = resumeTimersRef.current.get("zoom");
+        if (t) clearTimeout(t);
+        resumeTimersRef.current.delete("zoom");
+        if (staticRef.current) {
+          pausesRef.current.add("zoom");
+          ensureLoop();
+        } else holdNow("zoom");
+        // Bring the stage into view (the card must not fall off a phone screen).
+        const sec = sectionRef.current;
+        const btn = viewsRef.current?.marker(sel.key);
+        if (sec && btn) {
+          const r = sec.getBoundingClientRect();
+          const top0 = stickyTop();
+          const vh = window.innerHeight - top0;
+          let dy = 0;
+          if (r.height <= vh) {
+            if (r.top < top0 || r.bottom > window.innerHeight) dy = r.top - top0 - (vh - r.height) / 2;
+          } else {
+            const b = btn.getBoundingClientRect();
+            dy = Math.min(Math.max(b.top + b.height / 2 - top0 - vh / 2, r.top - top0), r.bottom - window.innerHeight);
+          }
+          if (Math.abs(dy) > 4) window.scrollBy({ top: dy, behavior: "instant" as ScrollBehavior });
+        }
+        if (!zoomHistoryRef.current) {
+          window.history.pushState({ stageZoom: true }, "");
+          zoomHistoryRef.current = true;
+        }
+      }
+      zoomOpenRef.current = sel.key;
+      lastZoneKeyRef.current = sel.key;
+      setZoom({ key: sel.key, hotspot: sel.hotspot });
+    },
+    [ensureLoop, holdNow],
+  );
+
+  // Once the card is rendered (its size known): place it and zoom / move.
+  useLayoutEffect(() => {
+    if (!zoom) return;
+    sectionRef.current?.setAttribute("data-zoomed", "");
+    const P = zoomLayout();
+    if (!P) return;
+    const s = zoomScale();
+    zoomResRef.current = s;
+    const to = zoomTarget(zoom.key, s, P);
+    if (to) animateZoom(to);
+    const first = zoomCardRef.current?.querySelector<HTMLElement>("[data-zone-cta]") ?? zoomCardRef.current?.querySelector<HTMLElement>("button");
+    first?.focus({ preventScroll: true });
+  }, [zoom, zoomLayout, zoomScale, zoomTarget, animateZoom]);
+
+  // While zoomed: Esc, the back gesture, a tap outside the athlete / card, a resize.
+  useEffect(() => {
+    if (!zoom) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        closeZoom();
+      }
+    };
+    const onPop = () => {
+      if (zoomHistoryRef.current) {
+        zoomHistoryRef.current = false;
+        closeZoom({ fromHistory: true });
+      }
+    };
+    let down: { x: number; y: number; id: number } | null = null;
+    const onDown = (e: PointerEvent) => {
+      const t = e.target as Element;
+      if (zoomCardRef.current?.contains(t) || t.closest?.(".stage-zone")) return (down = null);
+      down = { x: e.clientX, y: e.clientY, id: e.pointerId };
+    };
+    const onUp = (e: PointerEvent) => {
+      const d = down;
+      down = null;
+      if (!d || d.id !== e.pointerId || Math.hypot(e.clientX - d.x, e.clientY - d.y) > ZZ.tapSlopPx) return;
+      if (viewsRef.current?.onAthlete(e.clientX, e.clientY)) return;
+      closeZoom();
+    };
+    const onResize = () => {
+      const key = zoomOpenRef.current;
+      const P = zoomLayout();
+      if (!key || !P) return;
+      const to = zoomTarget(key, zoomCurRef.current.s, P);
+      if (to) applyZoom(to.s, to.tx, to.ty);
+    };
+    document.addEventListener("keydown", onKey);
+    window.addEventListener("popstate", onPop);
+    document.addEventListener("pointerdown", onDown, true);
+    document.addEventListener("pointerup", onUp, true);
+    window.addEventListener("resize", onResize);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      window.removeEventListener("popstate", onPop);
+      document.removeEventListener("pointerdown", onDown, true);
+      document.removeEventListener("pointerup", onUp, true);
+      window.removeEventListener("resize", onResize);
+    };
+  }, [zoom, closeZoom, zoomLayout, zoomTarget, applyZoom, ZZ]);
+  useEffect(() => () => cancelAnimationFrame(zoomAnimRef.current), []);
+
   const tickAngles = useMemo(
     () => Array.from({ length: VIEWER_360.ringTicks }, (_, i) => (i * 360) / VIEWER_360.ringTicks),
     [],
@@ -872,6 +1142,8 @@ export function AthleteStageCard({
             "radial-gradient(620px 520px at 62% 42%, rgba(0,180,255,0.22), transparent 70%), radial-gradient(130% 100% at 50% 45%, transparent 55%, rgba(0,0,0,0.7) 100%)",
         }}
       />
+      {/* Zoomed onto a zone: the arena behind darkens so the athlete stands out. */}
+      <div className="stagecard-zoom-scrim pointer-events-none absolute inset-0 z-0" style={{ background: `rgba(0,0,0,${ZZ.sceneDim})` }} aria-hidden />
 
       <div className="relative z-10 grid gap-4 p-[var(--stagecard-pad)] [--stagecard-pad:1.25rem] max-lg:flex max-lg:flex-col max-lg:gap-0 sm:[--stagecard-pad:1.75rem] lg:grid-cols-[minmax(0,340px)_1fr] lg:gap-6">
         {/* ------------------------------------------------- LEFT: identity + stats
@@ -879,18 +1151,18 @@ export function AthleteStageCard({
             after the name and the athlete keeps its full size; podium and
             stats follow below the stage. */}
         <div className="flex flex-col max-lg:contents">
-          <div className="flex items-baseline gap-3 max-lg:order-1">
+          <div className="stagecard-zoomable flex items-baseline gap-3 max-lg:order-1">
             <span className="font-mono text-sm text-[#00b4ff]">
               {athlete.rank != null ? String(athlete.rank).padStart(2, "0") : "--"}
             </span>
             <h1 className="font-condensed text-4xl font-bold uppercase leading-[0.92] sm:text-5xl">{athlete.nama}</h1>
           </div>
-          <p className="mt-1.5 text-sm text-white/55 max-lg:order-2">
+          <p className="stagecard-zoomable mt-1.5 text-sm text-white/55 max-lg:order-2">
             {[athlete.discipline ?? tGender(m, athlete.gender), athlete.kota].filter(Boolean).join(" · ")}
           </p>
 
           {/* Podium + medal breakdown */}
-          <div className="mt-6 flex items-start gap-6 max-lg:order-4 max-lg:mt-2">
+          <div className="stagecard-zoomable mt-6 flex items-start gap-6 max-lg:order-4 max-lg:mt-2">
             <div>
               <div className="font-condensed text-5xl font-bold leading-none">{num(athlete.podiumCount, 0)}</div>
               <div className="eyebrow mt-1 text-white/45">{m.sc_podiumSeason}</div>
@@ -915,7 +1187,7 @@ export function AthleteStageCard({
 
           {/* Profile stat grid (only filled cells) */}
           {(statCells.length > 0 || athlete.totalTerbaikKg != null) && (
-            <div className="mt-6 grid grid-cols-2 gap-x-6 gap-y-4 max-lg:order-5">
+            <div className="stagecard-zoomable mt-6 grid grid-cols-2 gap-x-6 gap-y-4 max-lg:order-5">
               {statCells.map((c) => (
                 <div key={c.label}>
                   <div className="eyebrow text-white/45">{c.label}</div>
@@ -942,7 +1214,7 @@ export function AthleteStageCard({
           {dots.length > 1 && (
             // Position indicator only: dots are far too small to tap (44px each
             // would not fit); the 44px prev/next arrows at the card edges navigate.
-            <div className="mt-8 hidden flex-wrap items-center gap-1.5 lg:flex" aria-hidden>
+            <div className="stagecard-zoomable mt-8 hidden flex-wrap items-center gap-1.5 lg:flex" aria-hidden>
               {dots.map((d) => (
                 <span key={d.id} className={d.active ? "h-1.5 w-5 rounded-full bg-[#00b4ff]" : "h-1.5 w-1.5 rounded-full bg-white/25"} />
               ))}
@@ -955,14 +1227,14 @@ export function AthleteStageCard({
             against this column's width; pb reserves room for the CTA below the ring. */}
         <div className="relative flex min-h-[56vh] items-center justify-center pb-32 pt-14 max-lg:order-3 max-lg:mt-2 supports-[height:1svh]:min-h-[56svh] sm:pt-10 [container-type:inline-size] lg:min-h-[72vh] lg:pt-0 lg:supports-[height:1svh]:min-h-[72svh]">
           {/* Spotlight cone behind everything, from the card's top edge */}
-          <div className="stagecard-spot" aria-hidden />
+          <div className="stagecard-spot stagecard-zoomable" aria-hidden />
 
           {/* Active view readout + hint. Phones: one centred line above the
               figure. sm+: top-right, sized to the stage column and capped to the
               space beside the figure so it never runs off-card or into the head. */}
           {has360 && (
             <div
-              className="stagecard-readout pointer-events-none z-20"
+              className="stagecard-readout stagecard-zoomable pointer-events-none z-20"
               aria-hidden
               style={
                 {
@@ -1046,7 +1318,10 @@ export function AthleteStageCard({
                 }}
                 staticSides={isStatic}
                 onVideoSettled={() => resume("video")}
-                onZoneCardChange={onZoneCardChange}
+                onZoneSelect={onZoneSelect}
+                zoomKey={zoom?.key ?? null}
+                locked={!!zoom}
+                onMarkersHidden={closeZoom}
                 arena={arenaOn ? arenaHandle : undefined}
                 debug={debugFeet}
                 debugPerf={debugPerf}
@@ -1081,7 +1356,7 @@ export function AthleteStageCard({
                 covers the feet. Below the zone markers (z-10) and the zone card. */}
             <a
               href="#zona-sponsor"
-              className="absolute left-1/2 z-[5] -translate-x-1/2 whitespace-nowrap rounded-full bg-[#00b4ff] px-8 py-3 text-sm font-semibold text-white shadow-[0_0_26px_rgba(0,180,255,0.45)] transition-colors hover:bg-[#0093d1]"
+              className="stagecard-zoomable absolute left-1/2 z-[5] -translate-x-1/2 whitespace-nowrap rounded-full bg-[#00b4ff] px-8 py-3 text-sm font-semibold text-white shadow-[0_0_26px_rgba(0,180,255,0.45)] transition-colors hover:bg-[#0093d1]"
               style={{ top: `${100 - VIEWER_360.feetLinePct + STAGE_CTA.dropPct}%` }}
             >
               {m.pub_placeLogo}
@@ -1175,12 +1450,74 @@ export function AthleteStageCard({
       )}
       {media && <StageMediaLightbox screen={media} m={m} onClose={closeMedia} />}
 
+      {/* Zone card while zoomed: name, price, status and the way to apply.
+          Placed by zoomLayout() beside / below the zoomed ring, inside the
+          visible part of the card. */}
+      {zoom && (() => {
+        const h = zoom.hotspot;
+        const look = zoneLook(h);
+        const name = h.zoneNama ?? h.label;
+        const status =
+          look === "available" ? m.zm_status_available : look === "taken" ? m.zm_status_taken : look === "inactive" ? m.zm_status_inactive : null;
+        const canApply = look === "available" && !!h.athleteZoneId;
+        return (
+          <div
+            ref={zoomCardRef}
+            role="dialog"
+            aria-modal="false"
+            aria-label={fmt(m.zm_card, { name })}
+            onPointerDown={(e) => e.stopPropagation()}
+            onPointerUp={(e) => e.stopPropagation()}
+            className="absolute z-40 rounded-2xl border border-white/15 bg-[#09111a]/95 p-4 text-white shadow-2xl"
+            style={{ left: 0, top: 0, width: ZZ.cardMaxPx, visibility: "hidden" }}
+          >
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0 pt-1">
+                {status && (
+                  <div className="flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-wide text-white/60">
+                    <span
+                      className="h-1.5 w-1.5 rounded-full"
+                      style={{ background: look === "available" ? "var(--accent)" : STAGE_ZONES.takenColor }}
+                      aria-hidden
+                    />
+                    {status}
+                  </div>
+                )}
+                <h2 className="mt-1 break-words font-condensed text-2xl font-bold uppercase leading-tight">{name}</h2>
+                {h.effectivePrice != null && look !== "taken" && (
+                  <div className="mt-0.5 font-mono text-sm text-[color:var(--accent)]">{formatIDR(h.effectivePrice)}</div>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => closeZoom()}
+                aria-label={m.zm_close}
+                className="-mr-2 -mt-2 flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-white/70 transition-colors hover:bg-white/10 hover:text-white"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            {canApply && (
+              <button
+                type="button"
+                data-zone-cta
+                onClick={() => router.push(`/atlet/${athlete.id}/ajukan?zone=${h.athleteZoneId}`)}
+                className="mt-3 flex min-h-11 w-full items-center justify-center rounded-full bg-[#00b4ff] px-4 text-sm font-semibold text-white shadow-[0_0_20px_rgba(0,180,255,0.4)] transition-colors hover:bg-[#0093d1]"
+                style={{ background: "var(--accent)" }}
+              >
+                {m.pub_placeLogo}
+              </button>
+            )}
+          </div>
+        );
+      })()}
+
       {/* Carousel arrows (card edges, vertically centered) */}
       {prev && (
         <Link
           href={`/atlet/${prev.id}`}
           aria-label={`${m.sc_prev}: ${prev.nama}`}
-          className="absolute left-3 top-1/2 z-30 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-white/15 bg-black/40 text-white/80 backdrop-blur [@media(pointer:coarse)]:bg-black/60 [@media(pointer:coarse)]:backdrop-blur-none transition-colors hover:border-white/40 hover:text-white sm:left-5"
+          className="stagecard-zoomable absolute left-3 top-1/2 z-30 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-white/15 bg-black/40 text-white/80 backdrop-blur [@media(pointer:coarse)]:bg-black/60 [@media(pointer:coarse)]:backdrop-blur-none transition-colors hover:border-white/40 hover:text-white sm:left-5"
         >
           <ChevronLeft size={20} />
         </Link>
@@ -1189,7 +1526,7 @@ export function AthleteStageCard({
         <Link
           href={`/atlet/${next.id}`}
           aria-label={`${m.sc_next}: ${next.nama}`}
-          className="absolute right-3 top-1/2 z-30 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-white/15 bg-black/40 text-white/80 backdrop-blur [@media(pointer:coarse)]:bg-black/60 [@media(pointer:coarse)]:backdrop-blur-none transition-colors hover:border-white/40 hover:text-white sm:right-5"
+          className="stagecard-zoomable absolute right-3 top-1/2 z-30 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-white/15 bg-black/40 text-white/80 backdrop-blur [@media(pointer:coarse)]:bg-black/60 [@media(pointer:coarse)]:backdrop-blur-none transition-colors hover:border-white/40 hover:text-white sm:right-5"
         >
           <ChevronRight size={20} />
         </Link>
@@ -1197,7 +1534,7 @@ export function AthleteStageCard({
 
       {/* Dots on mobile (below the stage, centered) */}
       {dots.length > 1 && (
-        <div className="relative z-10 flex flex-wrap items-center justify-center gap-1.5 pb-5 lg:hidden" aria-hidden>
+        <div className="stagecard-zoomable relative z-10 flex flex-wrap items-center justify-center gap-1.5 pb-5 lg:hidden" aria-hidden>
           {dots.map((d) => (
             <span key={d.id} className={d.active ? "h-1.5 w-5 rounded-full bg-[#00b4ff]" : "h-1.5 w-1.5 rounded-full bg-white/25"} />
           ))}

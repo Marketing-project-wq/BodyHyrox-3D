@@ -465,3 +465,102 @@ body {
     rgba(0, 180, 255, 0.32) var(--bgl-period)
   );
 }
+
+/* Sponsor zone markers (STAGE_ZONES): a dashed ring in the theme colour with a
+   thin fill and a centre dot. The button is the 44px target; while the stage
+   is zoomed it is counter-scaled (--zm-inv) so rings keep their size on screen. */
+.stage-zone {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transform: translate(-50%, -50%) scale(var(--zm-inv, 1));
+  transition: opacity 250ms ease;
+  -webkit-tap-highlight-color: transparent;
+  outline: none;
+}
+.stage-zone-ring {
+  position: relative;
+  display: block;
+  border-radius: 9999px;
+}
+.stage-zone-ring svg {
+  position: absolute;
+  inset: 0;
+  overflow: visible;
+}
+.stage-zone-dash {
+  transform-origin: 50% 50%;
+}
+.stage-zone[data-st="available"] .stage-zone-dash {
+  animation: stage-zone-spin var(--zm-spin, 12s) linear infinite;
+}
+.stage-zone-dot {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  border-radius: 9999px;
+  transform: translate(-50%, -50%);
+  background: var(--accent);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35);
+}
+.stage-zone[data-st="taken"] .stage-zone-dot,
+.stage-zone[data-st="inactive"] .stage-zone-dot {
+  background: var(--zm-taken);
+}
+.stage-zone[data-st="inactive"] {
+  opacity: var(--zm-inactive, 0.6);
+}
+.stage-zone[data-dim] {
+  opacity: var(--zm-dim, 0.35);
+}
+.stage-zone[data-on] .stage-zone-ring {
+  filter: drop-shadow(0 0 6px var(--accent));
+}
+.stage-zone[data-on][data-st="taken"] .stage-zone-ring,
+.stage-zone[data-on][data-st="inactive"] .stage-zone-ring {
+  filter: drop-shadow(0 0 5px var(--zm-taken));
+}
+.stage-zone:focus-visible .stage-zone-ring {
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.9);
+}
+@keyframes stage-zone-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Zoomed onto a zone: the side content, readout, CTA and arrows fade out and
+   the arena behind darkens (STAGE_ZONES.zoom.sceneDim). */
+.stagecard-zoomable {
+  transition:
+    opacity 300ms ease,
+    visibility 0s linear 0s;
+}
+/* hidden after the fade: out of the tab order too */
+section[data-zoomed] .stagecard-zoomable {
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+  transition:
+    opacity 300ms ease,
+    visibility 0s linear 300ms;
+}
+.stagecard-zoom-scrim {
+  opacity: 0;
+  transition: opacity 400ms ease;
+}
+section[data-zoomed] .stagecard-zoom-scrim {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stage-zone[data-st="available"] .stage-zone-dash {
+    animation: none;
+  }
+  .stage-zone,
+  .stagecard-zoomable,
+  .stagecard-zoom-scrim {
+    transition: none;
+  }
+}
