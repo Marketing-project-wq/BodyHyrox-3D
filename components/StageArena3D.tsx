@@ -82,6 +82,8 @@ type Props = {
    */
   platformLocked?: boolean;
   onFail: () => void;
+  /** The WebGL context was lost / restored by the browser. */
+  onContext?: (state: "lost" | "restored") => void;
   /** Published stage frame media (empty = neon frames only). */
   screens?: StageScreen[];
   /** Load the screens' pictures (after the athlete and the arena are ready). */
@@ -103,8 +105,29 @@ function seeded(i: number) {
  * matches the photo's scale, and a view offset so the platform centre lands
  * exactly on the athlete's feet line. Refitted whenever the layout changes.
  */
-function Rig({ handle, anchorRef, figureRef, platform, platformLocked }: Pick<Props, "handle" | "anchorRef" | "figureRef" | "platform" | "platformLocked">) {
+function Rig({ handle, anchorRef, figureRef, platform, platformLocked, onContext }: Pick<Props, "handle" | "anchorRef" | "figureRef" | "platform" | "platformLocked" | "onContext">) {
   const { camera, gl, invalidate, size, setDpr } = useThree();
+  // Context loss: three.js keeps the scene and re-uploads it on restore; the
+  // stage card shows the CSS platform meanwhile (or rebuilds the canvas).
+  const onContextRef = useRef(onContext);
+  onContextRef.current = onContext;
+  useEffect(() => {
+    const el = gl.domElement;
+    const lost = (e: Event) => {
+      e.preventDefault(); // allow the browser to restore it
+      onContextRef.current?.("lost");
+    };
+    const restored = () => {
+      invalidate();
+      onContextRef.current?.("restored");
+    };
+    el.addEventListener("webglcontextlost", lost);
+    el.addEventListener("webglcontextrestored", restored);
+    return () => {
+      el.removeEventListener("webglcontextlost", lost);
+      el.removeEventListener("webglcontextrestored", restored);
+    };
+  }, [gl, invalidate]);
   const cam = camera as THREE.PerspectiveCamera;
   const d = A.cameraDistanceM;
   const camY = d * Math.tan(rad(A.cameraElevationDeg));
@@ -712,7 +735,7 @@ class ArenaBoundary extends Component<{ onFail: () => void; children: ReactNode 
 const NO_SCREENS: StageScreen[] = [];
 
 /** The 3D arena canvas. Purely decorative: no pointer events, aria-hidden. */
-export function StageArena3D({ handle, anchorRef, figureRef, onReady, onFail, platform, platformLocked = false, screens = NO_SCREENS, screensActive = false }: Props) {
+export function StageArena3D({ handle, anchorRef, figureRef, onReady, onFail, onContext, platform, platformLocked = false, screens = NO_SCREENS, screensActive = false }: Props) {
   const coarse = typeof window !== "undefined" && window.matchMedia("(pointer: coarse)").matches;
   return (
     <ArenaBoundary onFail={onFail}>
@@ -730,7 +753,7 @@ export function StageArena3D({ handle, anchorRef, figureRef, onReady, onFail, pl
           onReady();
         }}
       >
-        <Rig handle={handle} anchorRef={anchorRef} figureRef={figureRef} platform={platform} platformLocked={platformLocked} />
+        <Rig handle={handle} anchorRef={anchorRef} figureRef={figureRef} platform={platform} platformLocked={platformLocked} onContext={onContext} />
         <Floor platform={platform} />
         <Platform handle={handle} platform={platform} platformLocked={platformLocked} />
         <Scenery />

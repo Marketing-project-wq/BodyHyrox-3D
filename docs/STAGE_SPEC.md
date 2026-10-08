@@ -92,6 +92,25 @@ Terakhir diperbarui: 2026-10-06 (media frame panggung M0–M1; setelah #121–#1
        ±2.800 px tinggi.
    - Kartu zona dan zoom menahan putaran selama terbuka.
    - Tab browser tidak aktif dan `prefers-reduced-motion`: putaran berhenti.
+   - **Kembali dari tab lain / jendela minimize / layar HP terkunci / aplikasi lain / sleep
+     (keputusan 2026-10-08):** panggung langsung seperti semula (arena 3D, frame media,
+     platform, sudut dan sisi yang sama), putaran lanjut dari posisi terakhir tanpa loncatan.
+     - Waktu saat halaman tersembunyi tidak pernah diukur. Setelah kembali ada jeda
+       `qualityResumeGraceMs` (2,5 dtk) tanpa pengukuran; celah frame > `qualityGapMs`
+       memulai ulang jendela ukur. (Penyebab bug: jendela ukur yang mencakup waktu tersembunyi
+       dihitung sebagai "lambat", lalu satu tersendat sesaat setelah kembali membuat arena
+       pindah ke cadangan CSS secara permanen.)
+     - Fallback CSS hanya kalau lambat terus-menerus saat terlihat: `slowWindowsToDisable` = 3
+       jendela 2 dtk berturut-turut. Fallback karena lambat atau error WebGL dicoba ulang ke 3D
+       setelah `arenaRetryMs` (20 dtk) atau saat halaman tampil lagi, maks. `arenaRetries` (2)
+       kali per kunjungan; perangkat yang memang lemah tetap di CSS. Tanpa WebGL: langsung CSS,
+       tidak dicoba ulang.
+     - Konteks WebGL hilang: platform CSS tampil sementara; saat dipulihkan browser, three.js
+       membangun ulang scene dan tekstur (atlet, frame media). Kalau tidak dipulihkan dalam
+       `contextRestoreWaitMs` (4 dtk), arena dibuat ulang di canvas baru. Selama konteks
+       hilang dan sesudahnya (jeda yang sama) tidak ada pengukuran performa.
+     - `?debug=perf`: panel FPS, tingkat kualitas, hitungan jendela lambat, status arena
+       (3D / cadangan + alasan + percobaan ulang), status konteks WebGL, dan log kejadian.
 6. **Platform dan tata letak:**
    - Platform default `"hex"`, opsi `"round"` (#105, pratinjau `?platform=round`).
    - Di bawah `lg`: tata letak **Opsi B**, readout ringkas tanpa kotak gelap,

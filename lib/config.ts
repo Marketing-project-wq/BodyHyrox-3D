@@ -658,7 +658,26 @@ export const STAGE_ARENA = {
    * many slow measurement windows in a row.
    */
   qualityWarmupMs: 3000,
-  slowWindowsToDisable: 2,
+  slowWindowsToDisable: 3,
+  /**
+   * Hidden tab / minimised window / locked phone (decision 2026-10-08): time
+   * while the page is hidden is never measured. Back in view, nothing is
+   * measured for qualityResumeGraceMs (the browser re-warms the GPU and
+   * re-decodes images meanwhile), and a frame gap above qualityGapMs (the
+   * browser held frames) restarts the measurement window instead of counting.
+   * - arenaRetryMs / arenaRetries: after a fallback for speed (or a WebGL
+   *   error) the 3D arena is tried again this long later (or when the page is
+   *   shown again), at most this many times per visit; then the CSS platform
+   *   stays (a really weak device). No WebGL at all: never tried.
+   * - contextRestoreWaitMs: after a lost WebGL context the CSS platform shows
+   *   meanwhile; if the browser hasn't restored the context by then, the
+   *   arena is rebuilt on a new canvas.
+   */
+  qualityResumeGraceMs: 2500,
+  qualityGapMs: 250,
+  arenaRetryMs: 20000,
+  arenaRetries: 2,
+  contextRestoreWaitMs: 4000,
   /**
    * Adaptive quality while the arena turns: average FPS over `qualityWindowMs`.
    * Below `dprDropFps` the canvas drops to dpr 1; below `halfRateFps` the

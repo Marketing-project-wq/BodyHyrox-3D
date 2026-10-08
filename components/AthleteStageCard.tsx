@@ -139,7 +139,12 @@ export function AthleteStageCard({
   const [arenaWanted, setArenaWanted] = useState(false);
   const [arenaOn, setArenaOn] = useState(false);
   useEffect(() => {
-    setArenaWanted(hasWebGL());
+    const ok = hasWebGL();
+    if (!ok) {
+      perfRef.current.fallback = "no-webgl";
+      perfLog("fallback: no WebGL");
+    }
+    setArenaWanted(ok);
   }, []);
 
   // ONE stage clock (a single requestAnimationFrame loop, delta-time based)
@@ -195,10 +200,191 @@ export function AthleteStageCard({
     setView(v);
   }, []);
 
-  const disableArena = useCallback(() => {
-    setArenaOn(false);
-    setArenaWanted(false);
+  // ---- Arena health (?debug=perf shows all of it) --------------------------
+  // perfRef: what the panel shows and the reason of a fallback; graceUntil:
+  // no quality measurement before then (just back from a hidden tab).
+  const perfRef = useRef({
+    graceUntil: 0,
+    hiddenAt: 0,
+    fps: 0,
+    fpsFrames: 0,
+    fpsT0: 0,
+    fallback: "" as string, // "" = 3D arena (or loading); else why the CSS platform shows
+    retries: 0,
+    ctx: "ok" as "ok" | "lost" | "restored" | "rebuilt",
+    ctxLost: 0,
+    log: [] as string[],
+  });
+  const perfPanelRef = useRef<HTMLDivElement>(null);
+  const perfLog = useCallback((msg: string) => {
+    const pr = perfRef.current;
+    const line = `${(performance.now() / 1000).toFixed(1)}s ${msg}`;
+    pr.log = [...pr.log.slice(-11), line];
+    if (typeof window !== "undefined") (window as unknown as { __stagePerf?: unknown }).__stagePerf = pr;
   }, []);
+  const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [arenaKey, setArenaKey] = useState(0); // a new key = a new canvas / WebGL context
+
+  // Back to 3D after a fallback that may have been temporary.
+  const retryArena = useCallback(
+    (why: string) => {
+      const pr = perfRef.current;
+      if (!pr.fallback || pr.fallback === "no-webgl" || pr.retries >= STAGE_ARENA.arenaRetries) return;
+      if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
+      retryTimerRef.current = null;
+      pr.retries += 1;
+      perfLog(`retry 3D (${why}, ${pr.retries}/${STAGE_ARENA.arenaRetries})`);
+      pr.fallback = "";
+      const q = qualityRef.current;
+      q.t0 = 0;
+      q.frames = 0;
+      q.slow = 0;
+      clockStartRef.current = 0; // warm-up again
+      slowTurnsRef.current = 0;
+      setArenaKey((k) => k + 1);
+      setArenaWanted(true);
+    },
+    [perfLog],
+  );
+
+  // Switch to the light CSS platform. Not for good: unless retries are used up,
+  // the 3D arena is tried again later (or when the page is shown again).
+  const disableArena = useCallback(
+    (reason: string) => {
+      const pr = perfRef.current;
+      pr.fallback = reason;
+      perfLog(`fallback: ${reason}`);
+      setArenaOn(false);
+      setArenaWanted(false);
+      if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
+      retryTimerRef.current = null;
+      if (pr.retries < STAGE_ARENA.arenaRetries)
+        retryTimerRef.current = setTimeout(() => {
+          retryTimerRef.current = null;
+          if (!document.hidden) retryArena("timer");
+        }, STAGE_ARENA.arenaRetryMs);
+    },
+    [perfLog, retryArena],
+  );
+
+  // ?debug=perf panel, refreshed 4× a second (also while the loop is idle).
+  useEffect(() => {
+    if (!debugPerf) return;
+    const draw = () => {
+      const el = perfPanelRef.current;
+      if (!el) return;
+      const pr = perfRef.current;
+      const q = qualityRef.current;
+      const now = performance.now();
+      const grace = pr.graceUntil > now ? ` · grace ${((pr.graceUntil - now) / 1000).toFixed(1)} s` : "";
+      const lv = ["full", "dpr 1", "half rate"][q.level] ?? String(q.level);
+      el.textContent = [
+        `FPS ${rafRef.current != null ? pr.fps : "– (idle)"} · quality ${lv} · slow ${q.slow}/${STAGE_ARENA.slowWindowsToDisable}${grace}`,
+        `arena ${pr.fallback ? `FALLBACK (${pr.fallback}) · retries ${pr.retries}/${STAGE_ARENA.arenaRetries}` : arenaOnRef.current ? "3D" : pr.ctx === "lost" ? "CSS platform while WebGL is lost" : "loading"} · WebGL ${pr.ctx}${pr.ctxLost ? ` (lost ×${pr.ctxLost})` : ""}`,
+        `page ${document.hidden ? "hidden" : "visible"} · holds ${[...pausesRef.current].join(",") || "none"} · angle ${arenaHandle.current.angleDeg.toFixed(1)}°`,
+        ...pr.log.slice(-6),
+      ].join("\n");
+    };
+    draw();
+    const t = window.setInterval(draw, 250);
+    return () => window.clearInterval(t);
+  }, [debugPerf]);
+  const arenaOnRef = useRef(false);
+  arenaOnRef.current = arenaOn;
+
+  // WebGL context lost (GPU reset, background tab under memory pressure): the
+  // CSS platform shows meanwhile; three.js rebuilds the scene and re-uploads
+  // the textures (athlete pool, media frames) when the browser restores the
+  // context, else the arena is rebuilt on a new canvas.
+  const ctxTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const onArenaContext = useCallback(
+    (state: "lost" | "restored") => {
+      const pr = perfRef.current;
+      if (ctxTimerRef.current) clearTimeout(ctxTimerRef.current);
+      ctxTimerRef.current = null;
+      if (state === "lost") {
+        pr.ctx = "lost";
+        pr.ctxLost += 1;
+        pr.graceUntil = Infinity; // nothing to measure while there is no context
+        perfLog("WebGL context lost");
+        setArenaOn(false);
+        const wait = () => {
+          ctxTimerRef.current = setTimeout(() => {
+            if (perfRef.current.ctx !== "lost") return;
+            if (document.hidden) return wait(); // browsers restore when shown
+            pr.ctx = "rebuilt";
+            perfLog("context not restored: new canvas");
+            setArenaKey((k) => k + 1);
+          }, STAGE_ARENA.contextRestoreWaitMs);
+        };
+        wait();
+        return;
+      }
+      pr.ctx = "restored";
+      // Re-uploading the scene costs a few slow frames: not a speed problem.
+      pr.graceUntil = performance.now() + STAGE_ARENA.qualityResumeGraceMs;
+      qualityRef.current.slow = 0;
+      perfLog("WebGL context restored");
+      arenaHandle.current.refit?.();
+      arenaHandle.current.invalidate?.();
+      setArenaOn(true);
+    },
+    [perfLog],
+  );
+
+  // Adaptive quality, one sample per animation frame while the arena turns.
+  // Never measured: a hidden page, the grace time after it is shown again, or
+  // a frame gap (the browser held frames) — those restart the window.
+  const sampleQuality = useCallback(
+    (now: number, gapMs: number, running: boolean) => {
+      const q = qualityRef.current;
+      const pr = perfRef.current;
+      // rolling FPS for the debug panel
+      if (!pr.fpsT0 || gapMs > STAGE_ARENA.qualityGapMs) {
+        pr.fpsT0 = now;
+        pr.fpsFrames = 0;
+      } else {
+        pr.fpsFrames += 1;
+        if (now - pr.fpsT0 >= 1000) {
+          pr.fps = Math.round((pr.fpsFrames * 1000) / (now - pr.fpsT0));
+          pr.fpsT0 = now;
+          pr.fpsFrames = 0;
+        }
+      }
+      const hs = arenaHandle.current;
+      if (!clockStartRef.current && running) clockStartRef.current = now;
+      const warm = clockStartRef.current > 0 && now - clockStartRef.current > STAGE_ARENA.qualityWarmupMs;
+      const measurable = !!hs.invalidate && running && warm && !document.hidden && now >= pr.graceUntil && gapMs <= STAGE_ARENA.qualityGapMs;
+      if (!measurable) {
+        q.t0 = 0;
+        q.frames = 0;
+        return;
+      }
+      if (!q.t0) q.t0 = now;
+      q.frames += 1;
+      if (now - q.t0 < STAGE_ARENA.qualityWindowMs) return;
+      const fps = (q.frames * 1000) / (now - q.t0);
+      // Step down gently; only give up on the arena after slow windows in a
+      // row at the lowest quality (a sustained problem, not a hiccup).
+      if (fps < STAGE_ARENA.dprDropFps && q.level < 1) {
+        q.level = 1;
+        hs.setDpr?.(1);
+        perfLog(`quality: dpr 1 (${fps.toFixed(0)} fps)`);
+      } else if (fps < STAGE_ARENA.halfRateFps && q.level < 2) {
+        q.level = 2;
+        perfLog(`quality: half rate (${fps.toFixed(0)} fps)`);
+      } else if (fps < STAGE_ARENA.minTurnFps && q.level >= 2) {
+        q.slow += 1;
+        perfLog(`slow window ${q.slow}/${STAGE_ARENA.slowWindowsToDisable} (${fps.toFixed(0)} fps)`);
+        if (q.slow >= STAGE_ARENA.slowWindowsToDisable) disableArena(`slow (${fps.toFixed(0)} fps)`);
+      } else {
+        q.slow = 0;
+      }
+      q.t0 = now;
+      q.frames = 0;
+    },
+    [disableArena, perfLog],
+  );
 
   // Weak-phone safety net for view turns (see STAGE_ARENA.minTurnFps).
   const slowTurnsRef = useRef(0);
@@ -206,13 +392,16 @@ export function AthleteStageCard({
     (frames: number, ms: number) => {
       if (!arenaHandle.current.invalidate || ms < 200) return;
       if (!clockStartRef.current || performance.now() - clockStartRef.current < STAGE_ARENA.qualityWarmupMs) return;
+      // A turn that spans a hidden page or its grace time says nothing about speed.
+      const pr = perfRef.current;
+      if (document.hidden || performance.now() < pr.graceUntil || pr.hiddenAt > performance.now() - ms) return;
       const fps = (frames * 1000) / ms;
       if (fps >= STAGE_ARENA.minTurnFps) {
         slowTurnsRef.current = 0;
         return;
       }
       slowTurnsRef.current += 1;
-      if (slowTurnsRef.current >= STAGE_ARENA.slowTurnsToDisable) disableArena();
+      if (slowTurnsRef.current >= STAGE_ARENA.slowTurnsToDisable) disableArena(`slow turns (${fps.toFixed(0)} fps)`);
     },
     [disableArena],
   );
@@ -303,29 +492,7 @@ export function AthleteStageCard({
           rest.prepped = s;
         }
         // Adaptive quality while the scenery turns (same rules as the turn).
-        if (!clockStartRef.current && fs > 0.5) clockStartRef.current = now;
-        const warmS = clockStartRef.current > 0 && now - clockStartRef.current > STAGE_ARENA.qualityWarmupMs;
-        if (hs.invalidate && fs > 0.5 && warmS) {
-          const q = qualityRef.current;
-          if (!q.t0) q.t0 = now;
-          q.frames += 1;
-          if (now - q.t0 >= STAGE_ARENA.qualityWindowMs) {
-            const fps = (q.frames * 1000) / (now - q.t0);
-            if (fps < STAGE_ARENA.dprDropFps && q.level < 1) {
-              q.level = 1;
-              hs.setDpr?.(1);
-            } else if (fps < STAGE_ARENA.halfRateFps && q.level < 2) {
-              q.level = 2;
-            } else if (fps < STAGE_ARENA.minTurnFps && q.level >= 2) {
-              q.slow += 1;
-              if (q.slow >= STAGE_ARENA.slowWindowsToDisable) disableArena();
-            } else {
-              q.slow = 0;
-            }
-            q.t0 = now;
-            q.frames = 0;
-          }
-        }
+        sampleQuality(now, rawDt * 1000, fs > 0.5);
         const busyS = fs > 0 || wantBg > 0 || !!fadeRef.current || !!bgTweenRef.current || (!!viewsRef.current && sidePaintRef.current !== sideRef.current);
         rafRef.current = busyS ? requestAnimationFrame(tick) : null;
         return;
@@ -408,34 +575,7 @@ export function AthleteStageCard({
 
       // Adaptive quality while the arena runs continuously (after a warm-up,
       // since images/fonts still decode right after load).
-      if (!clockStartRef.current && f > 0.5) clockStartRef.current = now;
-      const warm = clockStartRef.current > 0 && now - clockStartRef.current > STAGE_ARENA.qualityWarmupMs;
-      if (h.invalidate && f > 0.5 && warm) {
-        const q = qualityRef.current;
-        if (!q.t0) q.t0 = now;
-        q.frames += 1;
-        if (now - q.t0 >= STAGE_ARENA.qualityWindowMs) {
-          const fps = (q.frames * 1000) / (now - q.t0);
-          // Step down gently; only give up on the arena after repeated slow
-          // windows at the lowest quality.
-          if (fps < STAGE_ARENA.dprDropFps && q.level < 1) {
-            q.level = 1;
-            h.setDpr?.(1);
-          } else if (fps < STAGE_ARENA.halfRateFps && q.level < 2) {
-            q.level = 2;
-          } else if (fps < STAGE_ARENA.minTurnFps && q.level >= 2) {
-            q.slow += 1;
-            if (q.slow >= STAGE_ARENA.slowWindowsToDisable) disableArena();
-          } else {
-            q.slow = 0;
-          }
-          q.t0 = now;
-          q.frames = 0;
-        }
-      } else {
-        qualityRef.current.t0 = 0;
-        qualityRef.current.frames = 0;
-      }
+      sampleQuality(now, rawDt * 1000, f > 0.5);
 
       // A manual turn just ended (finger up and inertia / tween done): the
       // spin comes back a little later.
@@ -446,7 +586,7 @@ export function AthleteStageCard({
       const busy = manualTurn || f > 0 || want > 0;
       rafRef.current = busy ? requestAnimationFrame(tick) : null;
     },
-    [checkTurnFps, disableArena],
+    [checkTurnFps, sampleQuality],
   );
 
   const ensureLoop = useCallback(() => {
@@ -454,6 +594,13 @@ export function AthleteStageCard({
     lastTRef.current = performance.now();
     rafRef.current = requestAnimationFrame(tick);
   }, [tick]);
+  // Start the loop afresh (a frame asked for before the page was hidden may
+  // come late or never): the spin carries on from where it was, no jump.
+  const restartLoop = useCallback(() => {
+    if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
+    rafRef.current = null;
+    ensureLoop();
+  }, [ensureLoop]);
 
   const pause = useCallback(
     (reason: string) => {
@@ -502,7 +649,9 @@ export function AthleteStageCard({
   useEffect(
     () => () => {
       if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
+      rafRef.current = null; // a remount (React dev double effects) must be able to start it again
       resumeTimersRef.current.forEach((t) => clearTimeout(t));
+      if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
     },
     [],
   );
@@ -510,8 +659,34 @@ export function AthleteStageCard({
   // Pause while the tab is hidden or the card is scrolled out of view.
   const sectionRef = useRef<HTMLElement>(null);
   useEffect(() => {
-    const onVis = () => (document.hidden ? pause("hidden") : resume("hidden"));
-    onVis();
+    const pr = perfRef.current;
+    const onVis = () => {
+      const q = qualityRef.current;
+      q.t0 = 0;
+      q.frames = 0;
+      if (document.hidden) {
+        pr.hiddenAt = performance.now();
+        perfLog("page hidden");
+        pause("hidden");
+        return;
+      }
+      // Shown again: no measuring for a moment, a fresh loop from the same angle.
+      pr.graceUntil = performance.now() + STAGE_ARENA.qualityResumeGraceMs;
+      if (pr.hiddenAt) perfLog(`page shown (hidden ${((performance.now() - pr.hiddenAt) / 1000).toFixed(1)} s)`);
+      pausesRef.current.delete("hidden");
+      restartLoop();
+      arenaHandle.current.invalidate?.();
+      // A fallback that may have been temporary: try 3D again.
+      if (pr.fallback && pr.fallback !== "no-webgl") setTimeout(() => !document.hidden && retryArena("shown again"), STAGE_ARENA.qualityResumeGraceMs);
+    };
+    if (document.hidden) onVis();
+    else {
+      pausesRef.current.delete("hidden");
+      ensureLoop();
+    }
+    // Back from the back/forward cache (iOS Safari, Chrome): same as shown again.
+    const onShow = (e: PageTransitionEvent) => e.persisted && onVis();
+    window.addEventListener("pageshow", onShow);
     document.addEventListener("visibilitychange", onVis);
     let io: IntersectionObserver | null = null;
     if (sectionRef.current && "IntersectionObserver" in window) {
@@ -520,9 +695,10 @@ export function AthleteStageCard({
     }
     return () => {
       document.removeEventListener("visibilitychange", onVis);
+      window.removeEventListener("pageshow", onShow);
       io?.disconnect();
     };
-  }, [pause, resume]);
+  }, [pause, resume, ensureLoop, restartLoop, retryArena, perfLog]);
 
   // Start once the athlete photos (and the arena, when there is one) are ready.
   const [photosReady, setPhotosReady] = useState(!has360);
@@ -1105,18 +1281,23 @@ export function AthleteStageCard({
           aria-hidden
         >
           <StageArena3D
+            key={arenaKey}
             handle={arenaHandle}
             anchorRef={platformRef}
             figureRef={figureRef}
-            onReady={() => setArenaOn(true)}
+            onReady={() => {
+              perfRef.current.fallback = "";
+              // a new canvas (first load, retry, rebuild) warms up before it is judged
+              perfRef.current.graceUntil = performance.now() + STAGE_ARENA.qualityResumeGraceMs;
+              perfLog("3D arena ready");
+              setArenaOn(true);
+            }}
             platform={platform}
             platformLocked={isStatic}
             screens={screens}
             screensActive={photosReady}
-            onFail={() => {
-              setArenaOn(false);
-              setArenaWanted(false);
-            }}
+            onFail={() => disableArena("WebGL error")}
+            onContext={onArenaContext}
           />
         </div>
       )}
@@ -1548,6 +1729,15 @@ export function AthleteStageCard({
       </span>
       <span ref={liveRef} className="sr-only" aria-live="polite" />
       {debugViewport && <ViewportDebug sectionRef={sectionRef} />}
+      {/* ?debug=perf: frame rate, adaptive quality, WebGL context, fallback reason, recent events (developer aid, not localised) */}
+      {debugPerf && (
+        <div
+          ref={perfPanelRef}
+          data-perf-panel
+          className="pointer-events-none absolute bottom-2 left-2 z-50 max-w-[min(26rem,calc(100%-1rem))] whitespace-pre-wrap rounded bg-black/80 px-2 py-1.5 font-mono text-[10px] leading-snug text-white"
+          aria-hidden
+        />
+      )}
     </section>
   );
 }
