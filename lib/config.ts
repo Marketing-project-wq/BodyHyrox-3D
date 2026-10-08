@@ -357,7 +357,7 @@ export const VIEWER_SPIN = {
  */
 export const STAGE_MODE: "static-athlete" | "turntable" = "static-athlete";
 /**
- * An athlete whose data (or STAGE_VIDEO_BUNDLED) has a turn video gets the
+ * An athlete whose data has a turn video (media.video) gets the
  * "turntable" mode when this browser can play it with transparency (VP9 alpha;
  * on Apple's WebKit only with an HEVC source), with no reduced motion and no
  * Save-Data. Every other athlete / browser keeps STAGE_MODE. ?stage=static or
@@ -365,12 +365,24 @@ export const STAGE_MODE: "static-athlete" | "turntable" = "static-athlete";
  */
 export const STAGE_TURN_VIDEO_AUTO = true;
 /**
- * An athlete with a turn set (media.turn in the data, or the temporary
- * picture turn shipped with the site, STAGE_FRAMES_BUNDLED) gets the
- * "turntable" mode in every browser (no video decoding), with no reduced
- * motion. ?stage=static still forces the 4-side mode.
+ * An athlete with a turn set in the data (media.turn) gets the "turntable"
+ * mode in every browser (no video decoding), with no reduced motion.
+ * ?stage=static still forces the 4-side mode. Nothing shipped with the site
+ * ever switches the turn on: only the athlete's own data does (decision
+ * 2026-10-08, docs/STAGE_SPEC.md 1.4).
  */
 export const STAGE_TURN_FRAMES_AUTO = true;
+/**
+ * One turn flow for EVERY athlete (decision 2026-10-08): whatever the number
+ * of photos in a turn set (12–24), the stage shows `stops` poses evenly round
+ * the turn (360 / stops degrees apart), each held, and crossfades over
+ * `blendShare` of each step, centred between two stops — Calysta's set (18
+ * photos every 20°, 15% = 3°). Each stop shows the photo nearest its angle
+ * (the side photos chosen in the studio always keep their stop); with fewer
+ * photos than stops a photo holds over neighbouring stops. Files and data are
+ * never changed (lib/turn-flow.ts).
+ */
+export const STAGE_TURN_FLOW = { stops: 18, blendShare: 0.15 } as const;
 /**
  * The control row under the athlete (‹ ⏸ Front · Right · Back · Left ›).
  * Off: the athlete keeps turning on its own; swipe / drag and the arrow keys
@@ -384,27 +396,6 @@ export const STAGE_VIEW_CONTROLS = false;
  * size (measured 2026-10-06), so 15.5 leaves a small gap.
  */
 export const STAGE_CTA = { dropPct: 15.5 };
-/**
- * Picture turns shipped with the site (public/media/...), per athlete id,
- * shown instead of the data's frames until that athlete's own turn set is
- * published (a turn set in the data always wins; then remove the entry): `count`
- * pictures 000.webp.. evenly round the turn (000 = Front, Right at count/4,
- * Back at count/2, Left at 3*count/4) plus feet.json (version 3), made by
- * scripts/video360/export_frames.py. The stage shows the picture of the
- * scenery's angle and crossfades its neighbours (blendShare: the share of each
- * step spent crossfading, centred between two pictures; unset = all of it).
- */
-export const STAGE_FRAMES_BUNDLED: Record<string, { baseUrl: string; count: number; blendShare?: number }> = {
-  // Calysta: scripts/video360 on her turn video plus her two profile photos
-  // (standing frames only, every picture locked: sole, height, centre). She
-  // turned herself in that video (her pose shifts from angle to angle), so
-  // the stage holds 12 clean poses (every 30 degrees, 714x1680): she stands
-  // perfectly still while the scenery orbits, and the next pose crossfades in
-  // over blendShare of the 30 degrees (centred between the two). Right, Back
-  // and Left are her sharp photos (PHOTOS_AT). A new set always goes in a
-  // new folder: browsers keep the old pictures under the same file names.
-  "f328e4e0-98c2-483d-b9ae-4be7fd6bf635": { baseUrl: "/media/atlet-360/calysta-turn-v2", count: 12, blendShare: 0.15 },
-};
 /**
  * "static-athlete" mode:
  * - secPerTurn / direction: one orbit of the scenery (48 s = 12 s per side);
@@ -513,17 +504,6 @@ export const VIEWER_VIDEO = {
   dropRetryMs: 30000,
 };
 
-/**
- * Turn videos shipped with the site (public/media/...), per athlete id, used
- * while the database can't hold one yet (video column + Storage). The data's
- * own video (media.video) always wins. `video` has the shape of
- * media.video: { sources: [{ file, type }], poster, feet, fps, frames, duration }
- * (feet: the soles of every video frame, so the shadows follow the video).
- * None at the moment: a transparent VP9 video decodes in software on many
- * laptops and drops frames, so Calysta's turn ships as pictures
- * (STAGE_FRAMES_BUNDLED).
- */
-export const STAGE_VIDEO_BUNDLED: Record<string, { baseUrl: string; video: unknown }> = {};
 
 export const STAGE_ARENA = {
   color: "#00b4ff",

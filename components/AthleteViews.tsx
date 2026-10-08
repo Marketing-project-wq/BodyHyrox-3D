@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 import type { Media360, Media360Hotspot } from "@/lib/data";
 import { VIEW_ANGLES, VIEW_KEYS, frameAngles } from "@/lib/views";
 import { solidifyCanvas } from "@/lib/sole-solid";
-import { STAGE_ARENA, STAGE_VIDEO_BUNDLED, STAGE_ZONES, VIEWER_360, VIEWER_360_FRAME_CLASS, VIEWER_SPIN, VIEWER_VIDEO, VIEWER_VIEWS, viewer360FrameStyle } from "@/lib/config";
+import { STAGE_ARENA, STAGE_ZONES, VIEWER_360, VIEWER_360_FRAME_CLASS, VIEWER_SPIN, VIEWER_VIDEO, VIEWER_VIEWS, viewer360FrameStyle } from "@/lib/config";
 import { alphaLooksRight, isHevc, parseStageVideo, sourceOrder, timeForAngle, videoAngle, type StageVideoSource } from "@/lib/stage-video";
 import { blendAmount, bracket, loadOrder, nearestSide, norm360 } from "@/lib/spin";
 import { contactsOf, footShift, mixContacts, parseVideoFeet, videoFootAt, type VideoFeet } from "@/lib/stage-feet";
@@ -116,7 +116,6 @@ const mixFoot = (p: Foot, q: Foot, t: number): Foot => ({
 export const AthleteViews = forwardRef<
   AthleteViewsHandle,
   {
-    athleteId: string;
     media: Media360;
     /** Settled view index (0 Depan … 3 Kiri) — which zone markers to show. */
     view: number;
@@ -163,7 +162,7 @@ export const AthleteViews = forwardRef<
     onFocusChange?: (focused: boolean) => void;
   } & DragCallbacks
 >(function AthleteViews(
-  { athleteId, media, view, m, label, onKeyTurn, onTogglePlay, onWheelTurn, onReady, onVideoSettled, staticSides = false, onHoverChange, onTap, onFocusChange, onDragStart, onDragMove, onDragEnd, arena, debug, debugPerf, debugVideo, describe, onZoneSelect, zoomKey = null, locked = false, onMarkersHidden },
+  { media, view, m, label, onKeyTurn, onTogglePlay, onWheelTurn, onReady, onVideoSettled, staticSides = false, onHoverChange, onTap, onFocusChange, onDragStart, onDragMove, onDragEnd, arena, debug, debugPerf, debugVideo, describe, onZoneSelect, zoomKey = null, locked = false, onMarkersHidden },
   ref,
 ) {
   const rootRef = useRef<HTMLDivElement>(null);
@@ -648,14 +647,9 @@ export const AthleteViews = forwardRef<
   // States: off (no video / not loaded yet), ready (source chosen, paused),
   // starting (seeked + playing, waiting for its first frame), on (showing),
   // failed (no usable source, autoplay refused, reduced motion, Save-Data).
-  // The data's own video wins; else a video shipped with the site for this
-  // athlete (STAGE_VIDEO_BUNDLED), until the database can hold one.
-  const bundled = STAGE_VIDEO_BUNDLED[athleteId];
-  const stageVideo = useMemo(
-    () => (staticSides ? null : media.video ?? (bundled ? parseStageVideo(bundled.video) : null)),
-    [staticSides, media.video, bundled],
-  );
-  const videoBase = media.video || !bundled ? base : bundled.baseUrl.replace(/\/$/, "");
+  // Only the athlete's own data has a video (nothing shipped with the site).
+  const stageVideo = useMemo(() => (staticSides ? null : media.video), [staticSides, media.video]);
+  const videoBase = base;
   const videoElRef = useRef<HTMLVideoElement>(null);
   const vid = useRef({
     state: "off" as "off" | "ready" | "starting" | "on" | "failed",

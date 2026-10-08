@@ -6,7 +6,7 @@ Kalau kode, komentar, config, atau dokumen lain bertentangan dengan dokumen ini,
 yang benar. Kalau instruksi pemilik yang lebih baru bertentangan dengan dokumen ini, ikuti
 instruksi terbaru dan perbarui dokumen ini di PR yang sama.
 
-Terakhir diperbarui: 2026-10-06 (media frame panggung M0–M1; setelah #121–#124: SQL S0 jalan, set putaran Calysta dari data tayang, baris tombol disembunyikan, tombol "Place Your Logo").
+Terakhir diperbarui: 2026-10-08 (satu alur putaran untuk semua atlet, `STAGE_TURN_FLOW`; bahan tertanam khusus Calysta dihapus).
 
 ---
 
@@ -24,6 +24,16 @@ Terakhir diperbarui: 2026-10-06 (media frame panggung M0–M1; setelah #121–#1
      Calysta. Panggung memilih pose sesuai sudut background dan menahan setiap pose (atlet diam
      total). Pose berikutnya masuk lewat crossfade singkat yang berpusat di antara dua pose
      (`blendShare`, sekarang 0,15).
+   - **Satu alur untuk semua atlet (keputusan 2026-10-08, `STAGE_TURN_FLOW`):** berapa pun jumlah
+     fotonya (12–24), panggung selalu memakai **18 titik pose tiap 20°**, crossfade 15% per
+     langkah (3°), 60 dtk per putaran — sama persis dengan Calysta.
+     - Tiap titik memakai foto yang sudutnya paling dekat. Foto sisi Depan/Kanan/Belakang/Kiri
+       yang dipilih di studio selalu tetap di titiknya, jadi titik zona tetap pas.
+     - Lebih dari 18 foto: 18 foto yang paling pas yang dipakai (yang lain tidak diunduh).
+       Kurang dari 18: satu foto ditahan di titik-titik berurutan (pose lebih sedikit, alur sama).
+     - Hanya urutan tampilan di panggung yang diatur (`lib/turn-flow.ts`); file, sudut di data,
+       dan titik zona tidak diubah. Set yang sudah 18 titik tiap 20° (Calysta) tidak berubah sama
+       sekali (identik piksel per piksel).
    - **Bahan (ke depan):** **12–24 foto** atlet dari sudut yang berbeda, rata mengelilingi
      putaran: foto pertama = Depan, Kanan di 1/4, Belakang di 1/2, Kiri di 3/4. Setiap foto
      dikunci (garis telapak, tinggi, tengah badan), dan disimpan sebagai **data atlet**.
@@ -36,9 +46,14 @@ Terakhir diperbarui: 2026-10-06 (media frame panggung M0–M1; setelah #121–#1
 4. **Mode putaran (`turntable`)** hanya aktif kalau **data atlet** punya set putaran (12–24
    foto, atau video). Video atau gambar yang ditanam di kode tidak boleh dipakai untuk
    mengaktifkan putaran.
-   - Calysta sudah memakai set putaran dari data (18 foto, dipublish 2026-10-06). Gambar
-     tertanam (`STAGE_FRAMES_BUNDLED`, `calysta-turn-v2`) tidak dipakai lagi dan dijadwalkan
-     dihapus (R2).
+   - Aturan mode (keputusan 2026-10-08): **putaran kalau data atlet punya set putaran (`turn`)
+     atau video**; tanpa keduanya, mode sementara 4 sisi. Sama untuk semua atlet, tanpa jalur
+     khusus atlet tertentu.
+   - Calysta (18 foto) dan Andrew (22 foto) sama-sama memakai set putaran dari data. Bahan
+     tertanam khusus Calysta (`STAGE_FRAMES_BUNDLED`, `STAGE_VIDEO_BUNDLED`,
+     `lib/stage-frames.ts`, `public/media/atlet-360/calysta-turn-v2`) **sudah dihapus**
+     (2026-10-08). Folder `public/media/atlet-360/calysta` sengaja disimpan: versi 1 Calysta di
+     riwayat (restore) masih menunjuk ke sana; folder itu bukan jalur khusus di kode.
 5. **Interaksi:**
    - **Baris tombol di bawah atlet** (‹ ⏸ Depan · Kanan · Belakang · Kiri ›) **disembunyikan**
      (keputusan 2026-10-06, #123, `STAGE_VIEW_CONTROLS = false`). Tidak ada tombol Pause/Play.
@@ -147,10 +162,11 @@ lalu set foto lewat data); jangan ditiru untuk atlet baru.
 
 | Hal | Sekarang di main | Target (bagian 1) | Status |
 |---|---|---|---|
-| Calysta | Set putaran **dari data**: 18 foto (0°–340°, tiap 20°), pose ditahan, fade 15%. Gambar tertanam `calysta-turn-v2` masih ada di kode tetapi tidak dipakai | Sama | Sesuai. Hapus gambar tertanam di R2 |
+| Calysta | Set putaran **dari data**: 18 foto (0°–340°, tiap 20°), pose ditahan, fade 15%. Gambar tertanam sudah dihapus (2026-10-08) | Sama | Sesuai |
+| Andrew | Set putaran dari data: 22 foto (tiap 16,4°), ditampilkan dengan alur yang sama (`STAGE_TURN_FLOW`: 18 titik tiap 20°, 18 foto terpakai) | Sama | Sesuai |
 | Set foto putaran dari data | Kolom `turn` (sudut + `blendShare`) ada sejak SQL S0. "Bahan 360" + "Buat set putaran" + Publish tayang (#118–#122) | Sama | Sesuai |
-| Atlet lain | Mode sementara (4 sisi, `autoSides`) | Sama sampai mereka punya video di data | Sesuai |
-| Pemilihan mode | Diputuskan di beberapa tempat (konstanta, `?stage=`, gambar tertanam, video tertanam/data, plus pemilihan video di `AthleteViews`) | Satu aturan berdasarkan data | R2 |
+| Atlet lain | Mode sementara (4 sisi, `autoSides`) | Sama sampai mereka punya set putaran atau video di data | Sesuai |
+| Pemilihan mode | Satu aturan dari data: set putaran (`turn`) atau video → putaran, selain itu 4 sisi. Bahan tertanam sudah dihapus (2026-10-08). `?stage=` masih ada sebagai alat uji | Satu aturan berdasarkan data | Sesuai (sisa: `?stage=` di R2) |
 | Platform di mode putaran | Ikut berputar bersama arena (`platformLocked` hanya di mode sementara) | Bagian 1.2: hanya pilar, frame, dan lantai yang berputar | Pertanyaan terbuka (bagian 8) |
 | Parameter URL di production | `?debug=feet`, `?debug=viewport`, `?platform=round`, ditambah `?debug=perf`, `?debug=video`, `?stage=turntable\|static`, `?platform=hex` | Hanya tiga yang pertama | R2 |
 
@@ -179,10 +195,10 @@ Semua angka yang bisa disetel ada di `lib/config.ts`, bukan di komponen atau CSS
 ### Config utama (`lib/config.ts`)
 
 - **`STAGE_MODE`, `STAGE_STATIC`:** mode default dan pengaturan mode sementara.
-- **`STAGE_TURN_VIDEO_AUTO`:** putaran otomatis untuk atlet dengan video di data. Saat ini
-  juga menerima `STAGE_VIDEO_BUNDLED`, yang tidak boleh (R2).
-- **`STAGE_FRAMES_BUNDLED`, `STAGE_TURN_FRAMES_AUTO`, `STAGE_VIDEO_BUNDLED`, `lib/stage-frames.ts`:**
-  bahan yang ditanam di kode. **Sementara saja**, dan dihapus setelah V4 (bagian 1.4).
+- **`STAGE_TURN_VIDEO_AUTO`, `STAGE_TURN_FRAMES_AUTO`:** putaran otomatis untuk atlet dengan
+  video atau set putaran **di data** (tidak ada lagi bahan yang ditanam di kode).
+- **`STAGE_TURN_FLOW`:** alur putaran yang sama untuk semua atlet (`stops` 18, `blendShare`
+  0,15), dipakai lewat `lib/turn-flow.ts` (bagian 1.2).
 - **`STAGE_ARENA`:** arena 3D: kecepatan orbit di mode putaran, kualitas adaptif, DPR, kabut,
   dan kamera.
 - **`STAGE_PLATFORM`, `STAGE_PLATFORM_ROUND`:** bentuk platform (`"hex"`, opsi `"round"`).
@@ -303,8 +319,10 @@ sudut. Script tidak bisa menghilangkannya; rekam ulang di meja putar.
   default, keputusan resmi pemilik belum ada.
 - **R2:** rapikan kode (lihat audit). **R3:** GitHub, Railway, dan Supabase. Keduanya menunggu
   approval.
-- **Hapus gambar tertanam Calysta** (`STAGE_FRAMES_BUNDLED`, folder `calysta-turn-*`): set
-  dari data sudah tayang, jadi bisa dihapus di R2 (menunggu approval).
+- ~~Hapus gambar tertanam Calysta~~: selesai 2026-10-08 (bersama `STAGE_TURN_FLOW`).
+- **SQL "video + 72" versi 30 Sep sudah usang:** lebih tua dari S0 (6 Okt) dan akan menimpa
+  fungsi Publish set putaran. Jangan dijalankan; kalau jalur video (V4) dilanjutkan, tulis ulang
+  dari definisi yang aktif (`pg_get_functiondef`).
 - PR #115 dan #117 ditutup (2026-10-06).
 - **Sudah selesai** (catatan riwayat): F1 #104 (kaki dan bayangan napak), `autoSides` #107,
   perbaikan script #108–#110, set putaran lewat data S0–S3 (#118–#122), baris tombol
