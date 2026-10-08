@@ -495,7 +495,9 @@ export const STAGE_ARENA = {
   poolRadius: 0.5,
   poolOpacity: 0.65,
   /** The pool is a little dimmer right under the feet (0 = brightest there, 1 = dark centre), so the step reads darkest. */
-  poolCenterDim: 0.45,
+  poolCenterDim: 0.65,
+  /** Where the pool reaches full brightness again (0..1 of its radius). */
+  poolDimRadius: 0.32,
   minSceneryRadiusM: 6,
   pillars: 10,
   /**
@@ -571,8 +573,8 @@ export const STAGE_ARENA = {
    * contactShadowRise above the sole bottom. A lifted / off-platform sole gets
    * liftedContactOpacity of it. Always neutral dark, whatever the theme colour.
    */
-  contactShadowWidth: 1.08,
-  contactShadowHeight: 0.009,
+  contactShadowWidth: 1.2,
+  contactShadowHeight: 0.016,
   contactShadowRise: 0.001,
   contactShadowOpacity: 0.95,
   liftedContactOpacity: 0.2,
@@ -729,7 +731,7 @@ export const STAGE_SOLE = {
   interiorPct: 0.0012,
   holePct: 0.0025,
   darkPct: 0.016,
-  darkStrength: 0.35,
+  darkStrength: 0.5,
 };
 
 /**

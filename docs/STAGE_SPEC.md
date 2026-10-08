@@ -57,7 +57,8 @@ Terakhir diperbarui: 2026-10-06 (media frame panggung M0–M1; setelah #121–#1
      - **Bayangan kontak tipis** per sepatu (`STAGE_ARENA.contactShadow*`), di atas bayangan
        yang sudah ada, mengikuti data feet saat ganti sisi, putaran, dan crossfade; melemah
        saat kaki terangkat (`liftedContactOpacity`). Warna gelap netral untuk semua tema.
-     - **Cahaya platform** tepat di bawah sol sedikit diredupkan (`STAGE_ARENA.poolCenterDim`).
+     - **Cahaya platform** tepat di bawah sol diredupkan (`STAGE_ARENA.poolCenterDim`, area `poolDimRadius`;
+       dipertegas 2026-10-07 bersama bayangan kontak dan gradasi sol, karena di desktop efeknya terlalu halus).
      - Materi baru ikut dipadatkan: import studio (`turn-set`, `media360`, `media360-video`) dan
        `scripts/video360/sole_solid.py` (dipanggil `export_frames.py`). Mode video (`<video>`)
        tidak dipadatkan, hanya bayangan kontak dan peredupan platform.
