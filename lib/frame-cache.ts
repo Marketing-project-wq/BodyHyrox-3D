@@ -165,8 +165,14 @@ export class FrameCache {
 
   private natH = 0; // the set's file height, learned from the first decode
 
+  /** The frames' own height in px (0 until the first decode). */
+  get naturalHeight(): number {
+    return this.natH;
+  }
+
   private async decode(src: Source): Promise<ImageBitmap | null> {
     const known = src instanceof HTMLImageElement ? src.naturalHeight : this.natH;
+    if (known && !this.natH) this.natH = known;
     const h = this.targetH;
     if (known) {
       try {

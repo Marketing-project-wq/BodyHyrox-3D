@@ -29,6 +29,11 @@ export type ArenaHandle = {
   pick: ((clientX: number, clientY: number, objects: THREE.Object3D[]) => THREE.Intersection[]) | null;
   /** The media screen (slot) under a screen point, or null. */
   mediaHit: ((clientX: number, clientY: number) => number | null) | null;
+  /**
+   * Re-fit the camera to the figure now (the zone zoom calls it every frame
+   * while the figure scales, so the platform stays under the feet).
+   */
+  refit?: (() => void) | null;
 };
 
 export type PlatformShape = "hex" | "round";
@@ -178,7 +183,7 @@ function Rig({ handle, anchorRef, figureRef, platform, platformLocked }: Pick<Pr
       const W = c.width;
       const H = c.height;
       const ppm = (fr.height * A.athleteFrameFill) / A.athleteHeightM; // CSS px per metre at the athlete
-      cam.fov = clamp((2 * Math.atan(H / 2 / (ppm * d)) * 180) / Math.PI, 12, 80);
+      cam.fov = clamp((2 * Math.atan(H / 2 / (ppm * d)) * 180) / Math.PI, 4, 80); // narrow when zoomed onto a zone
       cam.aspect = W / H;
       cam.near = 0.1;
       cam.far = 80;
@@ -200,6 +205,7 @@ function Rig({ handle, anchorRef, figureRef, platform, platformLocked }: Pick<Pr
       invalidate();
     };
     fitRef.current = fit;
+    handle.current.refit = fit;
     fit();
     // Web fonts swapping in (and other late layout shifts) move the figure
     // without resizing anything: refit when they settle, and poll the anchor
@@ -227,8 +233,9 @@ function Rig({ handle, anchorRef, figureRef, platform, platformLocked }: Pick<Pr
       window.clearInterval(poll);
       ro.disconnect();
       window.removeEventListener("resize", fit);
+      if (handle.current.refit === fit) handle.current.refit = null;
     };
-  }, [anchorRef, figureRef, gl, cam, d, camY, lookY, invalidate, size]);
+  }, [anchorRef, figureRef, gl, cam, d, camY, lookY, invalidate, size, handle]);
 
   useFrame(() => {
     const phi = A.orbitDirection * rad(handle.current.angleDeg);
