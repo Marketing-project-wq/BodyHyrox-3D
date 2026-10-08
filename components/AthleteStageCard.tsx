@@ -6,11 +6,11 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ChevronLeft, ChevronRight, Pause, Play, RotateCcw, X } from "lucide-react";
 import type { Media360Hotspot, PublicAthleteDetail } from "@/lib/data";
-import { STAGE_ARENA, STAGE_CTA, STAGE_MODE, STAGE_PLATFORM, STAGE_READOUT, STAGE_STATIC, STAGE_TURN_FRAMES_AUTO, STAGE_TURN_VIDEO_AUTO, STAGE_VIEW_CONTROLS, STAGE_VIDEO_BUNDLED, STAGE_ZONES, VIEWER_360, VIEWER_360_FRAME_CLASS, VIEWER_SPIN, VIEWER_VIDEO, VIEWER_VIEWS, stageFitVars, viewer360FrameStyle } from "@/lib/config";
+import { STAGE_ARENA, STAGE_CTA, STAGE_MODE, STAGE_PLATFORM, STAGE_READOUT, STAGE_STATIC, STAGE_TURN_FRAMES_AUTO, STAGE_TURN_VIDEO_AUTO, STAGE_VIEW_CONTROLS, STAGE_ZONES, VIEWER_360, VIEWER_360_FRAME_CLASS, VIEWER_SPIN, VIEWER_VIDEO, VIEWER_VIEWS, stageFitVars, viewer360FrameStyle } from "@/lib/config";
 import { decayVelocity, degreeLabel, nearestSide, nextSideTarget, norm360, shortestDelta, sideTarget } from "@/lib/spin";
 import { VIEW_KEYS } from "@/lib/views";
 import { parseStageVideo, turnVideoUsable } from "@/lib/stage-video";
-import { withBundledFrames } from "@/lib/stage-frames";
+import { withTurnFlow } from "@/lib/turn-flow";
 import { type Dict, fmt } from "@/lib/i18n";
 import { tGender } from "@/lib/i18n";
 import { formatIDR, initials } from "@/lib/format";
@@ -79,8 +79,8 @@ export function AthleteStageCard({
   m: Dict;
 }) {
   const intl = locale === "id" ? "id-ID" : "en-US";
-  // A picture turn shipped with the site replaces the data's frames.
-  const media360 = useMemo(() => withBundledFrames(athlete.id, athlete.media360), [athlete.id, athlete.media360]);
+  // The athlete's own 360 set, its turn laid on the one flow every athlete shares.
+  const media360 = useMemo(() => withTurnFlow(athlete.media360), [athlete.media360]);
   const has360 = !!media360 && media360.frames.length > 0;
 
   // Free rotation. `view` = the side nearest to the current angle (index into
@@ -119,11 +119,11 @@ export function AthleteStageCard({
     if (mode === "turntable") setStageMode("turntable");
     else if (mode === "static") setStageMode("static-athlete");
     else if (STAGE_TURN_FRAMES_AUTO && has360 && media360?.turn && STAGE_ARENA.autoRotateDirection === 1) {
-      // An athlete with a turn set (data, or the temporary bundled one): the full turn in every browser.
+      // An athlete with a turn set in the data: the full turn in every browser.
       if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches) setStageMode("turntable");
     } else if (STAGE_TURN_VIDEO_AUTO && has360 && STAGE_ARENA.autoRotateDirection === 1) {
       // An athlete with a turn video: the full turn, where this browser can show it.
-      const video = parseStageVideo(media360?.video ?? STAGE_VIDEO_BUNDLED[athlete.id]?.video);
+      const video = parseStageVideo(media360?.video);
       const el = document.createElement("video");
       const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
       const saveData = (navigator as Navigator & { connection?: { saveData?: boolean } }).connection?.saveData === true;
@@ -1480,7 +1480,6 @@ export function AthleteStageCard({
             {has360 ? (
               <AthleteViews
                 ref={viewsRef}
-                athleteId={athlete.id}
                 media={media360!}
                 view={isStatic ? shownSide : view}
                 onKeyTurn={onKeyTurn}
