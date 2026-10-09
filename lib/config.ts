@@ -201,6 +201,78 @@ export const VIEWER_VIEWS = {
 } as const;
 
 /**
+ * Stage fog (decision 2026-10-09): a thin layer of low "dry ice" fog over the
+ * platform, in front of the athlete's feet, for EVERY athlete and every mode.
+ * It covers the shoes and the bottom of the legs, never the calves; spills a
+ * little past the platform and fades out (an oval, never a box). DOM layers in
+ * front of the athlete picture, under the zone rings, label, tabs and button.
+ * Geometry is in shares of the athlete frame (the 3D platform's top face is
+ * ~1.7 frame widths wide and ends ~5.7% of the frame height below the feet
+ * line; the shoes are ~8% of the height, the sock tops ~11%, the calves
+ * start at ~14%).
+ * - enabled: on / off. density: which preset is used (thin / medium / thick).
+ * - presets: overall opacity and how far above the feet line the fog's
+ *   rolling top reaches (`aboveFrac`, share of the frame height).
+ * - belowFrac: how far below the feet line it reaches: past the platform's
+ *   front edge (`frontFrac` below the feet line), fading out.
+ * - widthFrac: layer width (share of the frame width); its sides fade out
+ *   from `solidWidth` of the half-width (oval mask).
+ * - tintTop / tintBottom: fog colour = white mixed with the theme colour (CSS
+ *   --accent) by this share at the fog's top / bottom (lit from below).
+ * - glow: the platform's light on the fog from below (theme colour): opacity
+ *   and size of its ellipse (% of the fog layer).
+ * - fadeMs: how fast the fog thins / returns (zoom) and fades in.
+ * - layers: the fog sheets, back to front: texture (0 / 1), tile width
+ *   (`size`, share of the layer width), seconds per tile (`sec`), direction,
+ *   opacity, a slow up/down roll (`bobFrac` of the fog height over `bobSec`)
+ *   and a slow thinning in and out (`pulse` share of its opacity over
+ *   `pulseSec`). Unrelated periods, so the pattern never visibly repeats.
+ * - lite: phones and low-memory devices (deviceClass "phone"): the first
+ *   `layers` sheets only, smaller textures.
+ * - weak: once the stage drops to its lowest quality (STAGE_ARENA.halfRateFps,
+ *   a weak device): the first `layers` sheet(s) only, drifting sideways
+ *   without the roll and the thinning in / out.
+ * - texture: the two fog textures, made once in the browser: size, seed, and
+ *   shape: the rolling top edge sits between `topMin` and `topMin + topRange`
+ *   of the way down to the feet line and gets dense over `ramp` of that
+ *   distance; `billow` = how much the billows vary the density (0 flat .. 1),
+ *   `highlight` = how much brighter the billows are.
+ * - zoomThinFromY / zoomThinOpacity: zoomed onto a zone at or below this
+ *   height of the frame (0 top .. 1 bottom: shins, ankles, shoes), the fog
+ *   thins to this share so the zone reads clearly.
+ * Under prefers-reduced-motion, and on the CSS platform (no WebGL arena), the
+ * fog stays but does not move. It also stops while the tab is hidden or the
+ * stage is off screen.
+ */
+export const STAGE_FOG = {
+  enabled: true,
+  density: "medium" as "thin" | "medium" | "thick",
+  presets: {
+    thin: { opacity: 0.65, aboveFrac: 0.08 },
+    medium: { opacity: 0.85, aboveFrac: 0.1 },
+    thick: { opacity: 1, aboveFrac: 0.12 },
+  },
+  belowFrac: 0.1,
+  frontFrac: 0.057,
+  widthFrac: 2.6,
+  solidWidth: 0.42,
+  tintTop: 0.15,
+  tintBottom: 0.6,
+  glow: { opacity: 0.4, widthPct: 34, heightPct: 60 },
+  fadeMs: 400,
+  layers: [
+    { tex: 0, size: 0.75, sec: 46, dir: -1, opacity: 0.9, bobFrac: 0.05, bobSec: 7.3, pulse: 0, pulseSec: 0 },
+    { tex: 1, size: 0.55, sec: 31, dir: 1, opacity: 0.7, bobFrac: 0.08, bobSec: 5.3, pulse: 0.35, pulseSec: 11.7 },
+    { tex: 0, size: 1.1, sec: 67, dir: 1, opacity: 0.5, bobFrac: 0.04, bobSec: 9.1, pulse: 0.3, pulseSec: 8.9 },
+  ],
+  lite: { layers: 2, textureW: 320, textureH: 72 },
+  weak: { layers: 1 },
+  texture: { w: 512, h: 112, seed: 20, topMin: 0.02, topRange: 0.75, ramp: 0.38, billow: 0.78, highlight: 0.35 },
+  zoomThinFromY: 0.62,
+  zoomThinOpacity: 0.25,
+} as const;
+
+/**
  * Sponsor zone markers on the stage athlete (price per body part) and the
  * zoom onto a zone (decision 2026-10-08, docs/STAGE_SPEC.md).
  *

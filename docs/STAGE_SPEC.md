@@ -6,7 +6,7 @@ Kalau kode, komentar, config, atau dokumen lain bertentangan dengan dokumen ini,
 yang benar. Kalau instruksi pemilik yang lebih baru bertentangan dengan dokumen ini, ikuti
 instruksi terbaru dan perbarui dokumen ini di PR yang sama.
 
-Terakhir diperbarui: 2026-10-08 (satu alur putaran untuk semua atlet, `STAGE_TURN_FLOW`; bahan tertanam khusus Calysta dihapus).
+Terakhir diperbarui: 2026-10-09 (kabut panggung rendah di atas platform, `STAGE_FOG`).
 
 ---
 
@@ -140,6 +140,38 @@ Terakhir diperbarui: 2026-10-08 (satu alur putaran untuk semua atlet, `STAGE_TUR
    di seluruh situs (panggung, platform, arena 3D, tombol, admin). Pesan error tetap merah.
 10. Berlaku untuk **semua atlet**, sekarang dan yang akan ditambahkan lewat dashboard.
 11. **Verifikasi:** daftar perangkat di "Verify before shipping" `CLAUDE.md`.
+12. **Kabut panggung (keputusan 2026-10-09, `STAGE_FOG`):** lapisan kabut rendah seperti dry
+    ice di atas platform, untuk **semua atlet** dan kedua mode (4 sisi dan putaran).
+    - Tujuan: menyamarkan pertemuan sepatu dan lantai, supaya sepatu tidak terlihat pudar
+      atau seperti tempelan.
+    - Tinggi: menutup sepatu dan bagian bawah kaki, **tidak** sampai betis atau lutut. Puncak
+      kabut (densitas sedang) 10% tinggi frame di atas garis kaki; sepatu ±8%, ujung kaus kaki
+      ±11%, betis mulai ±14%.
+    - Bentuk: lebih lebar dari platform (2,6× lebar frame; platform 3D ±1,7×), meluber
+      sedikit lewat tepi depan dan samping lalu memudar halus (oval, bukan kotak). Tepi
+      atasnya bergelombang.
+    - Warna: putih yang makin ke bawah makin ke warna tema (`--accent`, jadi ikut tema biru
+      atau merah), plus cahaya platform dari bawah.
+    - Gerak: 2–3 lembar dari dua tekstur kabut yang mulus, dibuat sekali di browser. Bergeser
+      ke samping dengan kecepatan berbeda, naik-turun pelan, dan menipis-menebal pelan. Periode
+      tidak saling terkait, jadi polanya tidak terlihat berulang. Hanya `transform`/`opacity`
+      (dijalankan compositor).
+    - Lapisan: di depan foto atlet (dan bayangan kaki), di bawah lingkaran zona, label harga,
+      kartu zona, tab, dan tombol "Pasang Logo di Sini". Kabut selalu berakhir di atas tombol
+      (13–31 px di 15 ukuran layar).
+    - Zoom ke zona di kaki bawah (titik zona `y` ≥ `zoomThinFromY` 0,62: tulang kering,
+      pergelangan, sepatu): kabut menipis ke `zoomThinOpacity` (25%) supaya zona jelas.
+    - Tingkat:
+      - desktop/tablet: 3 lembar;
+      - HP dan perangkat RAM kecil (`deviceClass` "phone"): 2 lembar, tekstur lebih kecil
+        (`lite`);
+      - perangkat lemah (kualitas panggung turun ke "half rate"): 1 lembar yang hanya bergeser
+        (`weak`);
+      - platform CSS (tanpa WebGL) dan `prefers-reduced-motion`: kabut tetap ada tapi diam.
+    - Berhenti saat tab tersembunyi atau panggung di luar layar.
+    - `?debug=perf` menampilkan tingkat kabut (`full` / `lite` / `simple` / `still`).
+    - Densitas `thin` / `medium` / `thick` (opacity dan tinggi) dan saklar `enabled` ada di
+      config. Default `medium`.
 
 ## 2. Sudah tidak berlaku
 
@@ -202,6 +234,8 @@ Semua angka yang bisa disetel ada di `lib/config.ts`, bukan di komponen atau CSS
 - **`STAGE_ARENA`:** arena 3D: kecepatan orbit di mode putaran, kualitas adaptif, DPR, kabut,
   dan kamera.
 - **`STAGE_PLATFORM`, `STAGE_PLATFORM_ROUND`:** bentuk platform (`"hex"`, opsi `"round"`).
+- **`STAGE_FOG`:** kabut panggung (bagian 1.12): saklar, densitas, tinggi, lebar, warna,
+  lembar dan kecepatannya, tingkat HP/perangkat lemah, dan penipisan saat zoom.
 - **`VIEWER_SPIN`:** crossfade, tahan setelah putaran manual (`manualResumeMs`), dan cache frame.
 - **`VIEWER_VIDEO`:** pemutaran video putaran (fallback ke frame saat frame terputus/drop,
   macet, atau autoplay ditolak).
