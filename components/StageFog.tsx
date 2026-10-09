@@ -118,10 +118,15 @@ function textureUrl(rgb: Rgb, w: number, h: number, seed: number, feet: number, 
   let p = textureCache.get(key);
   if (!p) {
     p = new Promise<string>((res) => {
-      const c = fogTexture(rgb, w, h, seed, feet, front);
-      if (!c) return res("");
-      if (c.toBlob) c.toBlob((b) => res(b ? URL.createObjectURL(b) : c.toDataURL("image/png")), "image/png");
-      else res(c.toDataURL("image/png"));
+      const make = () => {
+        const c = fogTexture(rgb, w, h, seed, feet, front);
+        if (!c) return res("");
+        if (c.toBlob) c.toBlob((b) => res(b ? URL.createObjectURL(b) : c.toDataURL("image/png")), "image/png");
+        else res(c.toDataURL("image/png"));
+      };
+      // each texture in its own task, when the page is idle (a few tens of ms on a slow phone)
+      if (typeof window.requestIdleCallback === "function") window.requestIdleCallback(make, { timeout: 600 });
+      else window.setTimeout(make, 0);
     });
     textureCache.set(key, p);
   }
@@ -161,15 +166,11 @@ export function StageFog({ thin = false, still = false, simple = false }: { thin
     setLite(isLite);
     const w = isLite ? STAGE_FOG.lite.textureW : STAGE_FOG.texture.w;
     const h = isLite ? STAGE_FOG.lite.textureH : STAGE_FOG.texture.h;
-    // after the first paint of the athlete: the textures take a few ms of script
-    const t = window.setTimeout(() => {
-      Promise.all([0, 1].map((k) => textureUrl(rgb, w, h, STAGE_FOG.texture.seed + 7919 * k, feet, front))).then((urls) => {
-        if (alive && urls.every(Boolean)) setTex({ urls, glow: `rgba(${rgb[0]}, ${rgb[1]}, ${rgb[2]}, ${STAGE_FOG.glow.opacity})` });
-      });
-    }, 0);
+    Promise.all([0, 1].map((k) => textureUrl(rgb, w, h, STAGE_FOG.texture.seed + 7919 * k, feet, front))).then((urls) => {
+      if (alive && urls.every(Boolean)) setTex({ urls, glow: `rgba(${rgb[0]}, ${rgb[1]}, ${rgb[2]}, ${STAGE_FOG.glow.opacity})` });
+    });
     return () => {
       alive = false;
-      window.clearTimeout(t);
     };
   }, [feet, front]);
 
