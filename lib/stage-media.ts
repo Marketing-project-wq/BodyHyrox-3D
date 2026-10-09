@@ -14,6 +14,13 @@ export type StageMediaSlot = {
   kind: StageMediaKind;
   /** Normalized https link (YouTube: https://www.youtube.com/watch?v=<id>; Instagram: https://www.instagram.com/<p|reel|tv>/<code>/). */
   url: string;
+  /**
+   * Where a click on the screen goes: the athlete's Instagram post / reel
+   * (normalized like `url`), or null (the screen is not clickable). For an
+   * Instagram-only screen (kind "instagram") it is that post. Optional in
+   * stored rows (added 2026-10-09, same jsonb, no SQL).
+   */
+  ig: string | null;
   ytId: string | null;
   /** Picture shown on the screen: path inside the public 360 bucket (thumbnail, image copy or video poster). */
   thumb: string | null;
@@ -27,7 +34,7 @@ export type StageMedia = { v: 1; slots: StageMediaSlot[] };
 
 export const EMPTY_STAGE_MEDIA: StageMedia = { v: 1, slots: [] };
 
-export type LinkProblem = "empty" | "invalid" | "too_long" | "https" | "drive" | "social" | "unsupported";
+export type LinkProblem = "empty" | "invalid" | "too_long" | "https" | "drive" | "social" | "unsupported" | "video_host";
 export type LinkClass = { ok: true; kind: StageMediaKind; url: string; ytId: string | null } | { ok: false; problem: LinkProblem };
 
 const YT_ID = /^[A-Za-z0-9_-]{11}$/;
@@ -73,6 +80,24 @@ export function instagramUrl(u: URL): string | null {
   return `https://www.instagram.com/${type}/${parts[i + 1]}/`;
 }
 
+/** May a video file from this host play on the stage (STAGE_MEDIA.videoHosts)? */
+export function videoHostAllowed(host: string): boolean {
+  const h = host.toLowerCase();
+  return (STAGE_MEDIA.videoHosts as readonly string[]).includes(h);
+}
+
+/** A pasted Instagram post / reel link, normalized; null when it isn't one. */
+export function instagramLink(raw: string): string | null {
+  const text = String(raw ?? "").trim();
+  if (!text || text.length > STAGE_MEDIA.maxUrlLength) return null;
+  try {
+    const u = new URL(/^https?:\/\//i.test(text) ? text : `https://${text}`);
+    return u.protocol === "https:" ? instagramUrl(u) : null;
+  } catch {
+    return null;
+  }
+}
+
 /** First-pass check of a pasted link: what it is and its normalized form. */
 export function classifyLink(raw: string): LinkClass {
   const text = String(raw ?? "").trim();
@@ -97,7 +122,7 @@ export function classifyLink(raw: string): LinkClass {
   if (DRIVE.test(host)) return { ok: false, problem: "drive" };
   if (SOCIAL.test(host)) return { ok: false, problem: "social" };
   u.hash = "";
-  if (VIDEO_EXT.test(u.pathname)) return { ok: true, kind: "video", url: u.toString(), ytId: null };
+  if (VIDEO_EXT.test(u.pathname)) return videoHostAllowed(host) ? { ok: true, kind: "video", url: u.toString(), ytId: null } : { ok: false, problem: "video_host" };
   if (IMAGE_EXT.test(u.pathname)) return { ok: true, kind: "image", url: u.toString(), ytId: null };
   return { ok: false, problem: "unsupported" };
 }
@@ -139,6 +164,7 @@ export function parseStageMedia(raw: unknown, athleteId?: string): StageMedia {
       slot,
       kind: c.kind,
       url: c.url,
+      ig: c.kind === "instagram" ? c.url : typeof it.ig === "string" ? instagramLink(it.ig) : null,
       ytId: c.ytId,
       thumb,
       w: num(it.w),
@@ -160,15 +186,59 @@ export function stageMediaPictureUrl(supabaseUrl: string, path: string | null): 
 export type StageScreen = {
   slot: number;
   kind: StageMediaKind;
+  /** Still picture: thumbnail, image copy or the video's poster. */
   picture: string | null;
   ytId: string | null;
-  /** Direct video / image link (lightbox). */
+  /** The screen's own link (YouTube / video file / image / Instagram post). */
   url: string;
+  /** Video file played inside the frame (kind "video"), else null. */
+  video: string | null;
+  /** Click target: the Instagram post / reel (opens in a new tab), else null. */
+  ig: string | null;
   title: string | null;
 };
 
 export function stageScreens(media: StageMedia, supabaseUrl: string): StageScreen[] {
   return media.slots
     .filter((s) => s.thumb || s.kind === "video" || s.kind === "instagram")
-    .map((s) => ({ slot: s.slot, kind: s.kind, picture: stageMediaPictureUrl(supabaseUrl, s.thumb), ytId: s.ytId, url: s.url, title: s.title }));
+    .map((s) => ({
+      slot: s.slot,
+      kind: s.kind,
+      picture: stageMediaPictureUrl(supabaseUrl, s.thumb),
+      ytId: s.ytId,
+      url: s.url,
+      video: s.kind === "video" ? s.url : null,
+      ig: s.ig,
+      title: s.title,
+    }));
 }
+
+/**
+ * What a click on a screen does: open the Instagram post (any screen with a
+ * link), play a YouTube video in the lightbox (it can't play inside the
+ * frame), or nothing.
+ */
+export function screenAction(s: Pick<StageScreen, "ig" | "kind">): "instagram" | "lightbox" | null {
+  if (s.ig) return "instagram";
+  return s.kind === "youtube" ? "lightbox" : null;
+}
+
+/**
+ * The verdict of the server's look at a video file link (admin "Check link"):
+ * the facts it saw and what keeps it from playing on the stage (empty = it
+ * plays). See checkStageMediaLink.
+ */
+export type VideoProblem = "unreachable" | "not_video" | "too_big" | "no_range" | "no_cors" | "cors_other" | "cors_double" | "redirect_host";
+export type VideoReport = {
+  host: string;
+  status: number;
+  type: string | null;
+  sizeMB: number | null;
+  /** Answered the Range request with 206 + Content-Range (Safari / iPhone need it). */
+  range: boolean;
+  /** Access-Control-Allow-Origin as sent (trimmed), or null. */
+  acao: string | null;
+  /** Web server / CDN seen in the headers (Server, cf-ray, x-litespeed-cache), or null. */
+  server: string | null;
+  problems: VideoProblem[];
+};

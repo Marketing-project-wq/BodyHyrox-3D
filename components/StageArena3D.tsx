@@ -4,7 +4,8 @@ import { Component, useEffect, useMemo, useRef, useState, type MutableRefObject,
 import { Canvas, useThree, useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
-import { STAGE_ARENA as A, STAGE_PLATFORM_ROUND } from "@/lib/config";
+import { STAGE_ARENA as A, STAGE_MEDIA, STAGE_PLATFORM_ROUND } from "@/lib/config";
+import { deviceClass } from "@/lib/frame-cache";
 import type { StageScreen } from "@/lib/stage-media";
 
 /**
@@ -29,6 +30,8 @@ export type ArenaHandle = {
   pick: ((clientX: number, clientY: number, objects: THREE.Object3D[]) => THREE.Intersection[]) | null;
   /** The media screen (slot) under a screen point, or null. */
   mediaHit: ((clientX: number, clientY: number) => number | null) | null;
+  /** Light up the clickable screen under the pointer (null = none). */
+  mediaHover?: ((slot: number | null) => void) | null;
   /**
    * Re-fit the camera to the figure now (the zone zoom calls it every frame
    * while the figure scales, so the platform stays under the feet).
@@ -88,6 +91,8 @@ type Props = {
   screens?: StageScreen[];
   /** Load the screens' pictures (after the athlete and the arena are ready). */
   screensActive?: boolean;
+  /** Zone card / lightbox open: the videos in the frames stop. */
+  screensPaused?: boolean;
 };
 
 const rad = (d: number) => (d * Math.PI) / 180;
@@ -514,17 +519,63 @@ function instagramTexture(kind: "badge" | "card", caption?: string | null): THRE
   return t;
 }
 
+/** A soft glow (white, alpha falls off toward the edges) for the hovered clickable screen; tinted by the material. */
+let glowTex: THREE.CanvasTexture | null = null;
+function glowTexture(): THREE.CanvasTexture {
+  if (glowTex) return glowTex;
+  const c = document.createElement("canvas");
+  c.width = 128;
+  c.height = 192;
+  const g = c.getContext("2d")!;
+  g.shadowColor = "#fff";
+  g.shadowBlur = 22;
+  g.fillStyle = "#fff";
+  g.fillRect(24, 24, 80, 144);
+  glowTex = new THREE.CanvasTexture(c);
+  return glowTex;
+}
+
+type ScreenVideo = {
+  el: HTMLVideoElement;
+  tex: THREE.VideoTexture;
+  state: "idle" | "starting" | "playing" | "failed";
+  t0: number;
+  pumping: boolean;
+};
+
 /**
  * Media on the screens: each picture fitted ("contain") inside its frame,
- * dimmed / tinted (A.screens), plus a ▶ for videos. Pictures load only once
- * `active` (athlete and arena ready); a picture that fails to load just leaves
- * the empty neon frame. Registers handle.mediaHit for taps.
+ * dimmed / tinted (A.screens). A video file plays inside its frame (muted,
+ * looping) while the screen faces the visitor, at most
+ * STAGE_MEDIA.video.maxPlaying at once; otherwise, and under reduced motion,
+ * Save-Data, a refused autoplay (iOS Low Power Mode) or a video that can't
+ * load (CORS), its poster shows. A screen with an Instagram link gets the
+ * Instagram badge and glows under the pointer (handle.mediaHover). Pictures
+ * load only once `active` (athlete and arena ready); a picture that fails to
+ * load leaves the empty neon frame. Registers handle.mediaHit for taps.
+ * `paused`: zone card / lightbox open — the videos stop.
  */
-function Screens({ handle, screens, active }: { handle: MutableRefObject<ArenaHandle>; screens: StageScreen[]; active: boolean }) {
-  const { invalidate } = useThree();
+function Screens({ handle, screens, active, paused }: { handle: MutableRefObject<ArenaHandle>; screens: StageScreen[]; active: boolean; paused: boolean }) {
+  const { invalidate, gl } = useThree();
   const SC = A.screens;
   const group = useRef<THREE.Group>(null);
   const [tex, setTex] = useState<Record<number, THREE.Texture>>({});
+  const [playing, setPlaying] = useState<Record<number, boolean>>({});
+  const [hover, setHover] = useState<number | null>(null);
+  const vids = useRef(new Map<number, ScreenVideo>());
+  const pick = useRef({ t: 0, onScreen: true });
+  const pausedRef = useRef(paused);
+  pausedRef.current = paused;
+  const allowVideo = useMemo(() => {
+    if (typeof window === "undefined") return false;
+    const conn = (navigator as Navigator & { connection?: { saveData?: boolean } }).connection;
+    return !window.matchMedia("(prefers-reduced-motion: reduce)").matches && !conn?.saveData;
+  }, []);
+  const maxPlaying = useMemo(() => STAGE_MEDIA.video.maxPlaying[deviceClass()], []);
+  const accent = useMemo(() => {
+    const c = typeof document !== "undefined" ? getComputedStyle(document.documentElement).getPropertyValue("--accent").trim() : "";
+    return new THREE.Color(c || "#00b4ff");
+  }, []);
 
   useEffect(() => {
     if (!active) return;
@@ -562,6 +613,169 @@ function Screens({ handle, screens, active }: { handle: MutableRefObject<ArenaHa
     };
   }, [active, screens, invalidate, SC.count]);
 
+  // ---- Videos inside the frames ------------------------------------------
+  const failVideo = (slot: number) => {
+    const v = vids.current.get(slot);
+    if (!v || v.state === "failed") return;
+    v.state = "failed";
+    v.el.pause();
+    setPlaying((p) => ({ ...p, [slot]: false }));
+    invalidate();
+  };
+  // New video frames are drawn (the canvas only renders on demand), at most video.fps a second.
+  const pump = (v: ScreenVideo) => {
+    if (v.pumping) return;
+    v.pumping = true;
+    const el = v.el as HTMLVideoElement & { requestVideoFrameCallback?: (cb: (now: number) => void) => number };
+    const gap = 1000 / STAGE_MEDIA.video.fps;
+    let last = 0;
+    if (el.requestVideoFrameCallback) {
+      const tick = (now: number) => {
+        if (v.state !== "playing" || el.paused) return void (v.pumping = false);
+        if (now - last >= gap) {
+          last = now;
+          invalidate();
+        }
+        el.requestVideoFrameCallback!(tick);
+      };
+      el.requestVideoFrameCallback(tick);
+    } else {
+      const id = window.setInterval(() => {
+        if (v.state !== "playing" || el.paused) {
+          window.clearInterval(id);
+          v.pumping = false;
+          return;
+        }
+        invalidate();
+      }, gap);
+    }
+  };
+  const videoFor = (s: StageScreen): ScreenVideo => {
+    let v = vids.current.get(s.slot);
+    if (v) return v;
+    const el = document.createElement("video");
+    el.crossOrigin = "anonymous"; // a texture needs CORS; without it the video fails and the poster stays
+    el.muted = true;
+    el.defaultMuted = true;
+    el.loop = true;
+    el.playsInline = true;
+    el.preload = "auto";
+    el.setAttribute("muted", "");
+    el.setAttribute("playsinline", "");
+    el.setAttribute("webkit-playsinline", "");
+    (el as HTMLVideoElement & { disablePictureInPicture?: boolean }).disablePictureInPicture = true;
+    const t = new THREE.VideoTexture(el);
+    t.colorSpace = THREE.SRGBColorSpace;
+    const nv: ScreenVideo = { el, tex: t, state: "idle", t0: 0, pumping: false };
+    el.addEventListener("error", () => failVideo(s.slot));
+    el.addEventListener("playing", () => {
+      if (nv.state === "failed") return;
+      nv.state = "playing";
+      setPlaying((p) => (p[s.slot] ? p : { ...p, [s.slot]: true }));
+      pump(nv);
+      invalidate();
+    });
+    el.src = s.video!;
+    vids.current.set(s.slot, nv);
+    v = nv;
+    return v;
+  };
+  const playVideo = (s: StageScreen) => {
+    const v = videoFor(s);
+    if (v.state === "failed" || !v.el.paused) return;
+    if (v.state !== "playing") {
+      v.state = "starting";
+      v.t0 = performance.now();
+    }
+    v.el.play()?.catch((e: { name?: string }) => {
+      if (e?.name !== "AbortError") failVideo(s.slot); // NotAllowed (Low Power Mode), NotSupported (CORS / codec)
+    });
+  };
+  const pauseAll = () => vids.current.forEach((v) => !v.el.paused && v.el.pause());
+
+  // Which video screens face the visitor (in view, nearest the middle first): those play, the rest pause.
+  const v3 = useMemo(() => new THREE.Vector3(), []);
+  useFrame((state) => {
+    if (!allowVideo || !active) return;
+    const now = performance.now();
+    if (now - pick.current.t < 250) return;
+    pick.current.t = now;
+    if (pausedRef.current || document.hidden || !pick.current.onScreen) return pauseAll();
+    const m = 1 + STAGE_MEDIA.video.facingMargin;
+    const cy = -0.1 + SC.bottomM + SC.heightM / 2;
+    state.camera.updateMatrixWorld(); // the rig moved it this frame; render updates it only later
+    const want = screens
+      .filter((s) => s.video && s.slot < SC.count && vids.current.get(s.slot)?.state !== "failed")
+      .map((s) => {
+        const a = screenAngle(s.slot);
+        v3.set(Math.sin(a) * SC.radiusM, cy, Math.cos(a) * SC.radiusM).project(state.camera);
+        return { s, x: Math.abs(v3.x), seen: v3.z < 1 && Math.abs(v3.x) <= m && Math.abs(v3.y) <= m };
+      })
+      .filter((w) => w.seen)
+      .sort((p, q) => p.x - q.x)
+      .slice(0, maxPlaying)
+      .map((w) => w.s);
+    const wanted = new Set(want.map((s) => s.slot));
+    vids.current.forEach((v, slot) => {
+      if (!wanted.has(slot) && !v.el.paused) v.el.pause();
+      if (v.state === "starting" && now - v.t0 > STAGE_MEDIA.video.startTimeoutMs) failVideo(slot);
+    });
+    want.forEach(playVideo);
+  });
+
+  // Stop at once when held (zone card / lightbox), hidden or scrolled away;
+  // look again (next frame, not throttled) when back or once the screens load.
+  const wakeTimers = useRef<number[]>([]);
+  const wake = () => {
+    pick.current.t = 0;
+    invalidate();
+    // and again once a zoom / scroll has settled (the camera may be refitted after this frame)
+    wakeTimers.current.forEach((t) => window.clearTimeout(t));
+    wakeTimers.current = [300, 1000].map((ms) =>
+      window.setTimeout(() => {
+        pick.current.t = 0;
+        invalidate();
+      }, ms),
+    );
+  };
+  useEffect(() => () => wakeTimers.current.forEach((t) => window.clearTimeout(t)), []);
+  useEffect(() => {
+    if (paused) pauseAll();
+    else wake();
+  }, [paused, active, invalidate]);
+  useEffect(() => {
+    const onVis = () => (document.hidden ? pauseAll() : wake());
+    document.addEventListener("visibilitychange", onVis);
+    const io =
+      typeof IntersectionObserver === "function"
+        ? new IntersectionObserver(([e]) => {
+            pick.current.onScreen = e.isIntersecting;
+            if (!e.isIntersecting) pauseAll();
+            else wake();
+          })
+        : null;
+    io?.observe(gl.domElement);
+    return () => {
+      document.removeEventListener("visibilitychange", onVis);
+      io?.disconnect();
+    };
+  }, [gl, invalidate]);
+  // Release the videos when the screens change or the arena goes.
+  useEffect(() => {
+    const map = vids.current;
+    return () => {
+      map.forEach((v) => {
+        v.state = "failed";
+        v.el.pause();
+        v.el.removeAttribute("src");
+        v.el.load();
+        v.tex.dispose();
+      });
+      map.clear();
+      setPlaying({});
+    };
+  }, [screens]);
+
   useEffect(() => {
     const h = handle.current;
     h.mediaHit = (x, y) => {
@@ -570,12 +784,18 @@ function Screens({ handle, screens, active }: { handle: MutableRefObject<ArenaHa
       const hit = h.pick(x, y, g.children)[0];
       return hit ? (hit.object.userData.slot as number) : null;
     };
+    h.mediaHover = (slot) => {
+      setHover((cur) => (cur === slot ? cur : slot));
+      invalidate();
+    };
     return () => {
       h.mediaHit = null;
+      h.mediaHover = null;
     };
-  }, [handle]);
+  }, [handle, invalidate]);
 
   const tint = useMemo(() => new THREE.Color(SC.tint).multiplyScalar(SC.brightness), [SC.tint, SC.brightness]);
+  const tintHover = useMemo(() => tint.clone().multiplyScalar(STAGE_MEDIA.hoverBoost), [tint]);
   const iw = SC.widthM - SC.insetM * 2;
   const ih = SC.heightM - SC.insetM * 2;
   const cy = -0.1 + SC.bottomM + SC.heightM / 2;
@@ -583,31 +803,41 @@ function Screens({ handle, screens, active }: { handle: MutableRefObject<ArenaHa
   return (
     <group ref={group}>
       {screens.map((s) => {
-        const t = tex[s.slot];
+        const vid = playing[s.slot] ? vids.current.get(s.slot) : undefined;
+        const t = vid?.tex ?? tex[s.slot];
         if (!t || s.slot >= SC.count) return null;
-        const img = t.image as { width?: number; height?: number } | undefined;
-        const ar = img?.width && img?.height ? img.width / img.height : 16 / 9;
+        const img = t.image as { width?: number; height?: number; videoWidth?: number; videoHeight?: number } | undefined;
+        const iwpx = img?.videoWidth || img?.width;
+        const ihpx = img?.videoHeight || img?.height;
+        const ar = iwpx && ihpx ? iwpx / ihpx : 16 / 9;
         const w = ar >= iw / ih ? iw : ih * ar;
         const hh = ar >= iw / ih ? iw / ar : ih;
         const a = screenAngle(s.slot);
+        const lit = hover === s.slot && !!s.ig;
         // Facing the stage centre (rotate half a turn more than the frame bars).
         const pos: [number, number, number] = [Math.sin(a) * (SC.radiusM - 0.02), cy, Math.cos(a) * (SC.radiusM - 0.02)];
         return (
           <group key={s.slot} position={pos} rotation={[0, a + Math.PI, 0]}>
+            {lit && (
+              <mesh position={[0, 0, -0.01]} userData={{ slot: s.slot }}>
+                <planeGeometry args={[w * 1.6, hh * 1.25]} />
+                <meshBasicMaterial map={glowTexture()} color={accent} transparent opacity={STAGE_MEDIA.glowOpacity} blending={THREE.AdditiveBlending} fog={false} toneMapped={false} depthWrite={false} />
+              </mesh>
+            )}
             <mesh userData={{ slot: s.slot }}>
               <planeGeometry args={[w, hh]} />
-              <meshBasicMaterial map={t} color={tint} fog={false} toneMapped={false} />
+              <meshBasicMaterial map={t} color={lit ? tintHover : tint} fog={false} toneMapped={false} />
             </mesh>
-            {(s.kind === "youtube" || s.kind === "video") && (
+            {s.kind === "youtube" && (
               <mesh position={[0, 0, 0.01]} userData={{ slot: s.slot }}>
                 <planeGeometry args={[SC.playIconM, SC.playIconM]} />
                 <meshBasicMaterial map={playIcon()} transparent opacity={SC.playIconOpacity} fog={false} toneMapped={false} depthWrite={false} />
               </mesh>
             )}
-            {s.kind === "instagram" && s.picture && (
+            {s.ig && (
               <mesh position={[w / 2 - SC.playIconM * 0.45, hh / 2 - SC.playIconM * 0.45, 0.01]} userData={{ slot: s.slot }}>
                 <planeGeometry args={[SC.playIconM * 0.6, SC.playIconM * 0.6]} />
-                <meshBasicMaterial map={instagramTexture("badge")} transparent opacity={SC.playIconOpacity} fog={false} toneMapped={false} depthWrite={false} />
+                <meshBasicMaterial map={instagramTexture("badge")} transparent opacity={lit ? 1 : SC.playIconOpacity} fog={false} toneMapped={false} depthWrite={false} />
               </mesh>
             )}
           </group>
@@ -735,7 +965,7 @@ class ArenaBoundary extends Component<{ onFail: () => void; children: ReactNode 
 const NO_SCREENS: StageScreen[] = [];
 
 /** The 3D arena canvas. Purely decorative: no pointer events, aria-hidden. */
-export function StageArena3D({ handle, anchorRef, figureRef, onReady, onFail, onContext, platform, platformLocked = false, screens = NO_SCREENS, screensActive = false }: Props) {
+export function StageArena3D({ handle, anchorRef, figureRef, onReady, onFail, onContext, platform, platformLocked = false, screens = NO_SCREENS, screensActive = false, screensPaused = false }: Props) {
   const coarse = typeof window !== "undefined" && window.matchMedia("(pointer: coarse)").matches;
   return (
     <ArenaBoundary onFail={onFail}>
@@ -757,7 +987,7 @@ export function StageArena3D({ handle, anchorRef, figureRef, onReady, onFail, on
         <Floor platform={platform} />
         <Platform handle={handle} platform={platform} platformLocked={platformLocked} />
         <Scenery />
-        {screens.length > 0 && <Screens handle={handle} screens={screens} active={screensActive} />}
+        {screens.length > 0 && <Screens handle={handle} screens={screens} active={screensActive} paused={screensPaused} />}
       </Canvas>
     </ArenaBoundary>
   );

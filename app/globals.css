@@ -580,3 +580,37 @@ section[data-zoomed] .stagecard-zoom-scrim {
     transition: none;
   }
 }
+
+/* Stage frame media without the 3D frames (no WebGL): still posters in a row
+   under the stage, framed in the theme colour; the clickable ones glow. */
+.stage-strip-tile {
+  position: relative;
+  display: block;
+  overflow: hidden;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border: 1px solid color-mix(in srgb, var(--accent) 55%, transparent);
+}
+.stage-strip-link {
+  cursor: pointer;
+  transition: box-shadow 200ms ease, transform 200ms ease;
+}
+.stage-strip-link:hover,
+.stage-strip-link:focus-visible {
+  box-shadow: 0 0 14px color-mix(in srgb, var(--accent) 70%, transparent);
+  transform: translateY(-2px);
+}
+.stage-strip-link:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .stage-strip-link {
+    transition: none;
+  }
+  .stage-strip-link:hover,
+  .stage-strip-link:focus-visible {
+    transform: none;
+  }
+}
