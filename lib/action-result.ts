@@ -55,6 +55,8 @@ export const ERROR_CODES = [
   "link_no_cors",
   "link_too_big",
   "link_not_embeddable",
+  "link_video_host",
+  "link_ig_invalid",
 ] as const;
 export type ErrorCode = (typeof ERROR_CODES)[number];
 

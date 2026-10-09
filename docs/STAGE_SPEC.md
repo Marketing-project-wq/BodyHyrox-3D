@@ -6,7 +6,7 @@ Kalau kode, komentar, config, atau dokumen lain bertentangan dengan dokumen ini,
 yang benar. Kalau instruksi pemilik yang lebih baru bertentangan dengan dokumen ini, ikuti
 instruksi terbaru dan perbarui dokumen ini di PR yang sama.
 
-Terakhir diperbarui: 2026-10-09 (kabut panggung rendah di atas platform, `STAGE_FOG`).
+Terakhir diperbarui: 2026-10-09 (media frame: video MP4 di frame + klik ke Instagram, bagian 5b; kabut panggung `STAGE_FOG`).
 
 ---
 
@@ -236,6 +236,9 @@ Semua angka yang bisa disetel ada di `lib/config.ts`, bukan di komponen atau CSS
 - **`STAGE_PLATFORM`, `STAGE_PLATFORM_ROUND`:** bentuk platform (`"hex"`, opsi `"round"`).
 - **`STAGE_FOG`:** kabut panggung (bagian 1.12): saklar, densitas, tinggi, lebar, warna,
   lembar dan kecepatannya, tingkat HP/perangkat lemah, dan penipisan saat zoom.
+- **`STAGE_MEDIA`:** media frame panggung (bagian 5b): jumlah layar, host video yang diizinkan
+  (`videoHosts`), aturan putar video di frame (`video`), efek hover, dan ukuran poster tanpa
+  WebGL (`fallbackTile`).
 - **`VIEWER_SPIN`:** crossfade, tahan setelah putaran manual (`manualResumeMs`), dan cache frame.
 - **`VIEWER_VIDEO`:** pemutaran video putaran (fallback ke frame saat frame terputus/drop,
   macet, atau autoplay ditolak).
@@ -285,46 +288,97 @@ Calysta (18 foto).
 5. **Publish:** pengaman Publish menolak kalau titik zona hilang. Setelah tayang, atlet otomatis
    mendapat mode putaran (bagian 1.4). Atlet tanpa set putaran tetap di mode sementara (bagian 1.3).
 
-## 5b. Media frame panggung (keputusan 2026-10-06, dikerjakan bertahap M0–M4)
+## 5b. Media frame panggung (keputusan 2026-10-06; video di frame + klik ke Instagram 2026-10-09)
 
-- **Tujuan:** layar neon di arena 3D di belakang atlet menampilkan media atlet (misalnya video
-  race HYROX). Isinya berbeda per layar, diatur per atlet, berlaku untuk semua atlet, dan ikut
-  berputar bersama latar.
-- **Admin hanya menempel LINK** (tidak upload), maksimal 6 slot (`STAGE_MEDIA.slots`), lalu
-  **Cek link**, simpan ke draft, dan **Publish**.
-- **Jenis link** (`lib/stage-media.ts`, dicek ulang di server `stage-media-actions.ts`):
-  - **YouTube** (watch, youtu.be, Shorts, live, embed): wajib ada dan boleh di-embed (oEmbed
-    resmi). Thumbnail disalin ke bucket publik `smb-athlete-360/<atlet>/stage-media/`. Di
-    panggung tampil thumbnail + ▶; tap membuka lightbox dengan player resmi
-    `youtube-nocookie.com`. YouTube **tidak** diputar di dalam frame (iframe tidak bisa masuk
-    WebGL, berat, dan bertentangan dengan aturan player YouTube).
-  - **File video** `.mp4`/`.webm`: tipe video, maksimal 40 MB, dan wajib mengizinkan situs ini
-    lewat CORS. Poster dibuat browser admin. Diputar di frame (muted, playsinline, loop) dengan
-    batas jumlah video aktif (M4).
-  - **Gambar** `.jpg`/`.png`/`.webp`: maksimal 5 MB (batas bucket publik), disalin ke bucket publik.
-  - **Instagram** (postingan, reel, IGTV; juga `instagram.com/<user>/p/<kode>/`): ditampilkan lewat
-    embed resmi Instagram di lightbox. Gambar sampul disalin kalau Instagram memberikannya ke
-    server; kalau tidak, layar menampilkan kartu Instagram (gradien + ikon + keterangan). Link
-    yang jelas tidak ada (404) ditolak; profil/story ditolak dengan penjelasan.
+- **Tujuan:** layar neon di arena 3D di belakang atlet memutar **video MP4** atlet di dalam frame.
+  Klik/tap layar membawa pengunjung ke **postingan Instagram** atlet. Berlaku untuk semua atlet,
+  diatur per atlet, dan layar ikut berputar bersama latar.
+- **Admin: dua kolom per layar**, maksimal 6 layar (`STAGE_MEDIA.slots`). Admin hanya menempel
+  link (tidak upload). Satu tombol **Cek link** mengecek kedua kolom, lalu simpan ke draft dan
+  **Publish**.
+  - **Kolom 1 "Video (MP4)":** file `.mp4`/`.webm` yang diputar di frame. Link YouTube atau gambar
+    juga masih diterima (data lama tetap jalan).
+  - **Kolom 2 "Link Instagram (tujuan klik)":** postingan/reel Instagram (`instagram.com/p/…`,
+    `/reel/…`, juga `instagram.com/<user>/p/<kode>/`). Opsional.
+  - **Layar hanya Instagram** (kolom 1 kosong) tetap didukung: tampil sampul postingan atau kartu
+    Instagram. Link Instagram yang ditempel di kolom 1 dipindah otomatis ke kolom 2.
+  - Keterangan tetap opsional. Teks EN/ID ada di `lib/i18n.ts`.
+- **Cek video** (`checkStageMediaLink`, server): meminta file seperti browser di situs kita
+  (`Origin: https://avatar.20fit.id` + `Range: bytes=0-1023`), lalu melaporkan semua yang membuat
+  video tidak bisa diputar beserta faktanya (host, status HTTP, tipe, ukuran, Range, header CORS
+  yang diterima, server/CDN):
+  - host hanya dari `STAGE_MEDIA.videoHosts`: `media.20fit.id` dan Supabase Storage kita; hanya
+    https; redirect ke host lain ditolak;
+  - tipe `video/mp4` atau `video/webm`, maksimal 40 MB;
+  - wajib **Range** (206 + `Content-Range`), karena iPhone/Safari tidak memutar tanpa itu;
+  - wajib `Access-Control-Allow-Origin: https://avatar.20fit.id` (atau `*`), tepat satu kali.
+  - Kalau semuanya lolos, browser admin membuat poster (WebP) dari video dan menyimpannya di bucket
+    publik.
+- **Cek Instagram** (`checkStageInstagramLink`): harus postingan/reel; 404 dari embed resmi
+  ditolak. Kalau Instagram menolak server kita, link tetap dipakai dengan keterangan "format
+  valid".
+- **CORS media.20fit.id** (2026-10-09): file video di sana belum mengirim header CORS. Panduan
+  untuk pengelola server (Apache/LiteSpeed `.htaccess`, Nginx, Cloudflare Transform Rule, plus
+  perintah `curl` untuk mengecek) sudah dikirim ke pemilik.
+  - Cadangan kalau header tidak bisa diubah (belum dikerjakan): proxy lewat server kita dengan
+    Range (semua byte video lewat Railway), atau pindah ke Supabase Storage (butuh SQL bucket).
+- **Lain-lain (tetap):**
+  - **YouTube:** wajib boleh di-embed (oEmbed resmi); thumbnail disalin ke bucket publik
+    `smb-athlete-360/<atlet>/stage-media/`. Tidak diputar di frame; tap membuka lightbox
+    `youtube-nocookie.com`.
+  - **Gambar:** maksimal 5 MB, disalin ke bucket publik.
   - **Ditolak dengan pesan EN/ID:** http, Google Drive/Dropbox, TikTok/Facebook/X/Vimeo, halaman
-    biasa, video tanpa CORS, file terlalu besar, YouTube privat/embed mati.
-- **Keamanan:** hanya https; tidak boleh IP, localhost, user:password, atau port lain. Server
-  membuka link lewat `lib/safe-fetch.ts` (semua alamat DNS harus publik, redirect dicek ulang
-  maksimal 3, batas waktu dan ukuran). Iframe hanya dari `www.youtube-nocookie.com` dan
-  `www.instagram.com` (embed), dibangun dari ID/kode, bukan dari link mentah.
+    biasa, host video di luar daftar, file terlalu besar, YouTube privat/embed mati.
+- **Keamanan:**
+  - Hanya https; tidak boleh IP, localhost, user:password, atau port lain.
+  - Server membuka link lewat `lib/safe-fetch.ts`: semua alamat DNS harus publik, redirect dicek
+    ulang maksimal 3 kali, ada batas waktu dan ukuran.
+  - Iframe hanya dari `www.youtube-nocookie.com` dan `www.instagram.com` (embed), dibangun dari
+    ID/kode, bukan dari link mentah.
+  - Link Instagram selalu dinormalkan ke `https://www.instagram.com/<p|reel|tv>/<kode>/` dan dibuka
+    dengan `target="_blank" rel="noopener noreferrer"`.
 - **Data:** tabel `smb_athlete_stage_media` (draft + published + versi + riwayat) lewat SQL M0
-  (`supabase/migrations/20261007_smb_stage_media.sql`, **sudah dijalankan 2026-10-06** atas
-  permintaan pemilik). Bentuk jsonb:
-  `{ v: 1, slots: [{ slot, kind, url, ytId, thumb, w, h, title, checkedAt }] }`.
-- **Panggung (M3):** 6 layar **tegak/potret** 1,9 × 3,2 m (`STAGE_ARENA.screens`, keputusan pemilik
-  2026-10-06: Instagram berformat tegak; menggantikan 8 frame tegak lama),
-  satu setiap 60°, jarak sama (7,8 m). Isi layar = gambar (thumbnail YouTube, salinan gambar, atau
-  poster video), "contain", diredupkan/diberi tint (`brightness`, `tint`), tanpa kabut, + ikon ▶
-  untuk video. Gambar dimuat setelah foto atlet siap; link mati = frame neon kosong. Tap/klik layar
-  (bukan atlet/tombol, bukan geser) membuka lightbox; putaran berhenti selama lightbox terbuka;
-  ditutup dengan ×, Esc, atau tap di luar. Tombol tersembunyi per layar untuk keyboard/pembaca
-  layar. CSP `frame-src 'self' https://www.youtube-nocookie.com https://www.instagram.com` di `/atlet/*`. HP tegak: layar
-  jarang terlihat (tertutup atlet), diterima untuk sekarang. Video langsung di dalam layar = M4.
+  (`supabase/migrations/20261007_smb_stage_media.sql`, **sudah dijalankan 2026-10-06**).
+  - Bentuk jsonb:
+    `{ v: 1, slots: [{ slot, kind, url, ig, ytId, thumb, w, h, title, checkedAt }] }`.
+  - `ig` (2026-10-09) = link Instagram tujuan klik, atau `null`. Untuk `kind: "instagram"`, `ig`
+    sama dengan `url`.
+  - **Tanpa SQL baru:** `smb_check_stage_media` hanya memeriksa kunci yang dikenalnya, jadi `ig`
+    tersimpan apa adanya. Sudah diuji dengan fungsi SQL asli di Postgres lokal. App membersihkan
+    `ig` lagi saat membaca (`parseStageMedia`).
+- **Panggung:** 6 layar **tegak/potret** 1,9 × 3,2 m (`STAGE_ARENA.screens`), satu setiap 60°, jarak
+  sama (7,8 m). Isi layar "contain", diredupkan/diberi tint, tanpa kabut.
+  - **Video di frame** (`STAGE_MEDIA.video`):
+    - diputar `muted`, `playsinline`, `loop`, `crossOrigin="anonymous"` (tekstur WebGL), hanya
+      untuk layar yang menghadap pengunjung (terlihat di kamera);
+    - maksimal 1 video aktif di HP dan 2 di tablet/desktop; frame baru digambar maksimal 30 kali
+      per detik;
+    - berhenti saat kartu zona/lightbox terbuka, tab tersembunyi, atau panggung di luar layar.
+  - **Poster diam** (tetap bisa diklik) muncul kalau:
+    - `prefers-reduced-motion` atau Save-Data aktif;
+    - autoplay ditolak (Mode Hemat Daya iOS);
+    - video gagal dimuat (misalnya tanpa CORS);
+    - video belum mulai dalam 8 detik.
+  - **Klik/tap:**
+    - layar dengan link Instagram membuka postingan di tab baru (di HP, aplikasi Instagram kalau
+      terpasang);
+    - layar YouTube membuka lightbox (pengecualian, karena YouTube tidak bisa diputar di frame);
+    - layar lain tidak bisa diklik.
+    - Geser/drag tidak pernah membuka Instagram (tap = gerak ≤ 8 px dan ≤ 600 ms).
+    - Di dalam kotak atlet, tap hanya diteruskan ke layar di tempat yang transparan (bukan badan
+      atlet), dan tidak saat video putaran menutupinya.
+  - **Tanda bisa diklik:** ikon Instagram kecil di pojok layar; di desktop kursor pointer dan
+    layar sedikit lebih terang dengan glow warna tema saat di-hover (`hoverBoost`,
+    `glowOpacity`).
+  - **Keyboard/pembaca layar:** link tersembunyi per layar yang bisa diklik, muncul saat fokus,
+    misalnya "Lihat postingan Instagram Andrew (layar 3)".
+  - **Tanpa WebGL** (platform CSS): layar tampil sebagai baris poster kecil di bawah tombol
+    "Pasang Logo di Sini".
+    - Ukuran tile `STAGE_MEDIA.fallbackTile`, ≥ 44 px.
+    - Satu baris; bisa digeser ke samping kalau tidak muat.
+    - Tile Instagram berupa link, tile YouTube membuka lightbox.
+    - CSP `frame-src 'self' https://www.youtube-nocookie.com https://www.instagram.com` di
+      `/atlet/*`.
 
 ## 6. Alur membuat video putaran (`scripts/video360`)
 

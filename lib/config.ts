@@ -884,6 +884,19 @@ export const STAGE_SOLE = {
  * - maxImageMB / maxVideoMB / maxThumbMB: largest image copied, largest video
  *   linked, largest thumbnail kept.
  * - posterPx: longest side of the poster the admin's browser takes from a video.
+ * - videoHosts: the only hosts a video file (.mp4/.webm) may come from (https;
+ *   the 20FIT media site and our Supabase Storage). The host must also send
+ *   Access-Control-Allow-Origin for siteOrigin and answer Range requests.
+ * - video: playing the files inside the frames on the stage: at most
+ *   `maxPlaying` at once per device class, only screens facing the visitor
+ *   (`facingMargin`: how far outside the view, as a share of the view's
+ *   half-width, a screen still counts), new frames drawn at most `fps` times
+ *   a second; a video that hasn't started after `startTimeoutMs` keeps its
+ *   poster. None under prefers-reduced-motion or Save-Data.
+ * - hoverBoost / glowOpacity: a clickable screen under the pointer gets this
+ *   much brighter, with a soft glow in the theme colour around it.
+ * - fallbackTile: size (CSS px) of each poster in the row shown under the
+ *   stage when there are no 3D frames (no WebGL); >= 44 px wide (touch).
  */
 export const STAGE_MEDIA = {
   slots: 6,
@@ -898,6 +911,16 @@ export const STAGE_MEDIA = {
   maxVideoMB: 40,
   maxThumbMB: 4,
   posterPx: 1280,
+  videoHosts: ["media.20fit.id", "cpvzwqptzcxnwzfzgrmt.supabase.co"],
+  video: {
+    maxPlaying: { phone: 1, tablet: 2, desktop: 2 },
+    facingMargin: 0.15,
+    fps: 30,
+    startTimeoutMs: 8000,
+  },
+  hoverBoost: 1.45,
+  glowOpacity: 0.55,
+  fallbackTile: { w: 48, h: 80 },
 };
 
 /**

@@ -6,15 +6,19 @@ import { requireSession, requirePermission } from "@/lib/auth";
 import type { ActionResult } from "@/lib/action-result";
 import { fail, run } from "@/lib/action-error";
 import { STAGE_MEDIA } from "@/lib/config";
-import { FetchRefused, safeFetch } from "@/lib/safe-fetch";
+import { FetchRefused, safeFetch, type SafeResponse } from "@/lib/safe-fetch";
 import {
   classifyLink,
   instagramEmbedUrl,
+  instagramLink,
   parseStageMedia,
   stageMediaPictureUrl,
+  videoHostAllowed,
   type LinkProblem,
   type StageMedia,
   type StageMediaSlot,
+  type VideoProblem,
+  type VideoReport,
 } from "@/lib/stage-media";
 
 /**
@@ -52,6 +56,7 @@ const PROBLEM_CODE: Record<LinkProblem, Parameters<typeof fail>[0]> = {
   drive: "link_drive",
   social: "link_social",
   unsupported: "link_unsupported",
+  video_host: "link_video_host",
 };
 
 function refused(e: unknown): never {
@@ -74,7 +79,50 @@ const imageMime = (h: Headers) => {
   return t === "image/jpeg" || t === "image/png" || t === "image/webp" ? t : null;
 };
 
-export type CheckedLink = { slot: Omit<StageMediaSlot, "slot">; pictureUrl: string | null; needsPoster: boolean };
+/**
+ * `video`: for a video file, what the server saw (status, type, size, Range,
+ * CORS header, web server) and what keeps it from playing; the link is only
+ * usable when `video.problems` is empty.
+ */
+export type CheckedLink = { slot: Omit<StageMediaSlot, "slot">; pictureUrl: string | null; needsPoster: boolean; video?: VideoReport };
+
+/** The facts of one Range request to a video file, and what stops it from playing on the stage. */
+function videoReport(url: string, res: SafeResponse | null): VideoReport {
+  const host = new URL(url).hostname.toLowerCase();
+  if (!res) return { host, status: 0, type: null, sizeMB: null, range: false, acao: null, server: null, problems: ["unreachable"] };
+  const h = res.headers;
+  const type = (h.get("content-type") ?? "").split(";")[0].trim().toLowerCase() || null;
+  const cr = (h.get("content-range") ?? "").trim();
+  const range = res.status === 206 && /^bytes \d+-\d+\/(\d+|\*)$/i.test(cr);
+  const total = Number(cr.split("/")[1]) || (res.status === 200 ? Number(h.get("content-length") ?? 0) : 0) || 0;
+  const raw = h.get("access-control-allow-origin");
+  const acao = raw == null || !raw.trim() ? null : raw.trim().slice(0, 120);
+  const seen = [h.get("server"), h.get("cf-ray") ? "cloudflare" : null, h.get("x-litespeed-cache") ? "litespeed-cache" : null]
+    .filter((x): x is string => !!x)
+    .map((x) => x.slice(0, 40));
+  const problems: VideoProblem[] = [];
+  const finalHost = new URL(res.url).hostname.toLowerCase();
+  if (finalHost !== host && !videoHostAllowed(finalHost)) problems.push("redirect_host");
+  if (res.status !== 200 && res.status !== 206) problems.push("unreachable");
+  else {
+    if (type !== "video/mp4" && type !== "video/webm") problems.push("not_video");
+    if (total > STAGE_MEDIA.maxVideoMB * MB) problems.push("too_big");
+    if (!range) problems.push("no_range");
+    if (!acao) problems.push("no_cors");
+    else if (acao.includes(",")) problems.push("cors_double");
+    else if (acao !== "*" && acao !== STAGE_MEDIA.siteOrigin) problems.push("cors_other");
+  }
+  return {
+    host: finalHost,
+    status: res.status,
+    type,
+    sizeMB: total ? Math.round((total / MB) * 10) / 10 : null,
+    range,
+    acao,
+    server: seen.length ? [...new Set(seen)].join(" · ") : null,
+    problems,
+  };
+}
 
 /**
  * Admin only. What a pasted link is and whether it can be used:
@@ -82,8 +130,10 @@ export type CheckedLink = { slot: Omit<StageMediaSlot, "slot">; pictureUrl: stri
  * - Image (.jpg/.png/.webp): fetched (max STAGE_MEDIA.maxImageMB) and copied.
  * - Instagram post / reel: shown through Instagram's official embed (lightbox);
  *   the cover image is copied when Instagram hands it out.
- * - Video (.mp4/.webm): must answer with a video type, fit maxVideoMB and allow
- *   this site by CORS; the admin's browser then makes a poster (issueStagePosterUpload).
+ * - Video (.mp4/.webm): only from STAGE_MEDIA.videoHosts; must answer a Range
+ *   request (206) with a video type, fit maxVideoMB and allow this site by
+ *   CORS. Comes back with a report (`video`) either way; when it can play,
+ *   the admin's browser makes a poster (issueStagePosterUpload).
  * - Anything else is refused with a code that says why and what to use instead.
  */
 export async function checkStageMediaLink(athleteId: string, rawUrl: string): Promise<ActionResult<CheckedLink>> {
@@ -121,7 +171,7 @@ export async function checkStageMediaLink(athleteId: string, rawUrl: string): Pr
       }
       return {
         ok: true,
-        slot: { kind: "youtube", url: c.url, ytId: c.ytId, thumb, w: 16, h: 9, title, checkedAt: now },
+        slot: { kind: "youtube", url: c.url, ig: null, ytId: c.ytId, thumb, w: 16, h: 9, title, checkedAt: now },
         pictureUrl: stageMediaPictureUrl(base, thumb),
         needsPoster: false,
       };
@@ -152,7 +202,7 @@ export async function checkStageMediaLink(athleteId: string, rawUrl: string): Pr
       }
       return {
         ok: true,
-        slot: { kind: "instagram", url: c.url, ytId: null, thumb, w: null, h: null, title: null, checkedAt: now },
+        slot: { kind: "instagram", url: c.url, ig: c.url, ytId: null, thumb, w: null, h: null, title: null, checkedAt: now },
         pictureUrl: stageMediaPictureUrl(base, thumb),
         needsPoster: false,
       };
@@ -171,32 +221,53 @@ export async function checkStageMediaLink(athleteId: string, rawUrl: string): Pr
       const thumb = await keepPicture(athleteId, c.url, res.body, mime);
       return {
         ok: true,
-        slot: { kind: "image", url: c.url, ytId: null, thumb, w: null, h: null, title: null, checkedAt: now },
+        slot: { kind: "image", url: c.url, ig: null, ytId: null, thumb, w: null, h: null, title: null, checkedAt: now },
         pictureUrl: stageMediaPictureUrl(base, thumb),
         needsPoster: false,
       };
     }
 
-    // Direct video: type, size and CORS (the stage plays it from that server).
-    let res;
+    // Direct video: the stage plays it from that server, so ask the way a
+    // browser on our site does (Origin + Range) and report everything that
+    // would stop it (headers only, the body is not read).
+    let res: SafeResponse | null = null;
     try {
-      res = await safeFetch(c.url, { method: "GET", headers: { Origin: STAGE_MEDIA.siteOrigin, Range: "bytes=0-1023" }, maxBytes: 64 * 1024 });
+      res = await safeFetch(c.url, { method: "GET", headers: { Origin: STAGE_MEDIA.siteOrigin, Range: "bytes=0-1023" }, maxBytes: null });
     } catch (e) {
-      refused(e);
+      if (!(e instanceof FetchRefused) || (e.reason !== "network" && e.reason !== "redirects")) refused(e);
     }
-    if (res.status !== 200 && res.status !== 206) fail("link_unreachable");
-    const type = (res.headers.get("content-type") ?? "").split(";")[0].trim().toLowerCase();
-    if (type !== "video/mp4" && type !== "video/webm") fail("link_unsupported");
-    const total = Number((res.headers.get("content-range") ?? "").split("/")[1] ?? res.headers.get("content-length") ?? 0);
-    if (total > STAGE_MEDIA.maxVideoMB * MB) fail("link_too_big");
-    const acao = (res.headers.get("access-control-allow-origin") ?? "").trim();
-    if (acao !== "*" && acao !== STAGE_MEDIA.siteOrigin) fail("link_no_cors");
+    const video = videoReport(c.url, res);
     return {
       ok: true,
-      slot: { kind: "video", url: c.url, ytId: null, thumb: null, w: null, h: null, title: null, checkedAt: now },
+      slot: { kind: "video", url: c.url, ig: null, ytId: null, thumb: null, w: null, h: null, title: null, checkedAt: now },
       pictureUrl: null,
-      needsPoster: true,
+      needsPoster: video.problems.length === 0,
+      video,
     };
+  });
+}
+
+/**
+ * Admin only. The Instagram post / reel a click on the screen opens: must be
+ * a post or reel link; a clear 404 from Instagram's official embed = deleted
+ * or private. Instagram often refuses servers, so `verified` is false when it
+ * couldn't be confirmed (the link is still usable).
+ */
+export async function checkStageInstagramLink(athleteId: string, rawUrl: string): Promise<ActionResult<{ url: string; verified: boolean }>> {
+  return run(async () => {
+    await requireEditor();
+    checkAthlete(athleteId);
+    const url = instagramLink(rawUrl);
+    if (!url) fail("link_ig_invalid");
+    let verified = false;
+    try {
+      const e = await safeFetch(instagramEmbedUrl(url)!, { maxBytes: null });
+      if (e.status === 404) fail("link_unreachable");
+      verified = e.status === 200;
+    } catch (e) {
+      if (!(e instanceof FetchRefused)) throw e;
+    }
+    return { ok: true, url, verified };
   });
 }
 
