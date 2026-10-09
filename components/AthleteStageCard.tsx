@@ -189,6 +189,7 @@ export function AthleteStageCard({
   const lastTRef = useRef(0);
   const lastViewPaintRef = useRef<{ a: number; moving: boolean } | null>(null);
   const qualityRef = useRef({ t0: 0, frames: 0, level: 0, slow: 0 }); // level 0 full, 1 dpr 1, 2 half rate
+  const [fogSimple, setFogSimple] = useState(false); // at half rate the fog goes to its simplest form too
   const clockStartRef = useRef(0); // when the stage started (quality warm-up)
   const frameParityRef = useRef(0);
   const manualTurnRef = useRef(false); // a drag / inertia / tween was running last frame
@@ -282,6 +283,7 @@ export function AthleteStageCard({
         `FPS ${rafRef.current != null ? pr.fps : "– (idle)"} · quality ${lv} · slow ${q.slow}/${STAGE_ARENA.slowWindowsToDisable}${grace}`,
         `arena ${pr.fallback ? `FALLBACK (${pr.fallback}) · retries ${pr.retries}/${STAGE_ARENA.arenaRetries}` : arenaOnRef.current ? "3D" : pr.ctx === "lost" ? "CSS platform while WebGL is lost" : "loading"} · WebGL ${pr.ctx}${pr.ctxLost ? ` (lost ×${pr.ctxLost})` : ""}`,
         `page ${document.hidden ? "hidden" : "visible"} · holds ${[...pausesRef.current].join(",") || "none"} · angle ${arenaHandle.current.angleDeg.toFixed(1)}°`,
+        `fog ${figureRef.current?.querySelector<HTMLElement>("[data-stage-fog]")?.dataset.fogMode ?? "off"}`,
         ...pr.log.slice(-6),
       ].join("\n");
     };
@@ -372,6 +374,7 @@ export function AthleteStageCard({
         perfLog(`quality: dpr 1 (${fps.toFixed(0)} fps)`);
       } else if (fps < STAGE_ARENA.halfRateFps && q.level < 2) {
         q.level = 2;
+        setFogSimple(true);
         perfLog(`quality: half rate (${fps.toFixed(0)} fps)`);
       } else if (fps < STAGE_ARENA.minTurnFps && q.level >= 2) {
         q.slow += 1;
@@ -1505,6 +1508,7 @@ export function AthleteStageCard({
                 arena={arenaOn ? arenaHandle : undefined}
                 debug={debugFeet}
                 debugPerf={debugPerf}
+                fogSimple={fogSimple}
                 debugVideo={debugVideo}
                 describe={(a) =>
                   isStatic

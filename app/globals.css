@@ -564,3 +564,19 @@ section[data-zoomed] .stagecard-zoom-scrim {
     transition: none;
   }
 }
+
+/* Stage fog (STAGE_FOG): an oval that spills past the platform and fades
+   out, never a box. The sheets inside drift (transform only). */
+.stage-fog {
+  overflow: hidden;
+  transition: opacity var(--fog-fade, 400ms) ease;
+  /* Oval footprint: solid in the middle (--fog-solid of the half-width), fading
+     out toward the sides; the top and bottom edges come from the texture. */
+  -webkit-mask-image: radial-gradient(ellipse 50% 130% at 50% 35%, #000 var(--fog-solid, 42%), transparent 100%);
+  mask-image: radial-gradient(ellipse 50% 130% at 50% 35%, #000 var(--fog-solid, 42%), transparent 100%);
+}
+@media (prefers-reduced-motion: reduce) {
+  .stage-fog {
+    transition: none;
+  }
+}

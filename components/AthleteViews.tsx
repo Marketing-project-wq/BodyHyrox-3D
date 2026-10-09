@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 import type { Media360, Media360Hotspot } from "@/lib/data";
 import { VIEW_ANGLES, VIEW_KEYS, frameAngles } from "@/lib/views";
 import { solidifyCanvas } from "@/lib/sole-solid";
-import { STAGE_ARENA, STAGE_ZONES, VIEWER_360, VIEWER_360_FRAME_CLASS, VIEWER_SPIN, VIEWER_VIDEO, VIEWER_VIEWS, viewer360FrameStyle } from "@/lib/config";
+import { STAGE_ARENA, STAGE_FOG, STAGE_ZONES, VIEWER_360, VIEWER_360_FRAME_CLASS, VIEWER_SPIN, VIEWER_VIDEO, VIEWER_VIEWS, viewer360FrameStyle } from "@/lib/config";
 import { alphaLooksRight, isHevc, parseStageVideo, sourceOrder, timeForAngle, videoAngle, type StageVideoSource } from "@/lib/stage-video";
 import { blendAmount, bracket, loadOrder, nearestSide, norm360 } from "@/lib/spin";
 import { contactsOf, footShift, mixContacts, parseVideoFeet, videoFootAt, type VideoFeet } from "@/lib/stage-feet";
@@ -14,6 +14,7 @@ import { fmt, type Dict } from "@/lib/i18n";
 import { formatIDR } from "@/lib/format";
 import { footIsCurrent, frameCss, measureFrame, transformFoot, type Foot } from "@/lib/media360";
 import type { ArenaHandle } from "@/components/StageArena3D";
+import { StageFog } from "@/components/StageFog";
 import type { MutableRefObject } from "react";
 
 /** Imperative API: the stage card's single orbit loop paints the athlete here. */
@@ -142,6 +143,8 @@ export const AthleteViews = forwardRef<
     debug?: boolean;
     /** ?debug=perf: decode / draw counters on the element (data-perf). */
     debugPerf?: boolean;
+    /** The stage dropped to its lowest quality (a weak device): the simplest fog (STAGE_FOG.weak). */
+    fogSimple?: boolean;
     /** ?debug=video: video layer state on the element (data-video). */
     debugVideo?: boolean;
     /** Accessible name of the athlete picture at an angle (updated at rest only). */
@@ -162,7 +165,7 @@ export const AthleteViews = forwardRef<
     onFocusChange?: (focused: boolean) => void;
   } & DragCallbacks
 >(function AthleteViews(
-  { media, view, m, label, onKeyTurn, onTogglePlay, onWheelTurn, onReady, onVideoSettled, staticSides = false, onHoverChange, onTap, onFocusChange, onDragStart, onDragMove, onDragEnd, arena, debug, debugPerf, debugVideo, describe, onZoneSelect, zoomKey = null, locked = false, onMarkersHidden },
+  { media, view, m, label, onKeyTurn, onTogglePlay, onWheelTurn, onReady, onVideoSettled, staticSides = false, onHoverChange, onTap, onFocusChange, onDragStart, onDragMove, onDragEnd, arena, debug, debugPerf, fogSimple = false, debugVideo, describe, onZoneSelect, zoomKey = null, locked = false, onMarkersHidden },
   ref,
 ) {
   const rootRef = useRef<HTMLDivElement>(null);
@@ -1308,6 +1311,8 @@ export const AthleteViews = forwardRef<
   useEffect(() => {
     if (zoneTip && zoneTip.key === zoomKey) setZoneTip(null);
   }, [zoomKey, zoneTip]);
+  const zoomedPoint = zoomKey ? activeHotspots.find((h) => h.label + frameNo === zoomKey)?.points[frameNo] : undefined;
+  const fogThin = !!zoomedPoint && zoomedPoint.y >= STAGE_FOG.zoomThinFromY;
   const showLabel = (h: Media360Hotspot, key: string) => {
     if (key === zoomKeyRef.current) return;
     setZoneTip({ key, text: zoneLabel(m, h) });
@@ -1420,6 +1425,11 @@ export const AthleteViews = forwardRef<
           />
         )}
       </div>
+
+      {/* Low stage fog in front of the feet, under the zone rings (STAGE_FOG);
+          thinner while zoomed onto a zone low on the legs; still on the CSS
+          platform (no WebGL arena); simplest on a weak device. */}
+      {ready && <StageFog thin={fogThin} still={!arena} simple={fogSimple} />}
 
       {!ready && (
         <div className="absolute inset-0 z-10 flex items-center justify-center text-xs text-white/60">{m.v360_loading}</div>
