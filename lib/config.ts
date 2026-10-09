@@ -210,7 +210,9 @@ export const VIEWER_VIEWS = {
  * ~1.7 frame widths wide and ends ~5.7% of the frame height below the feet
  * line; the shoes are ~8% of the height, the sock tops ~11%, the calves
  * start at ~14%).
- * - enabled: on / off. density: which preset is used (thin / medium / thick).
+ * - enabled: on / off. OFF since 2026-10-09 (the owner didn't like how it
+ *   looks); the code stays for a later version. density: which preset is used
+ *   (thin / medium / thick).
  * - presets: overall opacity and how far above the feet line the fog's
  *   rolling top reaches (`aboveFrac`, share of the frame height).
  * - belowFrac: how far below the feet line it reaches: past the platform's
@@ -245,7 +247,7 @@ export const VIEWER_VIEWS = {
  * stage is off screen.
  */
 export const STAGE_FOG = {
-  enabled: true,
+  enabled: false,
   density: "medium" as "thin" | "medium" | "thick",
   presets: {
     thin: { opacity: 0.65, aboveFrac: 0.08 },

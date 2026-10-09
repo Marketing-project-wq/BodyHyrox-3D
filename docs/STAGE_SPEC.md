@@ -6,7 +6,7 @@ Kalau kode, komentar, config, atau dokumen lain bertentangan dengan dokumen ini,
 yang benar. Kalau instruksi pemilik yang lebih baru bertentangan dengan dokumen ini, ikuti
 instruksi terbaru dan perbarui dokumen ini di PR yang sama.
 
-Terakhir diperbarui: 2026-10-09 (media frame: video MP4 di frame + klik ke Instagram, bagian 5b; kabut panggung `STAGE_FOG`).
+Terakhir diperbarui: 2026-10-09 (kabut panggung `STAGE_FOG` dimatikan sementara; media frame: video MP4 di frame + klik ke Instagram, bagian 5b).
 
 ---
 
@@ -142,6 +142,10 @@ Terakhir diperbarui: 2026-10-09 (media frame: video MP4 di frame + klik ke Insta
 11. **Verifikasi:** daftar perangkat di "Verify before shipping" `CLAUDE.md`.
 12. **Kabut panggung (keputusan 2026-10-09, `STAGE_FOG`):** lapisan kabut rendah seperti dry
     ice di atas platform, untuk **semua atlet** dan kedua mode (4 sisi dan putaran).
+    - **Status: DIMATIKAN sementara (2026-10-09)** atas permintaan pemilik, karena tampilannya
+      belum memuaskan: `STAGE_FOG.enabled = false`. Kode tetap ada untuk versi berikutnya. Saat
+      mati tidak ada lapisan kabut sama sekali (tanpa biaya), dan `?debug=perf` menampilkan
+      `fog off`. Uraian di bawah berlaku kalau kabut dinyalakan lagi.
     - Tujuan: menyamarkan pertemuan sepatu dan lantai, supaya sepatu tidak terlihat pudar
       atau seperti tempelan.
     - Tinggi: menutup sepatu dan bagian bawah kaki, **tidak** sampai betis atau lutut. Puncak
@@ -234,7 +238,7 @@ Semua angka yang bisa disetel ada di `lib/config.ts`, bukan di komponen atau CSS
 - **`STAGE_ARENA`:** arena 3D: kecepatan orbit di mode putaran, kualitas adaptif, DPR, kabut,
   dan kamera.
 - **`STAGE_PLATFORM`, `STAGE_PLATFORM_ROUND`:** bentuk platform (`"hex"`, opsi `"round"`).
-- **`STAGE_FOG`:** kabut panggung (bagian 1.12): saklar, densitas, tinggi, lebar, warna,
+- **`STAGE_FOG`:** kabut panggung (bagian 1.12, **sekarang mati**): saklar, densitas, tinggi, lebar, warna,
   lembar dan kecepatannya, tingkat HP/perangkat lemah, dan penipisan saat zoom.
 - **`STAGE_MEDIA`:** media frame panggung (bagian 5b): jumlah layar, host video yang diizinkan
   (`videoHosts`), aturan putar video di frame (`video`), efek hover, dan ukuran poster tanpa
