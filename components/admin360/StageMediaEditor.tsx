@@ -13,7 +13,7 @@ import {
   publishStageMedia,
   saveStageMediaDraft,
 } from "@/app/atlet/[id]/stage-media-actions";
-import { classifyLink, instagramLink, stageMediaPictureUrl, type StageMedia, type StageMediaSlot, type VideoReport } from "@/lib/stage-media";
+import { classifyLink, instagramLink, stageMediaPictureUrl, videoPlaybackUrl, type StageMedia, type StageMediaSlot, type VideoReport } from "@/lib/stage-media";
 import { putSigned } from "@/lib/media-sources";
 
 /**
@@ -139,7 +139,7 @@ export function StageMediaEditor({ athleteId, m, embedded = false }: { athleteId
             picture = null;
           } else {
             try {
-              const blob = await videoPoster(slot.url);
+              const blob = await videoPoster(videoPlaybackUrl(slot.url)); // through our proxy for hosts without CORS
               const up = unwrap(await issueStagePosterUpload(athleteId));
               if (!(await putSigned(up.uploadUrl, blob, "image/webp"))) throw new Error(m.err_upload_failed);
               slot = { ...slot, thumb: up.path };
@@ -203,10 +203,10 @@ export function StageMediaEditor({ athleteId, m, embedded = false }: { athleteId
       // An Instagram link pasted into the video column belongs in the Instagram column.
       const c1 = link ? classifyLink(link) : null;
       if (c1?.ok && c1.kind === "instagram") {
-        if (!ig) {
-          ig = link;
+        if (!ig || instagramLink(ig) === c1.url) {
+          note = ig ? m.sm_igDuplicate : m.sm_igMoved;
+          ig = ig || link;
           link = "";
-          note = m.sm_igMoved;
         } else {
           patch(i, { state: "error", error: m.sm_igInVideo, checked: null, video: null });
           return;
@@ -460,6 +460,7 @@ export function StageMediaEditor({ athleteId, m, embedded = false }: { athleteId
                           <KindIcon k={r.checked.kind} />
                           {r.checked.kind === "video" ? m.sm_vidOk : `${kindLabel(r.checked.kind)} · ${m.sm_ok}`}
                         </span>
+                        {r.video?.proxied && <span className="text-[11px] text-muted">{m.sm_vidProxied}</span>}
                         {r.video && <span className="break-words text-[11px] text-faint">{facts(r.video)}</span>}
                       </span>
                     )}

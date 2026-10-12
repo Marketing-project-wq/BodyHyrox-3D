@@ -899,6 +899,12 @@ export const STAGE_SOLE = {
  *   much brighter, with a soft glow in the theme colour around it.
  * - fallbackTile: size (CSS px) of each poster in the row shown under the
  *   stage when there are no 3D frames (no WebGL); >= 44 px wide (touch).
+ * - proxyHosts / proxyPath / proxyCacheSec: video hosts that don't send the
+ *   CORS header (media.20fit.id behind Cloudflare, 2026-10-09) are played
+ *   through our own server (`proxyPath`, app/api/stage-video), so the 3D
+ *   stage can use them without CORS. Every byte of those videos then goes
+ *   through Railway (browsers keep a copy for `proxyCacheSec`). Remove a host
+ *   here once it sends Access-Control-Allow-Origin itself.
  */
 export const STAGE_MEDIA = {
   slots: 6,
@@ -923,6 +929,9 @@ export const STAGE_MEDIA = {
   hoverBoost: 1.45,
   glowOpacity: 0.55,
   fallbackTile: { w: 48, h: 80 },
+  proxyHosts: ["media.20fit.id"],
+  proxyPath: "/api/stage-video",
+  proxyCacheSec: 86400,
 };
 
 /**

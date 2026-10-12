@@ -6,7 +6,7 @@ Kalau kode, komentar, config, atau dokumen lain bertentangan dengan dokumen ini,
 yang benar. Kalau instruksi pemilik yang lebih baru bertentangan dengan dokumen ini, ikuti
 instruksi terbaru dan perbarui dokumen ini di PR yang sama.
 
-Terakhir diperbarui: 2026-10-09 (kabut panggung `STAGE_FOG` dimatikan sementara; media frame: video MP4 di frame + klik ke Instagram, bagian 5b).
+Terakhir diperbarui: 2026-10-09 (video media.20fit.id lewat proxy server kita, bagian 5b; kabut panggung `STAGE_FOG` dimatikan sementara).
 
 ---
 
@@ -241,8 +241,9 @@ Semua angka yang bisa disetel ada di `lib/config.ts`, bukan di komponen atau CSS
 - **`STAGE_FOG`:** kabut panggung (bagian 1.12, **sekarang mati**): saklar, densitas, tinggi, lebar, warna,
   lembar dan kecepatannya, tingkat HP/perangkat lemah, dan penipisan saat zoom.
 - **`STAGE_MEDIA`:** media frame panggung (bagian 5b): jumlah layar, host video yang diizinkan
-  (`videoHosts`), aturan putar video di frame (`video`), efek hover, dan ukuran poster tanpa
-  WebGL (`fallbackTile`).
+  (`videoHosts`), host yang diputar lewat proxy (`proxyHosts`, `proxyPath`, `proxyCacheSec`),
+  aturan putar video di frame (`video`), efek hover, dan ukuran poster tanpa WebGL
+  (`fallbackTile`).
 - **`VIEWER_SPIN`:** crossfade, tahan setelah putaran manual (`manualResumeMs`), dan cache frame.
 - **`VIEWER_VIDEO`:** pemutaran video putaran (fallback ke frame saat frame terputus/drop,
   macet, atau autoplay ditolak).
@@ -306,6 +307,8 @@ Calysta (18 foto).
     `/reel/…`, juga `instagram.com/<user>/p/<kode>/`). Opsional.
   - **Layar hanya Instagram** (kolom 1 kosong) tetap didukung: tampil sampul postingan atau kartu
     Instagram. Link Instagram yang ditempel di kolom 1 dipindah otomatis ke kolom 2.
+  - Link Instagram yang sama di kedua kolom: kolom video dikosongkan otomatis. Link Instagram lain
+    di kolom video: pesan "reel Instagram tidak bisa diputar di frame; isi .mp4 atau kosongkan".
   - Keterangan tetap opsional. Teks EN/ID ada di `lib/i18n.ts`.
 - **Cek video** (`checkStageMediaLink`, server): meminta file seperti browser di situs kita
   (`Origin: https://avatar.20fit.id` + `Range: bytes=0-1023`), lalu melaporkan semua yang membuat
@@ -321,11 +324,27 @@ Calysta (18 foto).
 - **Cek Instagram** (`checkStageInstagramLink`): harus postingan/reel; 404 dari embed resmi
   ditolak. Kalau Instagram menolak server kita, link tetap dipakai dengan keterangan "format
   valid".
-- **CORS media.20fit.id** (2026-10-09): file video di sana belum mengirim header CORS. Panduan
-  untuk pengelola server (Apache/LiteSpeed `.htaccess`, Nginx, Cloudflare Transform Rule, plus
-  perintah `curl` untuk mengecek) sudah dikirim ke pemilik.
-  - Cadangan kalau header tidak bisa diubah (belum dikerjakan): proxy lewat server kita dengan
-    Range (semua byte video lewat Railway), atau pindah ke Supabase Storage (butuh SQL bucket).
+- **CORS media.20fit.id** (2026-10-09): media.20fit.id (di belakang Cloudflare) tidak mengirim
+  header CORS. Panduan untuk pengelola server (Cloudflare Transform Rule, Apache/LiteSpeed,
+  Nginx, perintah `curl`) sudah dikirim ke pemilik.
+- **Proxy video** (2026-10-09, atas permintaan pemilik): video dari `STAGE_MEDIA.proxyHosts`
+  (sekarang `media.20fit.id`) diputar lewat server kita, `GET /api/stage-video?u=<link>`
+  (`app/api/stage-video/route.ts`), jadi tidak butuh CORS.
+  - Data tetap menyimpan link asli. Panggung dan poster admin memakai alamat proxy
+    (`videoPlaybackUrl`).
+  - Hanya `.mp4`/`.webm` https di host itu (`proxiedVideoUpstream`). Redirect hanya diikuti ke
+    file yang juga diizinkan.
+  - Hanya untuk halaman kita sendiri: permintaan dari situs lain ditolak (`Sec-Fetch-Site`, 403),
+    dan jawabannya tidak boleh ditanam di situs lain (`Cross-Origin-Resource-Policy:
+    same-origin`).
+  - Range diteruskan (iPhone/Safari). Isi video dialirkan (stream), tidak ditahan di memori, dan
+    berhenti kalau pengunjung berhenti. Cache browser `proxyCacheSec` (1 hari).
+  - "Cek link" untuk host ini tidak lagi mensyaratkan CORS ("Diputar lewat server kita"). Range,
+    tipe, ukuran, dan 404 tetap dicek.
+  - **Biaya:** setiap byte video ini lewat Railway (misalnya video 7,6 MB × jumlah pemutaran,
+    dikurangi yang ada di cache browser). Kalau media.20fit.id nanti mengirim header CORS, hapus
+    host itu dari `proxyHosts` supaya video langsung dari Cloudflare lagi.
+  - Cadangan lain (tidak dikerjakan): pindah ke Supabase Storage (butuh SQL bucket).
 - **Lain-lain (tetap):**
   - **YouTube:** wajib boleh di-embed (oEmbed resmi); thumbnail disalin ke bucket publik
     `smb-athlete-360/<atlet>/stage-media/`. Tidak diputar di frame; tap membuka lightbox

@@ -14,6 +14,7 @@ import {
   parseStageMedia,
   stageMediaPictureUrl,
   videoHostAllowed,
+  videoProxied,
   type LinkProblem,
   type StageMedia,
   type StageMediaSlot,
@@ -89,7 +90,7 @@ export type CheckedLink = { slot: Omit<StageMediaSlot, "slot">; pictureUrl: stri
 /** The facts of one Range request to a video file, and what stops it from playing on the stage. */
 function videoReport(url: string, res: SafeResponse | null): VideoReport {
   const host = new URL(url).hostname.toLowerCase();
-  if (!res) return { host, status: 0, type: null, sizeMB: null, range: false, acao: null, server: null, problems: ["unreachable"] };
+  if (!res) return { host, status: 0, type: null, sizeMB: null, range: false, acao: null, proxied: videoProxied(host), server: null, problems: ["unreachable"] };
   const h = res.headers;
   const type = (h.get("content-type") ?? "").split(";")[0].trim().toLowerCase() || null;
   const cr = (h.get("content-range") ?? "").trim();
@@ -102,13 +103,17 @@ function videoReport(url: string, res: SafeResponse | null): VideoReport {
     .map((x) => x.slice(0, 40));
   const problems: VideoProblem[] = [];
   const finalHost = new URL(res.url).hostname.toLowerCase();
+  // Played through our own server (STAGE_MEDIA.proxyHosts): its CORS header doesn't matter.
+  const proxied = videoProxied(host) && (finalHost === host || videoProxied(finalHost));
   if (finalHost !== host && !videoHostAllowed(finalHost)) problems.push("redirect_host");
   if (res.status !== 200 && res.status !== 206) problems.push("unreachable");
   else {
     if (type !== "video/mp4" && type !== "video/webm") problems.push("not_video");
     if (total > STAGE_MEDIA.maxVideoMB * MB) problems.push("too_big");
     if (!range) problems.push("no_range");
-    if (!acao) problems.push("no_cors");
+    if (proxied) {
+      /* no CORS needed */
+    } else if (!acao) problems.push("no_cors");
     else if (acao.includes(",")) problems.push("cors_double");
     else if (acao !== "*" && acao !== STAGE_MEDIA.siteOrigin) problems.push("cors_other");
   }
@@ -119,6 +124,7 @@ function videoReport(url: string, res: SafeResponse | null): VideoReport {
     sizeMB: total ? Math.round((total / MB) * 10) / 10 : null,
     range,
     acao,
+    proxied,
     server: seen.length ? [...new Set(seen)].join(" · ") : null,
     problems,
   };
@@ -132,8 +138,9 @@ function videoReport(url: string, res: SafeResponse | null): VideoReport {
  *   the cover image is copied when Instagram hands it out.
  * - Video (.mp4/.webm): only from STAGE_MEDIA.videoHosts; must answer a Range
  *   request (206) with a video type, fit maxVideoMB and allow this site by
- *   CORS. Comes back with a report (`video`) either way; when it can play,
- *   the admin's browser makes a poster (issueStagePosterUpload).
+ *   CORS (not needed for STAGE_MEDIA.proxyHosts: played through our server).
+ *   Comes back with a report (`video`) either way; when it can play, the
+ *   admin's browser makes a poster (issueStagePosterUpload).
  * - Anything else is refused with a code that says why and what to use instead.
  */
 export async function checkStageMediaLink(athleteId: string, rawUrl: string): Promise<ActionResult<CheckedLink>> {

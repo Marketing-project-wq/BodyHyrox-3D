@@ -86,6 +86,37 @@ export function videoHostAllowed(host: string): boolean {
   return (STAGE_MEDIA.videoHosts as readonly string[]).includes(h);
 }
 
+/** Is a video file from this host played through our own server (it sends no CORS header)? */
+export function videoProxied(host: string): boolean {
+  return (STAGE_MEDIA.proxyHosts as readonly string[]).includes(host.toLowerCase());
+}
+
+/**
+ * The file a proxy request may fetch: an https .mp4 / .webm on one of
+ * STAGE_MEDIA.proxyHosts (no user:password, no other port), normalized
+ * without the #fragment; null for anything else.
+ */
+export function proxiedVideoUpstream(raw: string): string | null {
+  const text = String(raw ?? "").trim();
+  if (!text || text.length > STAGE_MEDIA.maxUrlLength) return null;
+  let u: URL;
+  try {
+    u = new URL(text);
+  } catch {
+    return null;
+  }
+  if (u.protocol !== "https:" || u.username || u.password || (u.port && u.port !== "443")) return null;
+  if (!videoProxied(u.hostname) || !VIDEO_EXT.test(u.pathname)) return null;
+  u.hash = "";
+  return u.toString();
+}
+
+/** Where the stage (and the admin's poster) plays a video file from: our proxy for STAGE_MEDIA.proxyHosts, else the file itself. */
+export function videoPlaybackUrl(url: string): string {
+  const target = proxiedVideoUpstream(url);
+  return target ? `${STAGE_MEDIA.proxyPath}?u=${encodeURIComponent(target)}` : url;
+}
+
 /** A pasted Instagram post / reel link, normalized; null when it isn't one. */
 export function instagramLink(raw: string): string | null {
   const text = String(raw ?? "").trim();
@@ -191,7 +222,7 @@ export type StageScreen = {
   ytId: string | null;
   /** The screen's own link (YouTube / video file / image / Instagram post). */
   url: string;
-  /** Video file played inside the frame (kind "video"), else null. */
+  /** Video file played inside the frame (kind "video"; through our proxy for STAGE_MEDIA.proxyHosts), else null. */
   video: string | null;
   /** Click target: the Instagram post / reel (opens in a new tab), else null. */
   ig: string | null;
@@ -207,7 +238,7 @@ export function stageScreens(media: StageMedia, supabaseUrl: string): StageScree
       picture: stageMediaPictureUrl(supabaseUrl, s.thumb),
       ytId: s.ytId,
       url: s.url,
-      video: s.kind === "video" ? s.url : null,
+      video: s.kind === "video" ? videoPlaybackUrl(s.url) : null,
       ig: s.ig,
       title: s.title,
     }));
@@ -238,6 +269,8 @@ export type VideoReport = {
   range: boolean;
   /** Access-Control-Allow-Origin as sent (trimmed), or null. */
   acao: string | null;
+  /** Played through our own server (STAGE_MEDIA.proxyHosts): the CORS header isn't needed. */
+  proxied: boolean;
   /** Web server / CDN seen in the headers (Server, cf-ray, x-litespeed-cache), or null. */
   server: string | null;
   problems: VideoProblem[];
