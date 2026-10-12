@@ -226,7 +226,7 @@ const en = {
   // public athlete view (/atlet)
   pub_eyebrow: "Sponsor My Body",
   pub_title: "Choose an athlete",
-  pub_lead: "The ten most-decorated 20FIT athletes. Pick an athlete and a body zone to sponsor.",
+  pub_lead: "20FIT's most-decorated athletes. Pick an athlete and a body zone to sponsor.",
   pub_zonesAvailable: "{n} zones available",
   pub_zonesAllTaken: "All zones taken",
   pub_podiums: "podiums",
@@ -1061,7 +1061,7 @@ const id: Dict = {
   // public athlete view (/atlet)
   pub_eyebrow: "Sponsor My Body",
   pub_title: "Pilih atlet",
-  pub_lead: "Sepuluh atlet 20FIT dengan podium terbanyak. Pilih atlet dan satu zona tubuh untuk disponsori.",
+  pub_lead: "Atlet 20FIT dengan podium terbanyak. Pilih atlet dan satu zona tubuh untuk disponsori.",
   pub_zonesAvailable: "{n} zona tersedia",
   pub_zonesAllTaken: "Semua zona terisi",
   pub_podiums: "podium",
