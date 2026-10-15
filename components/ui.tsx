@@ -103,6 +103,16 @@ export function StepNo({ n, label }: { n: number; label: string }) {
   );
 }
 
+/** Letter of a part inside one step (a, b): lighter than the step number. */
+export function PartNo({ p, label }: { p: string; label: string }) {
+  return (
+    <span className="relative inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-accent text-[11px] font-semibold text-accent">
+      <span aria-hidden>{p}</span>
+      <span className="sr-only">{label}</span>
+    </span>
+  );
+}
+
 export function KpiCard({
   label,
   value,

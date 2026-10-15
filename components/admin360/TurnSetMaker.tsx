@@ -2,10 +2,10 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, Check, RefreshCw, RotateCw, Sparkles } from "lucide-react";
+import { AlertTriangle, Check, ChevronDown, RefreshCw, RotateCw, Sparkles } from "lucide-react";
 import { TURN_SET } from "@/lib/config";
 import { type Dict, errorMessage, fmt } from "@/lib/i18n";
-import { StepNo } from "@/components/ui";
+import { PartNo } from "@/components/ui";
 import { unwrap } from "@/lib/action-result";
 import { markerSource, saveDraft } from "@/app/atlet/[id]/media-actions";
 import { setSourceAngle, signSource } from "@/app/atlet/[id]/source-actions";
@@ -21,17 +21,20 @@ type Phase = "idle" | "model" | "photos" | "video" | "ready" | "saving" | "saved
 const SIDE_NAMES = (m: Dict): Record<number, string> => ({ 0: m.view_front, 90: m.view_right, 180: m.view_back, 270: m.view_left });
 
 /**
- * "Buat set putaran" (admin, every athlete): picks the best pose for every
- * angle from the athlete's materials (lib/turn-set.ts), lets the admin swap
- * any pose, then saves the locked poses as a turn set into the DRAFT (the
- * studio below previews it; Publish puts it live).
+ * "Buat putaran" (admin, every athlete; part b of the "Foto & putaran 360" step):
+ * picks the best pose for every angle from the athlete's materials
+ * (lib/turn-set.ts), lets the admin swap any pose, then saves the locked poses
+ * as a turn set into the DRAFT (the studio below previews it; Publish puts it
+ * live). `nudge`: files were just uploaded in part a, so point at the button.
  */
-export function TurnSetMaker({ athleteId, items, m, step }: { athleteId: string; items: SourceItem[]; m: Dict; step?: number }) {
+export function TurnSetMaker({ athleteId, items, m, part, nudge }: { athleteId: string; items: SourceItem[]; m: Dict; part?: string; nudge?: boolean }) {
   const router = useRouter();
   const photos = useMemo(() => items.filter((i) => i.kind === "photo"), [items]);
   const videos = useMemo(() => items.filter((i) => i.kind === "video"), [items]);
   const [hints, setHints] = useState<Record<string, number | null>>({});
   const [reversePhotos, setReversePhotos] = useState(false);
+  // The per-photo angles are folded away: "Auto" is right for most sets.
+  const [anglesOpen, setAnglesOpen] = useState(false);
   const [videoId, setVideoId] = useState<string>("");
   const [reverseVideo, setReverseVideo] = useState(false);
   const [phase, setPhase] = useState<Phase>("idle");
@@ -50,6 +53,8 @@ export function TurnSetMaker({ athleteId, items, m, step }: { athleteId: string;
   }, [videos, videoId]);
   useEffect(() => {
     setHints(Object.fromEntries(photos.map((p) => [p.id, p.angleHint])));
+    // A photo with a hand-set angle: show the angles, so it isn't missed.
+    if (photos.some((p) => p.angleHint != null)) setAnglesOpen(true);
   }, [photos]);
   useEffect(() => () => previews.current.forEach((u) => URL.revokeObjectURL(u)), []);
 
@@ -253,18 +258,27 @@ export function TurnSetMaker({ athleteId, items, m, step }: { athleteId: string;
   return (
     <div className="mt-6 border-t border-border pt-4" aria-labelledby="ts-title">
       <h3 id="ts-title" className="flex items-center gap-2 text-sm font-semibold text-text">
-        {step ? <StepNo n={step} label={fmt(m.step_label, { n: step })} /> : null}
+        {part ? <PartNo p={part} label={fmt(m.part_label, { p: part })} /> : null}
         {m.ts_title}
       </h3>
       <p className="mt-1 text-xs text-muted">{m.ts_hint}</p>
+      {nudge && !nothing && !slots.length && !busy && (
+        <p role="status" className="mt-2 rounded-lg border border-amber/40 bg-amber/10 px-3 py-2.5 text-sm font-medium text-amber">
+          {m.ts_nudge}
+        </p>
+      )}
 
       {nothing ? (
         <p className="mt-2 text-xs text-faint">{m.ts_needMaterials}</p>
       ) : (
         <>
           {photos.length > 0 && (
-            <div className="mt-3">
-              <p className="text-xs font-medium text-text">{fmt(m.ts_photoAngles, { n: photos.length })}</p>
+            <details className="group/angles mt-3" open={anglesOpen} onToggle={(e) => setAnglesOpen(e.currentTarget.open)}>
+              <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 text-xs font-medium text-text [&::-webkit-details-marker]:hidden">
+                <ChevronDown className="h-4 w-4 shrink-0 text-muted group-open/angles:rotate-180 motion-safe:transition-transform" aria-hidden />
+                {fmt(m.ts_photoAngles, { n: photos.length })}
+                <span className="rounded-full bg-surface-2 px-2 py-0.5 text-[11px] font-normal text-muted">{m.step_optional}</span>
+              </summary>
               <p className="text-[11px] text-faint">{m.ts_photoAnglesHint}</p>
               <ul className="mt-2 grid grid-cols-1 gap-2 min-[480px]:grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
                 {photos.map((p, i) => (
@@ -300,7 +314,7 @@ export function TurnSetMaker({ athleteId, items, m, step }: { athleteId: string;
                 <input type="checkbox" checked={reversePhotos} onChange={(e) => setReversePhotos(e.target.checked)} disabled={busy} className="accent-red-600" />
                 {m.ts_reversePhotos}
               </label>
-            </div>
+            </details>
           )}
 
           {videos.length > 0 && (

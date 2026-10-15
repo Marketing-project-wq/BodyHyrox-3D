@@ -319,10 +319,10 @@ export function AthleteEditorClient({
           </ActionForm>
         </section>
 
-        {/* ---------- Steps 2–3: 360 materials (photos / videos), then the turn set made from them ---------- */}
+        {/* ---------- Step 2: photos & 360 turn (a. upload photos / videos, b. make the turn from them) ---------- */}
         {canEdit && <MediaSources athleteId={athlete.id} step={2} m={m} />}
 
-        {/* ---------- Step 4: which photo is each side ---------- */}
+        {/* ---------- Step 3: which photo is each side ---------- */}
         {canEdit && sides.views && (
           <AthleteViewsPicker
             key={`${sides.frames.join("|")}#${JSON.stringify(sides.views)}`}
@@ -332,11 +332,11 @@ export function AthleteEditorClient({
             views={sides.views}
             saved={media360.viewsSaved || sides.pendingViews}
             pending={sides.pendingViews}
-            step={4}
+            step={3}
             m={m}
           />
         )}
-        {/* ---------- Step 5: zone markers on the body ---------- */}
+        {/* ---------- Step 4: zone markers on the body ---------- */}
         {canEdit && sides.views && (
           <AthleteZonesPlacer
             key={`${sides.frames.join("|")}#${JSON.stringify(sides.views)}#${JSON.stringify(sides.hotspots)}`}
@@ -347,16 +347,16 @@ export function AthleteEditorClient({
             zones={athlete.zones}
             initial={sides.hotspots}
             pending={sides.pendingHotspots}
-            step={5}
+            step={4}
             m={m}
           />
         )}
 
-        {/* ---------- Step 6: body zones offered + prices (saved right away) ---------- */}
+        {/* ---------- Step 5: body zones offered + prices (saved right away) ---------- */}
         <section className="card p-4">
           <div className="mb-1 flex items-center justify-between gap-2">
             <h2 className="flex items-center gap-2 text-sm font-semibold text-text">
-              <StepNo n={6} label={stepLabel(6)} />
+              <StepNo n={5} label={stepLabel(5)} />
               {m.ae_zones}
             </h2>
           </div>
@@ -400,7 +400,7 @@ export function AthleteEditorClient({
           </div>
         </section>
 
-        {/* ---------- Step 7: check, then publish (sponsors see it after this) ---------- */}
+        {/* ---------- Step 6: check, then publish (sponsors see it after this) ---------- */}
         {canEdit && (media360.frames > 0 || media360.draft) && (
           <Admin360Studio
             key={`${media360.version}:${media360.draft?.updatedAt ?? "none"}`}
@@ -419,13 +419,13 @@ export function AthleteEditorClient({
             publishedAt={media360.publishedAt}
             history={media360.history}
             frameTools={VIDEO_360.source !== "video"}
-            step={7}
+            step={6}
             versionsSlot={versionsSlot}
             m={m}
           />
         )}
-        {/* ---------- Step 8 (optional): stage frame media, its own save / publish ---------- */}
-        {canEdit && <StageMediaEditor athleteId={athlete.id} step={8} m={m} />}
+        {/* ---------- Step 7 (optional): stage frame media, its own save / publish ---------- */}
+        {canEdit && <StageMediaEditor athleteId={athlete.id} step={7} m={m} />}
 
         {/* ---------- Advanced (closed): rarely used tools ---------- */}
         <details className="rounded-xl border border-dashed border-border p-3">

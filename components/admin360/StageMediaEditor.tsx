@@ -102,7 +102,7 @@ async function videoPoster(url: string): Promise<Blob> {
  * the athlete's Instagram post / reel a click on the screen opens. Either one
  * is enough. "Check link" checks both, then save to the draft and Publish.
  * `embedded`: drawn inside another card, without its own card frame. `step`:
- * its number on the admin athlete page (step 8, optional).
+ * its number on the admin athlete page (step 7, optional).
  */
 export function StageMediaEditor({ athleteId, m, embedded = false, step }: { athleteId: string; m: Dict; embedded?: boolean; step?: number }) {
   const [rows, setRows] = useState<Row[]>(() => Array.from({ length: STAGE_MEDIA.slots }, emptyRow));
