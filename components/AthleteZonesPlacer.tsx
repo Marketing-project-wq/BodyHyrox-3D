@@ -7,6 +7,7 @@ import { VIEW_KEYS, type Media360Views } from "@/lib/views";
 import type { SideHotspot } from "@/lib/media360-sides";
 import type { AdminZoneRow } from "@/lib/data";
 import { type Dict, fmt, errorMessage } from "@/lib/i18n";
+import { StepNo } from "@/components/ui";
 import { unwrap } from "@/lib/action-result";
 import { saveDraftSides } from "@/app/atlet/[id]/media-actions";
 
@@ -27,6 +28,7 @@ export function AthleteZonesPlacer({
   initial,
   pending: draftPending,
   m,
+  step,
 }: {
   athleteId: string;
   /** Image URL per frame file. */
@@ -39,6 +41,8 @@ export function AthleteZonesPlacer({
   /** The draft carries markers that are not published yet. */
   pending: boolean;
   m: Dict;
+  /** Step number on the admin athlete page. */
+  step?: number;
 }) {
   const router = useRouter();
   const placeable = useMemo(() => zones.filter((z) => z.athleteZoneId), [zones]);
@@ -102,10 +106,13 @@ export function AthleteZonesPlacer({
 
   return (
     <section className="card p-4">
-      <h2 className="text-sm font-semibold text-text">{m.m360_zones_title}</h2>
+      <h2 className="flex items-center gap-2 text-sm font-semibold text-text">
+        {step ? <StepNo n={step} label={fmt(m.step_label, { n: step })} /> : null}
+        {m.m360_zones_title}
+      </h2>
       <p className="mt-1 text-xs text-muted">{m.m360_zones_hint}</p>
       {!viewsSaved && <p className="mt-1 text-xs text-faint">{m.m360_zones_needViews}</p>}
-      {draftPending && <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">{m.m360_sides_pending}</p>}
+      {draftPending && <p className="mt-2 rounded-lg bg-amber/10 px-3 py-2 text-xs text-amber">{m.m360_sides_pending}</p>}
 
       <div className="mt-3 flex flex-wrap gap-1.5" role="tablist">
         {VIEW_KEYS.map((k, i) => (

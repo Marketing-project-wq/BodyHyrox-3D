@@ -8,6 +8,7 @@ import { unwrap } from "@/lib/action-result";
 import { deleteSource, issueSourceUploads, listSources, recordSources, replaceSource, signSource } from "@/app/atlet/[id]/source-actions";
 import { formatBytes, formatDuration, prepareSources, putSigned, type SourceItem } from "@/lib/media-sources";
 import { TurnSetMaker } from "@/components/admin360/TurnSetMaker";
+import { StepNo } from "@/components/ui";
 
 type Busy = { step: "prepare" | "upload" | "replace"; done: number; total: number; name?: string } | null;
 
@@ -16,7 +17,7 @@ type Busy = { step: "prepare" | "upload" | "replace"; done: number; total: numbe
  * see everything uploaded so far, view / play one, replace one, delete one. Files go
  * straight from the browser to a private bucket; the list lives in the DB.
  */
-export function MediaSources({ athleteId, m, onChange }: { athleteId: string; m: Dict; onChange?: (items: SourceItem[]) => void }) {
+export function MediaSources({ athleteId, m, onChange, step }: { athleteId: string; m: Dict; onChange?: (items: SourceItem[]) => void; step?: number }) {
   const [items, setItems] = useState<SourceItem[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notes, setNotes] = useState<string[]>([]);
@@ -220,7 +221,7 @@ export function MediaSources({ athleteId, m, onChange }: { athleteId: string; m:
   return (
     <section className="card p-4" aria-labelledby="src-title">
       <div className="flex flex-wrap items-center gap-2">
-        <span className="rounded-md border border-border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted">{m.m360_admin}</span>
+        {step ? <StepNo n={step} label={fmt(m.step_label, { n: step })} /> : <span className="rounded-md border border-border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted">{m.m360_admin}</span>}
         <h2 id="src-title" className="text-sm font-semibold text-text">
           {m.src_title}
         </h2>
@@ -375,7 +376,7 @@ export function MediaSources({ athleteId, m, onChange }: { athleteId: string; m:
         )}
       </div>
 
-      {items && <TurnSetMaker athleteId={athleteId} items={items} m={m} />}
+      {items && <TurnSetMaker athleteId={athleteId} items={items} m={m} step={step ? step + 1 : undefined} />}
 
       {viewing && (
         <div

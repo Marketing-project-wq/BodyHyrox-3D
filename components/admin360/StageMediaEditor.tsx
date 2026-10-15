@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { AlertTriangle, ArrowDown, ArrowUp, Camera, Check, ImageIcon, Link2, PlayCircle, RotateCw, Trash2, UploadCloud, Video } from "lucide-react";
 import { STAGE_MEDIA } from "@/lib/config";
 import { type Dict, errorMessage, errorText, fmt } from "@/lib/i18n";
+import { StepNo } from "@/components/ui";
 import { unwrap, ActionFailure } from "@/lib/action-result";
 import {
   checkStageInstagramLink,
@@ -100,10 +101,10 @@ async function videoPoster(url: string): Promise<Blob> {
  * a video (MP4, played inside the frame; YouTube or an image also work) and
  * the athlete's Instagram post / reel a click on the screen opens. Either one
  * is enough. "Check link" checks both, then save to the draft and Publish.
- * `embedded`: drawn inside another card (the Profile card), without its own
- * card frame.
+ * `embedded`: drawn inside another card, without its own card frame. `step`:
+ * its number on the admin athlete page (step 8, optional).
  */
-export function StageMediaEditor({ athleteId, m, embedded = false }: { athleteId: string; m: Dict; embedded?: boolean }) {
+export function StageMediaEditor({ athleteId, m, embedded = false, step }: { athleteId: string; m: Dict; embedded?: boolean; step?: number }) {
   const [rows, setRows] = useState<Row[]>(() => Array.from({ length: STAGE_MEDIA.slots }, emptyRow));
   const [loaded, setLoaded] = useState(false);
   const [notReady, setNotReady] = useState(false);
@@ -376,10 +377,11 @@ export function StageMediaEditor({ athleteId, m, embedded = false }: { athleteId
   return (
     <section className={embedded ? "" : "card p-4"} aria-labelledby="sm-title">
       <div className="flex flex-wrap items-center gap-2">
-        {!embedded && <span className="rounded-md border border-border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted">{m.m360_admin}</span>}
+        {step ? <StepNo n={step} label={fmt(m.step_label, { n: step })} /> : !embedded && <span className="rounded-md border border-border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted">{m.m360_admin}</span>}
         <h2 id="sm-title" className="text-sm font-semibold text-text">
           {m.sm_title}
         </h2>
+        {step ? <span className="rounded-full bg-surface-2 px-2 py-0.5 text-[11px] text-muted">{m.step_optional}</span> : null}
         {live && <span className="text-xs text-faint">{fmt(m.sm_live, { n: live.slots.length })}</span>}
         {hasDraft && !dirty && <span className="text-xs text-[#b7791f]">{m.sm_draftPending}</span>}
         {dirty && <span className="text-xs text-[#b7791f]">{m.sm_unsaved}</span>}

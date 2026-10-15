@@ -93,6 +93,16 @@ export function Avatar({ name, className = "" }: { name: string; className?: str
 }
 
 /* ---------- Compact KPI tile ---------- */
+/** Number of a step on the admin athlete page (the order to work in). */
+export function StepNo({ n, label }: { n: number; label: string }) {
+  return (
+    <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-accent text-[11px] font-semibold text-white">
+      <span aria-hidden>{n}</span>
+      <span className="sr-only">{label}</span>
+    </span>
+  );
+}
+
 export function KpiCard({
   label,
   value,
