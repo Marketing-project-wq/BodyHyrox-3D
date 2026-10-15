@@ -305,7 +305,10 @@ Calysta (18 foto).
   - **Kolom 2 "Link Instagram (tujuan klik)":** postingan/reel Instagram (`instagram.com/p/…`,
     `/reel/…`, juga `instagram.com/<user>/p/<kode>/`). Opsional.
   - **Layar hanya Instagram** (kolom 1 kosong) tetap didukung: tampil sampul postingan atau kartu
-    Instagram. Link Instagram yang ditempel di kolom 1 dipindah otomatis ke kolom 2.
+    Instagram. Link Instagram yang ditempel di kolom 1 dipindah otomatis ke kolom 2. Kalau kolom 2
+    sudah berisi link Instagram yang sama, link di kolom 1 cukup dihapus (dengan catatan). Kalau
+    kolom 2 berisi link Instagram yang lain, admin mendapat pesan bahwa reel/postingan Instagram
+    tidak bisa diputar di dalam frame: isi kolom 1 dengan link file video (.mp4) atau kosongkan.
   - Keterangan tetap opsional. Teks EN/ID ada di `lib/i18n.ts`.
 - **Cek video** (`checkStageMediaLink`, server): meminta file seperti browser di situs kita
   (`Origin: https://avatar.20fit.id` + `Range: bytes=0-1023`), lalu melaporkan semua yang membuat
