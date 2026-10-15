@@ -203,10 +203,10 @@ export function StageMediaEditor({ athleteId, m, embedded = false }: { athleteId
       // An Instagram link pasted into the video column belongs in the Instagram column.
       const c1 = link ? classifyLink(link) : null;
       if (c1?.ok && c1.kind === "instagram") {
-        if (!ig) {
-          ig = link;
+        if (!ig || instagramLink(ig) === c1.url) {
+          note = ig ? m.sm_igDuplicate : m.sm_igMoved;
+          ig = ig || link;
           link = "";
-          note = m.sm_igMoved;
         } else {
           patch(i, { state: "error", error: m.sm_igInVideo, checked: null, video: null });
           return;
