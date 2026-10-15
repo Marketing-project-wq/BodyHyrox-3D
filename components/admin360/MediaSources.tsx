@@ -1,21 +1,23 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Check, Eye, Film, ImageIcon, RefreshCw, RotateCw, Trash2, UploadCloud, X } from "lucide-react";
+import { Check, ChevronDown, Eye, Film, ImageIcon, RefreshCw, RotateCw, Trash2, UploadCloud, X } from "lucide-react";
 import { MEDIA_SOURCES } from "@/lib/config";
 import { type Dict, errorMessage, fmt } from "@/lib/i18n";
 import { unwrap } from "@/lib/action-result";
 import { deleteSource, issueSourceUploads, listSources, recordSources, replaceSource, signSource } from "@/app/atlet/[id]/source-actions";
 import { formatBytes, formatDuration, prepareSources, putSigned, type SourceItem } from "@/lib/media-sources";
 import { TurnSetMaker } from "@/components/admin360/TurnSetMaker";
-import { StepNo } from "@/components/ui";
+import { PartNo, StepNo } from "@/components/ui";
 
 type Busy = { step: "prepare" | "upload" | "replace"; done: number; total: number; name?: string } | null;
 
 /**
- * "Bahan 360" (admin, every athlete): upload the original photos and videos,
- * see everything uploaded so far, view / play one, replace one, delete one. Files go
- * straight from the browser to a private bucket; the list lives in the DB.
+ * "Foto & putaran 360" (admin, every athlete), one step in two parts:
+ * a. upload the original photos and videos, see everything uploaded so far
+ *    (folded; opens right after an upload), view / play one, replace one, delete one.
+ *    Files go straight from the browser to a private bucket; the list lives in the DB.
+ * b. make the turn from them (TurnSetMaker).
  */
 export function MediaSources({ athleteId, m, onChange, step }: { athleteId: string; m: Dict; onChange?: (items: SourceItem[]) => void; step?: number }) {
   const [items, setItems] = useState<SourceItem[] | null>(null);
@@ -26,6 +28,7 @@ export function MediaSources({ athleteId, m, onChange, step }: { athleteId: stri
   const [viewing, setViewing] = useState<{ item: SourceItem; url: string } | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
   const [replaced, setReplaced] = useState<string | null>(null);
+  const [listOpen, setListOpen] = useState(false);
   // One hidden file input for "Replace"; replaceTarget says which item it is for.
   const replaceInput = useRef<HTMLInputElement>(null);
   const replaceTarget = useRef<SourceItem | null>(null);
@@ -111,6 +114,7 @@ export function MediaSources({ athleteId, m, onChange, step }: { athleteId: stri
       }
       unwrap(await recordSources(athleteId, done));
       setAdded(done.length);
+      setListOpen(true);
       await load();
     } catch (e) {
       setError(errorMessage(m, e));
@@ -225,8 +229,12 @@ export function MediaSources({ athleteId, m, onChange, step }: { athleteId: stri
         <h2 id="src-title" className="text-sm font-semibold text-text">
           {m.src_title}
         </h2>
-        {items && items.length > 0 && <span className="text-xs text-faint">{fmt(m.src_count, { photos, videos })}</span>}
       </div>
+
+      <h3 className="mt-4 flex items-center gap-2 text-sm font-semibold text-text">
+        <PartNo p="a" label={fmt(m.part_label, { p: "a" })} />
+        {m.src_partA}
+      </h3>
       <p className="mt-1 text-xs text-muted">{m.src_hint}</p>
       <ul className="mt-2 list-disc space-y-0.5 pl-5 text-xs text-faint">
         <li>{m.src_tip1}</li>
@@ -313,70 +321,77 @@ export function MediaSources({ athleteId, m, onChange, step }: { athleteId: stri
         ) : items.length === 0 ? (
           <p className="text-xs text-faint">{m.src_empty}</p>
         ) : (
-          <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-6">
-            {items.map((it) => (
-              <li key={it.id} className="flex min-w-0 flex-col overflow-hidden rounded-lg border border-border bg-surface-2">
-                <button
-                  type="button"
-                  onClick={() => view(it)}
-                  className="relative flex aspect-[3/4] w-full items-center justify-center bg-black/80"
-                  aria-label={`${m.src_view}: ${it.originalName}`}
-                >
-                  {it.thumbUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={it.thumbUrl} alt="" loading="lazy" className="h-full w-full object-contain" />
-                  ) : (
-                    <span className="px-2 text-center text-xs text-faint">{m.src_noPreview}</span>
-                  )}
-                  <span className="absolute left-1.5 top-1.5 inline-flex items-center gap-1 rounded bg-black/70 px-1.5 py-0.5 text-[10px] font-medium text-white">
-                    {it.kind === "video" ? <Film className="h-3 w-3" aria-hidden /> : <ImageIcon className="h-3 w-3" aria-hidden />}
-                    {it.kind === "video" ? m.src_video : m.src_photo}
-                    {it.kind === "video" && it.durationSec != null && ` · ${formatDuration(it.durationSec)}`}
-                  </span>
-                </button>
-                <div className="flex min-w-0 flex-1 flex-col gap-0.5 p-2">
-                  <span className="truncate text-xs font-medium text-text" title={it.originalName}>
-                    {it.originalName || "—"}
-                  </span>
-                  <span className="text-[11px] text-faint">
-                    {[it.width && it.height ? `${it.width}×${it.height}` : null, formatBytes(it.sizeBytes)].filter(Boolean).join(" · ")}
-                  </span>
-                  <span className="truncate text-[11px] text-faint">
-                    {fmt(m.src_meta, { date: new Date(it.createdAt).toLocaleString(), by: it.uploadedByName ?? "—" })}
-                  </span>
-                  <div className="mt-1 grid grid-cols-[1fr_auto] gap-1">
-                    <button type="button" onClick={() => view(it)} className="btn btn-ghost min-h-11 min-w-0 px-2 text-xs">
-                      <Eye className="h-4 w-4 shrink-0" aria-hidden />
-                      {m.src_view}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => remove(it)}
-                      disabled={deleting === it.id || !!busy}
-                      className="btn btn-ghost min-h-11 min-w-11 px-2 text-xs text-accent disabled:opacity-50"
-                      aria-label={`${m.src_delete}: ${it.originalName}`}
-                    >
-                      {deleting === it.id ? <RotateCw className="h-4 w-4 animate-spin" aria-hidden /> : <Trash2 className="h-4 w-4" aria-hidden />}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => startReplace(it)}
-                      disabled={deleting === it.id || !!busy}
-                      className="btn btn-ghost col-span-2 min-h-11 min-w-0 px-2 text-xs disabled:opacity-50"
-                      aria-label={`${m.src_replace}: ${it.originalName}`}
-                    >
-                      <RefreshCw className="h-4 w-4 shrink-0" aria-hidden />
-                      {m.src_replace}
-                    </button>
+          <details className="group/list" open={listOpen} onToggle={(e) => setListOpen(e.currentTarget.open)}>
+            <summary className="flex min-h-11 cursor-pointer list-none flex-wrap items-center gap-x-2 text-sm font-medium text-text [&::-webkit-details-marker]:hidden">
+              <ChevronDown className="h-4 w-4 shrink-0 text-muted group-open/list:rotate-180 motion-safe:transition-transform" aria-hidden />
+              {m.src_listShow}
+              <span className="text-xs font-normal text-faint">{fmt(m.src_count, { photos, videos })}</span>
+            </summary>
+            <ul className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-6">
+              {items.map((it) => (
+                <li key={it.id} className="flex min-w-0 flex-col overflow-hidden rounded-lg border border-border bg-surface-2">
+                  <button
+                    type="button"
+                    onClick={() => view(it)}
+                    className="relative flex aspect-[3/4] w-full items-center justify-center bg-black/80"
+                    aria-label={`${m.src_view}: ${it.originalName}`}
+                  >
+                    {it.thumbUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={it.thumbUrl} alt="" loading="lazy" className="h-full w-full object-contain" />
+                    ) : (
+                      <span className="px-2 text-center text-xs text-faint">{m.src_noPreview}</span>
+                    )}
+                    <span className="absolute left-1.5 top-1.5 inline-flex items-center gap-1 rounded bg-black/70 px-1.5 py-0.5 text-[10px] font-medium text-white">
+                      {it.kind === "video" ? <Film className="h-3 w-3" aria-hidden /> : <ImageIcon className="h-3 w-3" aria-hidden />}
+                      {it.kind === "video" ? m.src_video : m.src_photo}
+                      {it.kind === "video" && it.durationSec != null && ` · ${formatDuration(it.durationSec)}`}
+                    </span>
+                  </button>
+                  <div className="flex min-w-0 flex-1 flex-col gap-0.5 p-2">
+                    <span className="truncate text-xs font-medium text-text" title={it.originalName}>
+                      {it.originalName || "—"}
+                    </span>
+                    <span className="text-[11px] text-faint">
+                      {[it.width && it.height ? `${it.width}×${it.height}` : null, formatBytes(it.sizeBytes)].filter(Boolean).join(" · ")}
+                    </span>
+                    <span className="truncate text-[11px] text-faint">
+                      {fmt(m.src_meta, { date: new Date(it.createdAt).toLocaleString(), by: it.uploadedByName ?? "—" })}
+                    </span>
+                    <div className="mt-1 grid grid-cols-[1fr_auto] gap-1">
+                      <button type="button" onClick={() => view(it)} className="btn btn-ghost min-h-11 min-w-0 px-2 text-xs">
+                        <Eye className="h-4 w-4 shrink-0" aria-hidden />
+                        {m.src_view}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => remove(it)}
+                        disabled={deleting === it.id || !!busy}
+                        className="btn btn-ghost min-h-11 min-w-11 px-2 text-xs text-accent disabled:opacity-50"
+                        aria-label={`${m.src_delete}: ${it.originalName}`}
+                      >
+                        {deleting === it.id ? <RotateCw className="h-4 w-4 animate-spin" aria-hidden /> : <Trash2 className="h-4 w-4" aria-hidden />}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => startReplace(it)}
+                        disabled={deleting === it.id || !!busy}
+                        className="btn btn-ghost col-span-2 min-h-11 min-w-0 px-2 text-xs disabled:opacity-50"
+                        aria-label={`${m.src_replace}: ${it.originalName}`}
+                      >
+                        <RefreshCw className="h-4 w-4 shrink-0" aria-hidden />
+                        {m.src_replace}
+                      </button>
+                    </div>
                   </div>
-                </div>
-              </li>
-            ))}
-          </ul>
+                </li>
+              ))}
+            </ul>
+          </details>
         )}
       </div>
 
-      {items && <TurnSetMaker athleteId={athleteId} items={items} m={m} step={step ? step + 1 : undefined} />}
+      {items && <TurnSetMaker athleteId={athleteId} items={items} m={m} part="b" nudge={added > 0 && !busy} />}
 
       {viewing && (
         <div
