@@ -122,8 +122,9 @@ export function AthleteEditorClient({
         </div>
       </div>
 
-      {/* Scroll region */}
-      <div className="flex flex-col gap-4 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:pr-1">
+      {/* Scroll region. lg:relative keeps absolutely positioned children (the sr-only labels)
+          inside it; without it they escape to the page and the whole admin shell scrolls away. */}
+      <div className="flex flex-col gap-4 lg:relative lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:pr-1">
         {/* ---------- Step 1: profile ---------- */}
         <section className="card p-4">
           <div className="mb-3 flex items-center gap-3">

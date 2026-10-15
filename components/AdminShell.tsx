@@ -59,7 +59,9 @@ export function AdminShell({
   const roleLabel = tRole(m, session.role);
 
   return (
-    <div className="bg-bg lg:h-screen lg:overflow-hidden lg:supports-[height:1dvh]:h-[100dvh]">
+    // lg:relative: anything absolutely positioned that a page doesn't contain is clipped here,
+    // so the document itself never scrolls on desktop (only the page's own scroll region does).
+    <div className="bg-bg lg:relative lg:h-screen lg:overflow-hidden lg:supports-[height:1dvh]:h-[100dvh]">
       {/* Sidebar */}
       <aside
         className={`fixed inset-y-0 left-0 z-40 flex w-[calc(250px+env(safe-area-inset-left))] flex-col bg-sidebar pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] pt-[env(safe-area-inset-top)] text-sidebar-text transition-transform lg:translate-x-0 ${
