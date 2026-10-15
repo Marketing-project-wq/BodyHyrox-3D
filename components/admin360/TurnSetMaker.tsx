@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { AlertTriangle, Check, RefreshCw, RotateCw, Sparkles } from "lucide-react";
 import { TURN_SET } from "@/lib/config";
 import { type Dict, errorMessage, fmt } from "@/lib/i18n";
+import { StepNo } from "@/components/ui";
 import { unwrap } from "@/lib/action-result";
 import { markerSource, saveDraft } from "@/app/atlet/[id]/media-actions";
 import { setSourceAngle, signSource } from "@/app/atlet/[id]/source-actions";
@@ -25,7 +26,7 @@ const SIDE_NAMES = (m: Dict): Record<number, string> => ({ 0: m.view_front, 90: 
  * any pose, then saves the locked poses as a turn set into the DRAFT (the
  * studio below previews it; Publish puts it live).
  */
-export function TurnSetMaker({ athleteId, items, m }: { athleteId: string; items: SourceItem[]; m: Dict }) {
+export function TurnSetMaker({ athleteId, items, m, step }: { athleteId: string; items: SourceItem[]; m: Dict; step?: number }) {
   const router = useRouter();
   const photos = useMemo(() => items.filter((i) => i.kind === "photo"), [items]);
   const videos = useMemo(() => items.filter((i) => i.kind === "video"), [items]);
@@ -251,7 +252,8 @@ export function TurnSetMaker({ athleteId, items, m }: { athleteId: string; items
 
   return (
     <div className="mt-6 border-t border-border pt-4" aria-labelledby="ts-title">
-      <h3 id="ts-title" className="text-sm font-semibold text-text">
+      <h3 id="ts-title" className="flex items-center gap-2 text-sm font-semibold text-text">
+        {step ? <StepNo n={step} label={fmt(m.step_label, { n: step })} /> : null}
         {m.ts_title}
       </h3>
       <p className="mt-1 text-xs text-muted">{m.ts_hint}</p>

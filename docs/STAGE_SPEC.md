@@ -288,9 +288,21 @@ Calysta (18 foto).
      tinggi.
    - Ganti pose per sudut kalau perlu, lalu **Simpan ke draft** (pose dikunci di garis telapak,
      tinggi, dan tengah yang sama, 714×1680).
-4. **Studio 360:** cek putaran, sisi Depan/Kanan/Belakang/Kiri, dan titik zona di draft.
-5. **Publish:** pengaman Publish menolak kalau titik zona hilang. Setelah tayang, atlet otomatis
-   mendapat mode putaran (bagian 1.4). Atlet tanpa set putaran tetap di mode sementara (bagian 1.3).
+4. **Sisi tampilan:** pilih foto Depan / Kanan / Belakang / Kiri (masuk draft).
+5. **Titik zona:** tempatkan zona di badan (masuk draft).
+6. **Zona badan:** zona yang ditawarkan dan harganya (langsung tersimpan, bukan draft).
+7. **Cek & Publish (Studio 360):** putar pratinjau, lalu Publish. Selama ada draft, kotak kuning
+   "Ada perubahan yang belum tayang" tampil di atas tombol Publish. Pengaman Publish menolak kalau
+   titik zona hilang. Setelah tayang, atlet otomatis mendapat mode putaran (bagian 1.4). Atlet
+   tanpa set putaran tetap di mode sementara (bagian 1.3).
+8. **Media frame panggung (opsional):** video dan link Instagram per layar, dengan Simpan dan
+   Publish sendiri (bagian 5b).
+
+Halaman admin atlet mengikuti urutan ini dari atas ke bawah, dengan nomor langkah 1–8 (2026-10-15,
+permintaan owner: yang tidak penting jangan ditaruh). Alat yang jarang dipakai ada di bagian
+**"Lanjutan (jarang dipakai)"** yang tertutup di paling bawah: cara lama membuat set dari satu
+video ("Video 360°"), **Versi sebelumnya** (pulihkan versi lama), dan **Riwayat race** (perlu
+event).
 
 ## 5b. Media frame panggung (keputusan 2026-10-06; video di frame + klik ke Instagram 2026-10-09)
 

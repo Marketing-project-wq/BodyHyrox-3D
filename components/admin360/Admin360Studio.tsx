@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { createPortal } from "react-dom";
 import {
   ArrowDown,
   ArrowUp,
@@ -25,6 +26,7 @@ import {
 import { SET_NORMALIZE, SPONSOR_360_UPLOAD } from "@/lib/config";
 import { VIEW_KEYS, type Media360Views, type HotspotInput, type ViewKey } from "@/lib/views";
 import { type Dict, errorMessage, fmt } from "@/lib/i18n";
+import { StepNo } from "@/components/ui";
 import { unwrap } from "@/lib/action-result";
 import {
   footIsCurrent,
@@ -74,6 +76,8 @@ export function Admin360Studio({
   history,
   frameTools = true,
   m,
+  step,
+  versionsSlot,
 }: {
   athleteId: string;
   live: Live;
@@ -85,6 +89,10 @@ export function Admin360Studio({
   /** false = compact (set made from a video): no frame grid / per-frame tools. */
   frameTools?: boolean;
   m: Dict;
+  /** Step number on the admin athlete page. */
+  step?: number;
+  /** Where "previous versions" goes (the page's advanced section); in the card when absent. */
+  versionsSlot?: HTMLElement | null;
 }) {
   const router = useRouter();
   const { minFrames, maxFrames, maxFileMB, acceptMime } = SPONSOR_360_UPLOAD;
@@ -600,14 +608,41 @@ export function Admin360Studio({
     },
   ];
 
+  const versions = history.length > 0 ? (
+    <details className="mt-4 rounded-lg border border-border p-3">
+      <summary className="flex min-h-11 cursor-pointer items-center gap-2 text-sm font-semibold text-text">
+        <History className="h-4 w-4" /> {m.st_versions}
+      </summary>
+      <ul className="mt-2 flex flex-col gap-1.5 text-sm">
+        {history.map((h) => (
+          <li key={h.version} className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-surface-2 px-3 py-2">
+            <span className="text-muted">
+              <span className="font-semibold text-text">v{h.version}</span> · {fmt(m.st_versionFrames, { n: h.frames })} ·{" "}
+              {new Date(h.createdAt).toLocaleString()}
+              {h.actorName ? ` · ${h.actorName}` : ""}
+            </span>
+            <button type="button" onClick={() => restore(h.version)} disabled={!!busy} className="btn disabled:opacity-50">
+              <Undo2 className="h-4 w-4" /> {m.st_restoreVersion}
+            </button>
+          </li>
+        ))}
+      </ul>
+      <p className="mt-2 text-xs text-faint">{m.st_versionsHint}</p>
+    </details>
+  ) : null;
+
   return (
     <section className="card p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <span className="rounded-md border border-border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted">
-              {m.m360_admin}
-            </span>
+            {step ? (
+              <StepNo n={step} label={fmt(m.step_label, { n: step })} />
+            ) : (
+              <span className="rounded-md border border-border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted">
+                {m.m360_admin}
+              </span>
+            )}
             <h2 className="text-sm font-semibold text-text">{frameTools ? m.st_title : m.st_titleCompact}</h2>
           </div>
           <p className="mt-1 text-xs text-muted">
@@ -616,7 +651,7 @@ export function Admin360Studio({
           </p>
           <p className="mt-0.5 text-xs">
             {draft ? (
-              <span className="text-amber-600">
+              <span className="text-amber">
                 {save.state === "saving"
                   ? m.st_saving
                   : save.state === "error"
@@ -640,24 +675,29 @@ export function Admin360Studio({
         </div>
       </div>
 
+      {draft && (
+        <p role="status" className="mt-3 rounded-lg border border-amber/40 bg-amber/10 px-3 py-2.5 text-sm font-medium text-amber">
+          {m.st_unpublished}
+        </p>
+      )}
       {live.baseUrl.startsWith("/") && <p className="mt-2 rounded-lg bg-surface-2 px-3 py-2 text-xs text-muted">{m.st_bundledNote}</p>}
       {!countOk && <p className="mt-2 rounded-lg bg-accent-soft px-3 py-2 text-xs text-accent">{fmt(m.st_countWarn, { n, min: minFrames, max: maxFrames })}</p>}
       {lostViews.length > 0 && (
-        <p className="mt-2 rounded-lg bg-amber-500/10 px-3 py-2 text-xs text-amber-700">
+        <p className="mt-2 rounded-lg bg-amber/10 px-3 py-2 text-xs text-amber">
           {fmt(m.st_lostViews, { views: lostViews.map((k) => viewNames[k]).join(", ") })}
         </p>
       )}
       {draftLostViews.length > 0 && (
-        <p className="mt-2 rounded-lg bg-amber-500/10 px-3 py-2 text-xs text-amber-700">
+        <p className="mt-2 rounded-lg bg-amber/10 px-3 py-2 text-xs text-amber">
           {fmt(m.st_lostDraftViews, { views: draftLostViews.map((k) => viewNames[k]).join(", ") })}
         </p>
       )}
       {lostMarkers.length > 0 && (
-        <p className="mt-2 rounded-lg bg-amber-500/10 px-3 py-2 text-xs text-amber-700">
+        <p className="mt-2 rounded-lg bg-amber/10 px-3 py-2 text-xs text-amber">
           {fmt(m.st_lostMarkers, { n: lostMarkers.length, zones: lostMarkers.join(", ") })}
         </p>
       )}
-      {draft?.hotspots !== undefined && <p className="mt-2 rounded-lg bg-amber-500/10 px-3 py-2 text-xs text-amber-700">{m.st_resetNote}</p>}
+      {draft?.hotspots !== undefined && <p className="mt-2 rounded-lg bg-amber/10 px-3 py-2 text-xs text-amber">{m.st_resetNote}</p>}
       {error && <p className="mt-2 rounded-lg bg-accent-soft px-3 py-2 text-sm text-accent">{error}</p>}
       {notice && (
         <p className="mt-2 flex items-center gap-1.5 rounded-lg bg-[#12b76a]/10 px-3 py-2 text-sm text-[#0f9d63]">
@@ -746,7 +786,7 @@ export function Admin360Studio({
                   ))}
                 </span>
                 <span className="absolute bottom-1 left-1 flex flex-wrap gap-0.5">
-                  {isNew && <span className="rounded bg-amber-500 px-1 py-0.5 text-[9px] font-semibold text-black">{m.st_badgeNew}</span>}
+                  {isNew && <span className="rounded bg-amber px-1 py-0.5 text-[9px] font-semibold text-black">{m.st_badgeNew}</span>}
                   {t && !isIdentity(t) && <span className="rounded bg-sky-500 px-1 py-0.5 text-[9px] font-semibold text-black">{m.st_badgeAligned}</span>}
                   {marks > 0 && <span className="rounded bg-black/70 px-1 py-0.5 text-[9px] text-white">{fmt(m.st_badgeMarkers, { n: marks })}</span>}
                 </span>
@@ -781,29 +821,8 @@ export function Admin360Studio({
         </>
       )}
 
-      {/* ---- versions ---- */}
-      {history.length > 0 && (
-        <details className="mt-4 rounded-lg border border-border p-3">
-          <summary className="flex min-h-11 cursor-pointer items-center gap-2 text-sm font-semibold text-text">
-            <History className="h-4 w-4" /> {m.st_versions}
-          </summary>
-          <ul className="mt-2 flex flex-col gap-1.5 text-sm">
-            {history.map((h) => (
-              <li key={h.version} className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-surface-2 px-3 py-2">
-                <span className="text-muted">
-                  <span className="font-semibold text-text">v{h.version}</span> · {fmt(m.st_versionFrames, { n: h.frames })} ·{" "}
-                  {new Date(h.createdAt).toLocaleString()}
-                  {h.actorName ? ` · ${h.actorName}` : ""}
-                </span>
-                <button type="button" onClick={() => restore(h.version)} disabled={!!busy} className="btn disabled:opacity-50">
-                  <Undo2 className="h-4 w-4" /> {m.st_restoreVersion}
-                </button>
-              </li>
-            ))}
-          </ul>
-          <p className="mt-2 text-xs text-faint">{m.st_versionsHint}</p>
-        </details>
-      )}
+      {/* ---- versions (in place, or in the page's "advanced" section) ---- */}
+      {versions && (versionsSlot ? createPortal(versions, versionsSlot) : versions)}
 
       {/* ---- tile actions (touch) ---- */}
       {actionsFor != null && frames[actionsFor] && (

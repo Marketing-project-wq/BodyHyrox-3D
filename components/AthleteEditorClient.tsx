@@ -8,7 +8,7 @@ import type { AdminAthleteDetail, AdminZoneRow, EventRow, ZoneStatus } from "@/l
 import { ACTIVE_STATUS, VIDEO_360, type BadgeTone } from "@/lib/config";
 import { type Dict, fmt, tActive } from "@/lib/i18n";
 import { formatIDR, formatIDRCompact, formatDayMonth, initials } from "@/lib/format";
-import { Badge } from "@/components/ui";
+import { Badge, StepNo } from "@/components/ui";
 import { ConfirmButton } from "@/components/ConfirmButton";
 import { Athlete360Admin } from "@/components/Athlete360Admin";
 import { Athlete360VideoAdmin } from "@/components/Athlete360VideoAdmin";
@@ -81,6 +81,9 @@ export function AthleteEditorClient({
   m: Dict;
 }) {
   const [photo, setPhoto] = useState(athlete.photoUrl ?? "");
+  // "Previous versions" of the 360 set is drawn in the advanced section at the bottom.
+  const [versionsSlot, setVersionsSlot] = useState<HTMLElement | null>(null);
+  const stepLabel = (n: number) => fmt(m.step_label, { n });
   // Sides picker + zone placer work on the draft when there is one (published with it).
   const sides = (() => {
     const src = sidesSource(
@@ -121,10 +124,13 @@ export function AthleteEditorClient({
 
       {/* Scroll region */}
       <div className="flex flex-col gap-4 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:pr-1">
-        {/* ---------- Profile ---------- */}
+        {/* ---------- Step 1: profile ---------- */}
         <section className="card p-4">
           <div className="mb-3 flex items-center gap-3">
-            <h2 className="text-sm font-semibold text-text">{m.ae_profile}</h2>
+            <h2 className="flex items-center gap-2 text-sm font-semibold text-text">
+              <StepNo n={1} label={stepLabel(1)} />
+              {m.ae_profile}
+            </h2>
             {saved && (
               <span className="rounded-full bg-[#12b76a]/15 px-2.5 py-0.5 text-xs font-medium text-[#12b76a]">
                 Tersimpan ✓
@@ -310,51 +316,12 @@ export function AthleteEditorClient({
               )}
             </div>
           </ActionForm>
-          {/* Stage frame media: one link per neon screen (every athlete). Own
-              save / publish, outside the profile form. */}
-          {canEdit && (
-            <div className="mt-5 border-t border-border pt-4">
-              <StageMediaEditor athleteId={athlete.id} m={m} embedded />
-            </div>
-          )}
         </section>
 
-        {/* ---------- 360 materials: original photos + videos (every athlete) ---------- */}
-        {canEdit && <MediaSources athleteId={athlete.id} m={m} />}
+        {/* ---------- Steps 2–3: 360 materials (photos / videos), then the turn set made from them ---------- */}
+        {canEdit && <MediaSources athleteId={athlete.id} step={2} m={m} />}
 
-        {/* ---------- 360° set (admin upload: one video, or photos) ---------- */}
-        {canEdit && VIDEO_360.source === "video" && (
-          <Athlete360VideoAdmin athleteId={athlete.id} currentFrames={media360.frames} hasDraft={!!media360.draft} m={m} />
-        )}
-        {canEdit && VIDEO_360.source !== "video" && (
-          <Athlete360Admin
-            athleteId={athlete.id}
-            currentFrames={media360.frames}
-            isPlaceholder={media360.isPlaceholder}
-            m={m}
-          />
-        )}
-        {canEdit && (media360.frames > 0 || media360.draft) && (
-          <Admin360Studio
-            key={`${media360.version}:${media360.draft?.updatedAt ?? "none"}`}
-            athleteId={athlete.id}
-            live={{
-              baseUrl: media360.baseUrl,
-              frames: media360.frameNames,
-              frameMeta: media360.frameMeta,
-              views: media360.views,
-              viewsSaved: media360.viewsSaved,
-              hotspots: media360.hotspots,
-            }}
-            initialDraft={media360.draft}
-            initialUrls={media360.draftUrls}
-            version={media360.version}
-            publishedAt={media360.publishedAt}
-            history={media360.history}
-            frameTools={VIDEO_360.source !== "video"}
-            m={m}
-          />
-        )}
+        {/* ---------- Step 4: which photo is each side ---------- */}
         {canEdit && sides.views && (
           <AthleteViewsPicker
             key={`${sides.frames.join("|")}#${JSON.stringify(sides.views)}`}
@@ -364,9 +331,11 @@ export function AthleteEditorClient({
             views={sides.views}
             saved={media360.viewsSaved || sides.pendingViews}
             pending={sides.pendingViews}
+            step={4}
             m={m}
           />
         )}
+        {/* ---------- Step 5: zone markers on the body ---------- */}
         {canEdit && sides.views && (
           <AthleteZonesPlacer
             key={`${sides.frames.join("|")}#${JSON.stringify(sides.views)}#${JSON.stringify(sides.hotspots)}`}
@@ -377,14 +346,18 @@ export function AthleteEditorClient({
             zones={athlete.zones}
             initial={sides.hotspots}
             pending={sides.pendingHotspots}
+            step={5}
             m={m}
           />
         )}
 
-        {/* ---------- Body zones ---------- */}
+        {/* ---------- Step 6: body zones offered + prices (saved right away) ---------- */}
         <section className="card p-4">
           <div className="mb-1 flex items-center justify-between gap-2">
-            <h2 className="text-sm font-semibold text-text">{m.ae_zones}</h2>
+            <h2 className="flex items-center gap-2 text-sm font-semibold text-text">
+              <StepNo n={6} label={stepLabel(6)} />
+              {m.ae_zones}
+            </h2>
           </div>
           <p className="mb-2 text-xs text-muted">{m.ae_zonesHint}</p>
           {canPricing ? (
@@ -426,89 +399,136 @@ export function AthleteEditorClient({
           </div>
         </section>
 
-        {/* ---------- Race history ---------- */}
-        <section className="card p-4">
-          <h2 className="mb-1 text-sm font-semibold text-text">{m.ae_races}</h2>
-          <p className="mb-3 text-xs text-muted">{m.ae_racesHint}</p>
+        {/* ---------- Step 7: check, then publish (sponsors see it after this) ---------- */}
+        {canEdit && (media360.frames > 0 || media360.draft) && (
+          <Admin360Studio
+            key={`${media360.version}:${media360.draft?.updatedAt ?? "none"}`}
+            athleteId={athlete.id}
+            live={{
+              baseUrl: media360.baseUrl,
+              frames: media360.frameNames,
+              frameMeta: media360.frameMeta,
+              views: media360.views,
+              viewsSaved: media360.viewsSaved,
+              hotspots: media360.hotspots,
+            }}
+            initialDraft={media360.draft}
+            initialUrls={media360.draftUrls}
+            version={media360.version}
+            publishedAt={media360.publishedAt}
+            history={media360.history}
+            frameTools={VIDEO_360.source !== "video"}
+            step={7}
+            versionsSlot={versionsSlot}
+            m={m}
+          />
+        )}
+        {/* ---------- Step 8 (optional): stage frame media, its own save / publish ---------- */}
+        {canEdit && <StageMediaEditor athleteId={athlete.id} step={8} m={m} />}
 
-          {canEdit && (
-            events.length === 0 ? (
-              <p className="mb-3 rounded-lg border border-border bg-surface-2 px-3 py-2 text-xs text-muted">
-                {m.ae_noEvents}
-              </p>
-            ) : (
-              <ActionForm m={m}
-                action={addAthleteRace}
-                className="mb-4 grid grid-cols-1 gap-2 rounded-lg border border-border bg-surface-2 p-3 sm:grid-cols-[1fr_120px_auto_auto]"
-              >
-                <input type="hidden" name="athlete_id" value={athlete.id} />
-                <select name="event_id" required className="input" defaultValue="">
-                  <option value="" disabled>{m.ae_event}…</option>
-                  {events.map((e) => (
-                    <option key={e.id} value={e.id}>
-                      {e.nama} · {formatDayMonth(e.date)}
-                    </option>
+        {/* ---------- Advanced (closed): rarely used tools ---------- */}
+        <details className="rounded-xl border border-dashed border-border p-3">
+          <summary className="flex min-h-11 cursor-pointer items-center text-sm font-semibold text-muted">{m.adv_title}</summary>
+          <p className="mb-3 text-xs text-faint">{m.adv_hint}</p>
+          <div className="flex flex-col gap-4">
+            {/* Older way to make the 360 set: one video, or photos */}
+            {canEdit && VIDEO_360.source === "video" && (
+              <Athlete360VideoAdmin athleteId={athlete.id} currentFrames={media360.frames} hasDraft={!!media360.draft} m={m} />
+            )}
+            {canEdit && VIDEO_360.source !== "video" && (
+              <Athlete360Admin
+                athleteId={athlete.id}
+                currentFrames={media360.frames}
+                isPlaceholder={media360.isPlaceholder}
+                m={m}
+              />
+            )}
+            <div ref={setVersionsSlot} />
+            {/* Race history (needs events) */}
+            <section className="card p-4">
+              <h2 className="mb-1 text-sm font-semibold text-text">{m.ae_races}</h2>
+              <p className="mb-3 text-xs text-muted">{m.ae_racesHint}</p>
+
+              {canEdit && (
+                events.length === 0 ? (
+                  <p className="mb-3 rounded-lg border border-border bg-surface-2 px-3 py-2 text-xs text-muted">
+                    {m.ae_noEvents}
+                  </p>
+                ) : (
+                  <ActionForm m={m}
+                    action={addAthleteRace}
+                    className="mb-4 grid grid-cols-1 gap-2 rounded-lg border border-border bg-surface-2 p-3 sm:grid-cols-[1fr_120px_auto_auto]"
+                  >
+                    <input type="hidden" name="athlete_id" value={athlete.id} />
+                    <select name="event_id" required className="input" defaultValue="">
+                      <option value="" disabled>{m.ae_event}…</option>
+                      {events.map((e) => (
+                        <option key={e.id} value={e.id}>
+                          {e.nama} · {formatDayMonth(e.date)}
+                        </option>
+                      ))}
+                    </select>
+                    <input
+                      name="placement"
+                      type="number"
+                      min="1"
+                      placeholder={m.ae_placement}
+                      className="input"
+                      title={m.ae_placementHint}
+                    />
+                    <label className="flex min-h-11 items-center gap-2 px-1 text-sm text-muted">
+                      <input type="checkbox" name="is_podium" className="h-4 w-4 accent-accent" />
+                      {m.ae_podium}
+                    </label>
+                    <button type="submit" className="btn btn-primary whitespace-nowrap">
+                      <Plus size={16} /> {m.ae_addRace}
+                    </button>
+                  </ActionForm>
+                )
+              )}
+
+              {athlete.races.length === 0 ? (
+                <p className="text-sm text-faint">{m.ae_noRaces}</p>
+              ) : (
+                <ul className="flex flex-col divide-y divide-border">
+                  {athlete.races.map((r) => (
+                    <li key={r.id} className="flex items-center justify-between gap-3 py-2.5">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="truncate font-medium text-text">{r.event}</span>
+                          {r.isPodium && (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-[rgba(183,121,31,0.14)] px-2 py-0.5 text-[11px] font-medium text-amber">
+                              <Trophy size={11} />
+                              {r.placement ? `#${r.placement}` : m.ae_podium}
+                            </span>
+                          )}
+                          {!r.isPodium && r.placement && (
+                            <span className="tabnum text-xs text-muted">#{r.placement}</span>
+                          )}
+                        </div>
+                        <div className="truncate text-xs text-faint">
+                          {r.venue} · {formatDayMonth(r.date)}
+                        </div>
+                      </div>
+                      {canEdit && (
+                        <ActionForm m={m} action={deleteAthleteRace} className="shrink-0">
+                          <input type="hidden" name="id" value={r.id} />
+                          <input type="hidden" name="athlete_id" value={athlete.id} />
+                          <ConfirmButton
+                            message={fmt(m.ae_confirmRemoveRace, { event: r.event, name: athlete.nama })}
+                            className="flex items-center gap-1 text-xs font-medium text-accent hover:underline"
+                          >
+                            <Trash2 size={13} /> {m.ae_removeRace}
+                          </ConfirmButton>
+                        </ActionForm>
+                      )}
+                    </li>
                   ))}
-                </select>
-                <input
-                  name="placement"
-                  type="number"
-                  min="1"
-                  placeholder={m.ae_placement}
-                  className="input"
-                  title={m.ae_placementHint}
-                />
-                <label className="flex min-h-11 items-center gap-2 px-1 text-sm text-muted">
-                  <input type="checkbox" name="is_podium" className="h-4 w-4 accent-accent" />
-                  {m.ae_podium}
-                </label>
-                <button type="submit" className="btn btn-primary whitespace-nowrap">
-                  <Plus size={16} /> {m.ae_addRace}
-                </button>
-              </ActionForm>
-            )
-          )}
-
-          {athlete.races.length === 0 ? (
-            <p className="text-sm text-faint">{m.ae_noRaces}</p>
-          ) : (
-            <ul className="flex flex-col divide-y divide-border">
-              {athlete.races.map((r) => (
-                <li key={r.id} className="flex items-center justify-between gap-3 py-2.5">
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="truncate font-medium text-text">{r.event}</span>
-                      {r.isPodium && (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-[rgba(183,121,31,0.14)] px-2 py-0.5 text-[11px] font-medium text-amber">
-                          <Trophy size={11} />
-                          {r.placement ? `#${r.placement}` : m.ae_podium}
-                        </span>
-                      )}
-                      {!r.isPodium && r.placement && (
-                        <span className="tabnum text-xs text-muted">#{r.placement}</span>
-                      )}
-                    </div>
-                    <div className="truncate text-xs text-faint">
-                      {r.venue} · {formatDayMonth(r.date)}
-                    </div>
-                  </div>
-                  {canEdit && (
-                    <ActionForm m={m} action={deleteAthleteRace} className="shrink-0">
-                      <input type="hidden" name="id" value={r.id} />
-                      <input type="hidden" name="athlete_id" value={athlete.id} />
-                      <ConfirmButton
-                        message={fmt(m.ae_confirmRemoveRace, { event: r.event, name: athlete.nama })}
-                        className="flex items-center gap-1 text-xs font-medium text-accent hover:underline"
-                      >
-                        <Trash2 size={13} /> {m.ae_removeRace}
-                      </ConfirmButton>
-                    </ActionForm>
-                  )}
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
+                </ul>
+              )}
+            </section>
+          </div>
+        </details>
       </div>
     </div>
   );

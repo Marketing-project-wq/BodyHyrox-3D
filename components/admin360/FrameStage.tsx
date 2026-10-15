@@ -116,10 +116,10 @@ export function FrameStage({
         <div className="pointer-events-none absolute inset-0">
           <div className="absolute inset-y-0 left-1/2 w-px bg-cyan-300/70" />
           {targetX != null && (
-            <div className="absolute inset-y-0 w-px border-l border-dashed border-amber-300/80" style={{ left: `${targetX * 100}%` }} />
+            <div className="absolute inset-y-0 w-px border-l border-dashed border-amber/80" style={{ left: `${targetX * 100}%` }} />
           )}
           {headY != null && (
-            <div className="absolute inset-x-0 h-px border-t border-dashed border-amber-300/80" style={{ top: `${headY * 100}%` }} />
+            <div className="absolute inset-x-0 h-px border-t border-dashed border-amber/80" style={{ top: `${headY * 100}%` }} />
           )}
           <div className="absolute inset-x-0 h-px bg-[#00b4ff]" style={{ top: `${GROUND * 100}%` }} />
         </div>

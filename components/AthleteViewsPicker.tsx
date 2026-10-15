@@ -4,7 +4,8 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Check, RotateCw } from "lucide-react";
 import { VIEW_KEYS, type Media360Views, type ViewKey } from "@/lib/views";
-import { type Dict, errorMessage } from "@/lib/i18n";
+import { type Dict, errorMessage, fmt } from "@/lib/i18n";
+import { StepNo } from "@/components/ui";
 import { unwrap } from "@/lib/action-result";
 import { saveDraftSides } from "@/app/atlet/[id]/media-actions";
 
@@ -21,6 +22,7 @@ export function AthleteViewsPicker({
   saved,
   pending: draftPending,
   m,
+  step,
 }: {
   athleteId: string;
   /** Frames to choose from (the draft's when there is one). */
@@ -33,6 +35,8 @@ export function AthleteViewsPicker({
   /** The draft carries sides that are not published yet. */
   pending: boolean;
   m: Dict;
+  /** Step number on the admin athlete page. */
+  step?: number;
 }) {
   const router = useRouter();
   const [pick, setPick] = useState<Media360Views>(views);
@@ -62,10 +66,13 @@ export function AthleteViewsPicker({
 
   return (
     <section className="card p-4">
-      <h2 className="text-sm font-semibold text-text">{m.m360_views_title}</h2>
+      <h2 className="flex items-center gap-2 text-sm font-semibold text-text">
+        {step ? <StepNo n={step} label={fmt(m.step_label, { n: step })} /> : null}
+        {m.m360_views_title}
+      </h2>
       <p className="mt-1 text-xs text-muted">{m.m360_views_hint}</p>
       {!saved && <p className="mt-1 text-xs text-faint">{m.m360_views_auto}</p>}
-      {draftPending && <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">{m.m360_sides_pending}</p>}
+      {draftPending && <p className="mt-2 rounded-lg bg-amber/10 px-3 py-2 text-xs text-amber">{m.m360_sides_pending}</p>}
 
       <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
         {VIEW_KEYS.map((k) => (
