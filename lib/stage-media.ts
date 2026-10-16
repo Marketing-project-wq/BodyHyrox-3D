@@ -15,10 +15,11 @@ export type StageMediaSlot = {
   /** Normalized https link (YouTube: https://www.youtube.com/watch?v=<id>; Instagram: https://www.instagram.com/<p|reel|tv>/<code>/). */
   url: string;
   /**
-   * Where a click on the screen goes: the athlete's Instagram post / reel
-   * (normalized like `url`), or null (the screen is not clickable). For an
-   * Instagram-only screen (kind "instagram") it is that post. Optional in
-   * stored rows (added 2026-10-09, same jsonb, no SQL).
+   * The athlete's Instagram post / reel (normalized like `url`), or null. For
+   * an Instagram-only screen (kind "instagram") it is that post, which the
+   * pop-up shows in Instagram's player; next to a video it is kept but not
+   * used (2026-10-16: a click plays the video, nothing opens Instagram).
+   * Optional in stored rows (added 2026-10-09, same jsonb, no SQL).
    */
   ig: string | null;
   ytId: string | null;
@@ -193,7 +194,9 @@ export type StageScreen = {
   url: string;
   /** Video file played inside the frame (kind "video"), else null. */
   video: string | null;
-  /** Click target: the Instagram post / reel (opens in a new tab), else null. */
+  /** Width / height of the picture (a video's poster has the video's shape), when known. */
+  aspect: number | null;
+  /** The Instagram post / reel the admin linked, else null. Not a click target any more (screenAction). */
   ig: string | null;
   title: string | null;
 };
@@ -208,19 +211,21 @@ export function stageScreens(media: StageMedia, supabaseUrl: string): StageScree
       ytId: s.ytId,
       url: s.url,
       video: s.kind === "video" ? s.url : null,
+      aspect: s.w && s.h ? s.w / s.h : null,
       ig: s.ig,
       title: s.title,
     }));
 }
 
 /**
- * What a click on a screen does: open the Instagram post (any screen with a
- * link), play a YouTube video in the lightbox (it can't play inside the
- * frame), or nothing.
+ * What a click on a screen does (owner 2026-10-16: visitors stay on the page,
+ * nothing opens Instagram): a screen with something to play opens the pop-up
+ * (StageMediaLightbox): its video file, its YouTube video, or, for a screen
+ * with only an Instagram post / reel, Instagram's official player (until an
+ * MP4 is added). A picture alone: nothing.
  */
-export function screenAction(s: Pick<StageScreen, "ig" | "kind">): "instagram" | "lightbox" | null {
-  if (s.ig) return "instagram";
-  return s.kind === "youtube" ? "lightbox" : null;
+export function screenAction(s: Pick<StageScreen, "kind">): "lightbox" | null {
+  return s.kind === "video" || s.kind === "youtube" || s.kind === "instagram" ? "lightbox" : null;
 }
 
 /**

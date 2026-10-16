@@ -19,20 +19,6 @@ import type { ArenaHandle } from "@/components/StageArena3D";
 import { StageMediaLightbox } from "@/components/StageMediaLightbox";
 import { screenAction, type StageScreen } from "@/lib/stage-media";
 
-/**
- * Open an athlete's Instagram post in a new tab, the way a link does (so a
- * phone with the Instagram app can hand it over). Called from a tap / click.
- */
-function openInstagram(url: string) {
-  const a = document.createElement("a");
-  a.href = url;
-  a.target = "_blank";
-  a.rel = "noopener noreferrer";
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-}
-
 // three.js + r3f load only on the client, after first paint, and only when WebGL
 // exists; until then (or without WebGL) the flat CSS ring platform shows.
 const ViewportDebug = dynamic(() => import("@/components/ViewportDebug").then((mod) => mod.ViewportDebug), { ssr: false });
@@ -927,9 +913,9 @@ export function AthleteStageCard({
     [holdNow, resumeLater],
   );
   // Stage frame media: tap a screen (not the athlete, not a button). A screen
-  // with an Instagram link opens that post in a new tab; a YouTube screen opens
-  // the lightbox (the spin holds while it is open, like a zone card); other
-  // screens can't be clicked. A drag / swipe never counts as a tap.
+  // with something to play opens the pop-up (the spin and the frame videos
+  // hold while it is open, like a zone card); nothing leaves the page
+  // (screenAction). A drag / swipe never counts as a tap.
   const screens = athlete.stageScreens ?? NO_SCREENS;
   const [media, setMedia] = useState<StageScreen | null>(null);
   const openMedia = useCallback(
@@ -962,9 +948,7 @@ export function AthleteStageCard({
     if (zoomShownRef.current) return; // zoomed: a tap outside closes the zoom instead
     if (!d || Math.hypot(e.clientX - d.x, e.clientY - d.y) > 8 || performance.now() - d.t > 600) return;
     const sc = screenAt(e);
-    const act = sc ? screenAction(sc) : null;
-    if (act === "instagram") openInstagram(sc!.ig!);
-    else if (act === "lightbox") openMedia(sc);
+    if (sc && screenAction(sc)) openMedia(sc);
   };
   const hoverSlotRef = useRef<number | null>(null);
   const setHoverSlot = (slot: number | null) => {
@@ -982,7 +966,7 @@ export function AthleteStageCard({
   const clickableScreens = screens.filter((sc) => screenAction(sc));
   const screenLinkLabel = (sc: StageScreen) => {
     const screen = sc.title || fmt(m.sml_screen, { n: sc.slot + 1 });
-    return sc.ig ? fmt(m.sml_ig_post, { name: athlete.nama, screen }) : fmt(m.sml_play, { title: screen });
+    return fmt(m.sml_play_screen, { name: athlete.nama, screen });
   };
   // No 3D frames (no WebGL / CSS platform): the screens as a row of still posters under the stage.
   const showStrip = !arenaWanted && photosReady && screens.some((sc) => sc.picture || sc.kind === "instagram");
@@ -1655,8 +1639,8 @@ export function AthleteStageCard({
           )}
 
           {/* Without the 3D frames: the screens as still posters under the
-              stage (below the "Place Your Logo" button); the Instagram ones
-              open the post, a YouTube one the lightbox. */}
+              stage (below the "Place Your Logo" button); a tap opens the
+              pop-up, like a tap on a 3D screen. */}
           {showStrip && (
             <div className="absolute inset-x-0 bottom-3 z-20 flex justify-center px-3">
               <ul aria-label={m.sml_media} className="flex max-w-full items-end gap-2 overflow-x-auto overscroll-x-contain pb-1">
@@ -1674,22 +1658,13 @@ export function AthleteStageCard({
                             <Camera className="h-5 w-5" aria-hidden />
                           </span>
                         )}
-                        {sc.kind === "youtube" && <Play className="absolute left-1/2 top-1/2 h-5 w-5 -translate-x-1/2 -translate-y-1/2 fill-white text-white" aria-hidden />}
-                        {sc.ig && (
-                          <span className="absolute right-0.5 top-0.5 flex h-4 w-4 items-center justify-center rounded bg-[linear-gradient(135deg,#feda75,#d62976_50%,#4f5bd5)] text-white" aria-hidden>
-                            <Camera className="h-2.5 w-2.5" />
-                          </span>
-                        )}
+                        {act && <Play className="absolute left-1/2 top-1/2 h-5 w-5 -translate-x-1/2 -translate-y-1/2 fill-white text-white drop-shadow" aria-hidden />}
                       </>
                     );
                     const size = { width: STAGE_MEDIA.fallbackTile.w, height: STAGE_MEDIA.fallbackTile.h };
                     return (
                       <li key={sc.slot} className="shrink-0">
-                        {act === "instagram" ? (
-                          <a href={sc.ig!} target="_blank" rel="noopener noreferrer" aria-label={screenLinkLabel(sc)} className="stage-strip-tile stage-strip-link" style={size}>
-                            {tile}
-                          </a>
-                        ) : act === "lightbox" ? (
+                        {act ? (
                           <button type="button" onClick={() => openMedia(sc)} aria-label={screenLinkLabel(sc)} className="stage-strip-tile stage-strip-link" style={size}>
                             {tile}
                           </button>
@@ -1715,24 +1690,13 @@ export function AthleteStageCard({
         <ul className="absolute left-3 top-3 z-40 flex flex-col gap-1">
           {clickableScreens.map((sc) => (
             <li key={sc.slot}>
-              {sc.ig ? (
-                <a
-                  href={sc.ig}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="sr-only rounded-full bg-black/80 px-4 py-2 text-xs font-semibold text-white focus:not-sr-only focus:inline-flex focus:min-h-11 focus:items-center"
-                >
-                  {screenLinkLabel(sc)}
-                </a>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => openMedia(sc)}
-                  className="sr-only rounded-full bg-black/80 px-4 py-2 text-xs font-semibold text-white focus:not-sr-only focus:inline-flex focus:min-h-11 focus:items-center"
-                >
-                  {screenLinkLabel(sc)}
-                </button>
-              )}
+              <button
+                type="button"
+                onClick={() => openMedia(sc)}
+                className="sr-only rounded-full bg-black/80 px-4 py-2 text-xs font-semibold text-white focus:not-sr-only focus:inline-flex focus:min-h-11 focus:items-center"
+              >
+                {screenLinkLabel(sc)}
+              </button>
             </li>
           ))}
         </ul>

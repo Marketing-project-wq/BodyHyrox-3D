@@ -899,6 +899,11 @@ export const STAGE_SOLE = {
  *   much brighter, with a soft glow in the theme colour around it.
  * - fallbackTile: size (CSS px) of each poster in the row shown under the
  *   stage when there are no 3D frames (no WebGL); >= 44 px wide (touch).
+ * - popup: the pop-up a click on a screen opens (StageMediaLightbox): the
+ *   video is at most `videoMaxH` px tall and leaves `reservedH` px of the
+ *   screen height for the title bar and the margins; for `ghostClickMs` after
+ *   it opens, a click / press on its backdrop is ignored (some phones send the
+ *   opening tap's click to whatever is under the finger by then).
  */
 export const STAGE_MEDIA = {
   slots: 6,
@@ -923,6 +928,7 @@ export const STAGE_MEDIA = {
   hoverBoost: 1.45,
   glowOpacity: 0.55,
   fallbackTile: { w: 48, h: 80 },
+  popup: { videoMaxH: 900, reservedH: 96, ghostClickMs: 500 },
 };
 
 /**

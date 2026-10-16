@@ -6,7 +6,7 @@ Kalau kode, komentar, config, atau dokumen lain bertentangan dengan dokumen ini,
 yang benar. Kalau instruksi pemilik yang lebih baru bertentangan dengan dokumen ini, ikuti
 instruksi terbaru dan perbarui dokumen ini di PR yang sama.
 
-Terakhir diperbarui: 2026-10-09 (kabut panggung `STAGE_FOG` dimatikan sementara; media frame: video MP4 di frame + klik ke Instagram, bagian 5b).
+Terakhir diperbarui: 2026-10-16 (media frame: klik layar membuka pop-up video, tidak lagi ke Instagram, bagian 5b; 2026-10-15 alur admin langkah 1–7, bagian 5; 2026-10-09 kabut panggung `STAGE_FOG` dimatikan sementara).
 
 ---
 
@@ -315,18 +315,20 @@ permintaan owner: yang tidak penting jangan ditaruh). Alat yang jarang dipakai a
 video ("Video 360°"), **Versi sebelumnya** (pulihkan versi lama), dan **Riwayat race** (perlu
 event).
 
-## 5b. Media frame panggung (keputusan 2026-10-06; video di frame + klik ke Instagram 2026-10-09)
+## 5b. Media frame panggung (keputusan 2026-10-06; video di frame 2026-10-09; klik = pop-up video 2026-10-16)
 
 - **Tujuan:** layar neon di arena 3D di belakang atlet memutar **video MP4** atlet di dalam frame.
-  Klik/tap layar membawa pengunjung ke **postingan Instagram** atlet. Berlaku untuk semua atlet,
-  diatur per atlet, dan layar ikut berputar bersama latar.
+  Klik/tap layar membuka **pop-up yang memutar video itu**; pengunjung tetap di halaman, tidak ada
+  yang membuka Instagram (keputusan owner 2026-10-16). Berlaku untuk semua atlet, diatur per atlet,
+  dan layar ikut berputar bersama latar.
 - **Admin: dua kolom per layar**, maksimal 6 layar (`STAGE_MEDIA.slots`). Admin hanya menempel
   link (tidak upload). Satu tombol **Cek link** mengecek kedua kolom, lalu simpan ke draft dan
   **Publish**.
   - **Kolom 1 "Video (MP4)":** file `.mp4`/`.webm` yang diputar di frame. Link YouTube atau gambar
     juga masih diterima (data lama tetap jalan).
-  - **Kolom 2 "Link Instagram (tujuan klik)":** postingan/reel Instagram (`instagram.com/p/…`,
-    `/reel/…`, juga `instagram.com/<user>/p/<kode>/`). Opsional.
+  - **Kolom 2 "Link Instagram (opsional, hanya dipakai kalau kolom video kosong)":** postingan/reel
+    Instagram (`instagram.com/p/…`, `/reel/…`, juga `instagram.com/<user>/p/<kode>/`). Kalau kolom 1
+    terisi, link ini tetap tersimpan tapi tidak dipakai (admin melihat catatan "Tidak dipakai").
   - **Layar hanya Instagram** (kolom 1 kosong) tetap didukung: tampil sampul postingan atau kartu
     Instagram. Link Instagram yang ditempel di kolom 1 dipindah otomatis ke kolom 2. Kalau kolom 2
     sudah berisi link Instagram yang sama, link di kolom 1 cukup dihapus (dengan catatan). Kalau
@@ -371,8 +373,9 @@ event).
   (`supabase/migrations/20261007_smb_stage_media.sql`, **sudah dijalankan 2026-10-06**).
   - Bentuk jsonb:
     `{ v: 1, slots: [{ slot, kind, url, ig, ytId, thumb, w, h, title, checkedAt }] }`.
-  - `ig` (2026-10-09) = link Instagram tujuan klik, atau `null`. Untuk `kind: "instagram"`, `ig`
-    sama dengan `url`.
+  - `ig` (2026-10-09) = link Instagram, atau `null`. Untuk `kind: "instagram"`, `ig` sama dengan
+    `url`. Sejak 2026-10-16 bukan lagi tujuan klik; di samping video, `ig` disimpan tapi tidak
+    dipakai.
   - **Tanpa SQL baru:** `smb_check_stage_media` hanya memeriksa kunci yang dikenalnya, jadi `ig`
     tersimpan apa adanya. Sudah diuji dengan fungsi SQL asli di Postgres lokal. App membersihkan
     `ig` lagi saat membaca (`parseStageMedia`).
@@ -389,24 +392,36 @@ event).
     - autoplay ditolak (Mode Hemat Daya iOS);
     - video gagal dimuat (misalnya tanpa CORS);
     - video belum mulai dalam 8 detik.
-  - **Klik/tap:**
-    - layar dengan link Instagram membuka postingan di tab baru (di HP, aplikasi Instagram kalau
-      terpasang);
-    - layar YouTube membuka lightbox (pengecualian, karena YouTube tidak bisa diputar di frame);
-    - layar lain tidak bisa diklik.
-    - Geser/drag tidak pernah membuka Instagram (tap = gerak ≤ 8 px dan ≤ 600 ms).
+  - **Klik/tap = pop-up** (`StageMediaLightbox`, `screenAction`; 2026-10-16):
+    - **layar video MP4:** pop-up memutar file yang sama, setegak bentuk videonya (kebanyakan reel
+      tegak), setinggi layar mengizinkan (`STAGE_MEDIA.popup`), dengan kontrol play/pause/volume.
+      - Langsung diputar **dengan suara** kalau browser mengizinkan (tap yang membuka pop-up
+        dihitung); kalau ditolak (biasanya iPhone), diputar tanpa suara dengan tombol
+        **"Nyalakan suara"**.
+      - `<video>` biasa tanpa `crossOrigin`, jadi host video **tidak perlu CORS** untuk pop-up
+        (CORS hanya untuk video di dalam frame 3D); iPhone tetap butuh Range.
+      - Video yang gagal dimuat menampilkan "Video ini tidak bisa diputar sekarang."
+    - **layar yang hanya berisi link Instagram:** pop-up menampilkan pemutar resmi Instagram
+      (embed). Tampilan Instagram (nama akun, caption, tombol Instagram) ada di dalam embed dan tidak
+      bisa dihilangkan. Ini sementara untuk Calysta: owner memilih menggantinya dengan file MP4
+      (opsi A, 2026-10-16), tanpa perubahan kode.
+    - **layar YouTube:** pop-up dengan pemutar YouTube (seperti sebelumnya).
+    - **layar gambar:** tidak bisa diklik.
+    - Ditutup dengan ×, Esc, atau tap di luar. Selama pop-up terbuka, putaran atlet dan video di
+      frame berhenti.
+    - Geser/drag tidak pernah membuka pop-up (tap = gerak ≤ 8 px dan ≤ 600 ms).
     - Di dalam kotak atlet, tap hanya diteruskan ke layar di tempat yang transparan (bukan badan
       atlet), dan tidak saat video putaran menutupinya.
-  - **Tanda bisa diklik:** ikon Instagram kecil di pojok layar; di desktop kursor pointer dan
-    layar sedikit lebih terang dengan glow warna tema saat di-hover (`hoverBoost`,
-    `glowOpacity`).
-  - **Keyboard/pembaca layar:** link tersembunyi per layar yang bisa diklik, muncul saat fokus,
-    misalnya "Lihat postingan Instagram Andrew (layar 3)".
+  - **Tanda bisa diklik:** ikon ▶ kecil di pojok layar (YouTube: ▶ besar di tengah); di desktop
+    kursor pointer dan layar sedikit lebih terang dengan glow warna tema saat di-hover
+    (`hoverBoost`, `glowOpacity`).
+  - **Keyboard/pembaca layar:** tombol tersembunyi per layar yang bisa diklik, muncul saat fokus,
+    misalnya "Putar video Andrew (layar 3)"; membuka pop-up yang sama.
   - **Tanpa WebGL** (platform CSS): layar tampil sebagai baris poster kecil di bawah tombol
     "Pasang Logo di Sini".
     - Ukuran tile `STAGE_MEDIA.fallbackTile`, ≥ 44 px.
     - Satu baris; bisa digeser ke samping kalau tidak muat.
-    - Tile Instagram berupa link, tile YouTube membuka lightbox.
+    - Tile yang bisa diputar memakai ikon ▶ dan membuka pop-up yang sama.
     - CSP `frame-src 'self' https://www.youtube-nocookie.com https://www.instagram.com` di
       `/atlet/*`.
 
