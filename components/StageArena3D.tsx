@@ -6,7 +6,7 @@ import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { STAGE_ARENA as A, STAGE_MEDIA, STAGE_PLATFORM_ROUND } from "@/lib/config";
 import { deviceClass } from "@/lib/frame-cache";
-import type { StageScreen } from "@/lib/stage-media";
+import { screenAction, type StageScreen } from "@/lib/stage-media";
 
 /**
  * Shared, mutable link between the stage card and the arena. The card writes the
@@ -468,14 +468,14 @@ function playIcon(): THREE.CanvasTexture {
   return playTexture;
 }
 
-/** Instagram look (gradient + camera glyph): the badge, or a whole card when there is no cover image. */
+/** Instagram look (gradient + camera glyph): a whole card for an Instagram screen without a cover image. */
 const igCache = new Map<string, THREE.CanvasTexture>();
-function instagramTexture(kind: "badge" | "card", caption?: string | null): THREE.CanvasTexture {
-  const key = `${kind}:${caption ?? ""}`;
+function instagramCard(caption?: string | null): THREE.CanvasTexture {
+  const key = caption ?? "";
   const hit = igCache.get(key);
   if (hit) return hit;
-  const W = kind === "card" ? 576 : 128;
-  const H = kind === "card" ? 960 : 128;
+  const W = 576;
+  const H = 960;
   const c = document.createElement("canvas");
   c.width = W;
   c.height = H;
@@ -487,15 +487,11 @@ function instagramTexture(kind: "badge" | "card", caption?: string | null): THRE
   g.fillStyle = grad;
   // roundRect: Safari 16+ / Chrome 99+; plain rectangles on older browsers.
   const rr = (x: number, y: number, w: number, h: number, r: number) => (g.roundRect ? g.roundRect(x, y, w, h, r) : g.rect(x, y, w, h));
-  if (kind === "badge") {
-    g.beginPath();
-    rr(8, 8, W - 16, H - 16, 28);
-    g.fill();
-  } else g.fillRect(0, 0, W, H);
+  g.fillRect(0, 0, W, H);
   // camera glyph
-  const s = kind === "card" ? 180 : 72;
+  const s = 180;
   const x = W / 2 - s / 2;
-  const y = (kind === "card" ? H * 0.42 : H / 2) - s / 2;
+  const y = H * 0.42 - s / 2;
   g.strokeStyle = "#fff";
   g.lineWidth = s * 0.09;
   g.beginPath();
@@ -508,7 +504,7 @@ function instagramTexture(kind: "badge" | "card", caption?: string | null): THRE
   g.beginPath();
   g.arc(x + s * 0.76, y + s * 0.24, s * 0.06, 0, Math.PI * 2);
   g.fill();
-  if (kind === "card" && caption) {
+  if (caption) {
     g.font = "600 40px system-ui, sans-serif";
     g.textAlign = "center";
     g.fillText(caption.length > 24 ? caption.slice(0, 23) + "…" : caption, W / 2, H * 0.68);
@@ -549,8 +545,9 @@ type ScreenVideo = {
  * looping) while the screen faces the visitor, at most
  * STAGE_MEDIA.video.maxPlaying at once; otherwise, and under reduced motion,
  * Save-Data, a refused autoplay (iOS Low Power Mode) or a video that can't
- * load (CORS), its poster shows. A screen with an Instagram link gets the
- * Instagram badge and glows under the pointer (handle.mediaHover). Pictures
+ * load (CORS), its poster shows. A screen a click plays (screenAction: it
+ * opens the pop-up) gets a small ▶ badge in its corner (YouTube: a big ▶ in
+ * the middle) and glows under the pointer (handle.mediaHover). Pictures
  * load only once `active` (athlete and arena ready); a picture that fails to
  * load leaves the empty neon frame. Registers handle.mediaHit for taps.
  * `paused`: zone card / lightbox open — the videos stop.
@@ -582,7 +579,7 @@ function Screens({ handle, screens, active, paused }: { handle: MutableRefObject
     let off = false;
     // Instagram without a cover image: a drawn Instagram card (no network).
     const cards: Record<number, THREE.Texture> = {};
-    for (const s of screens) if (s.kind === "instagram" && !s.picture && s.slot < SC.count) cards[s.slot] = instagramTexture("card", s.title);
+    for (const s of screens) if (s.kind === "instagram" && !s.picture && s.slot < SC.count) cards[s.slot] = instagramCard(s.title);
     if (Object.keys(cards).length) {
       setTex((m) => ({ ...m, ...cards }));
       invalidate();
@@ -813,7 +810,8 @@ function Screens({ handle, screens, active, paused }: { handle: MutableRefObject
         const w = ar >= iw / ih ? iw : ih * ar;
         const hh = ar >= iw / ih ? iw / ar : ih;
         const a = screenAngle(s.slot);
-        const lit = hover === s.slot && !!s.ig;
+        const clickable = !!screenAction(s);
+        const lit = hover === s.slot && clickable;
         // Facing the stage centre (rotate half a turn more than the frame bars).
         const pos: [number, number, number] = [Math.sin(a) * (SC.radiusM - 0.02), cy, Math.cos(a) * (SC.radiusM - 0.02)];
         return (
@@ -834,10 +832,10 @@ function Screens({ handle, screens, active, paused }: { handle: MutableRefObject
                 <meshBasicMaterial map={playIcon()} transparent opacity={SC.playIconOpacity} fog={false} toneMapped={false} depthWrite={false} />
               </mesh>
             )}
-            {s.ig && (
+            {clickable && s.kind !== "youtube" && (
               <mesh position={[w / 2 - SC.playIconM * 0.45, hh / 2 - SC.playIconM * 0.45, 0.01]} userData={{ slot: s.slot }}>
                 <planeGeometry args={[SC.playIconM * 0.6, SC.playIconM * 0.6]} />
-                <meshBasicMaterial map={instagramTexture("badge")} transparent opacity={lit ? 1 : SC.playIconOpacity} fog={false} toneMapped={false} depthWrite={false} />
+                <meshBasicMaterial map={playIcon()} transparent opacity={lit ? 1 : SC.playIconOpacity} fog={false} toneMapped={false} depthWrite={false} />
               </mesh>
             )}
           </group>

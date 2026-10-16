@@ -520,7 +520,7 @@ export function StageMediaEditor({ athleteId, m, embedded = false, step }: { ath
                     {r.igState === "ok" && r.ig.trim() && (
                       <span className="inline-flex items-start gap-1 text-[#0f9d63]">
                         <Camera className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
-                        {r.igVerified ? m.sm_igOk : m.sm_igUnverified}
+                        {r.link.trim() ? m.sm_igUnused : r.igVerified ? m.sm_igOk : m.sm_igUnverified}
                       </span>
                     )}
                     {r.igState === "error" && r.igError && (
@@ -530,7 +530,6 @@ export function StageMediaEditor({ athleteId, m, embedded = false, step }: { ath
                       </span>
                     )}
                     {r.igState === "idle" && r.ig.trim() && <span className="text-faint">{m.sm_needsCheck}</span>}
-                    {!r.ig.trim() && r.link.trim() && r.state === "ok" && <span className="text-faint">{m.sm_igNone}</span>}
                   </div>
                   <label className="flex flex-col gap-1">
                     <span className="text-[11px] text-faint">{m.sm_titleLabel}</span>
